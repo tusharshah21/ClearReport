@@ -1,0 +1,43 @@
+{
+  "id": "r3",
+  "layout": "C",
+  "note": null,
+  "lab_name": "Mockwell Healthcare Laboratory",
+  "tests": [
+    {
+      "name": "Glucose Fasting (FBS)",
+      "value": 132,
+      "unit": "mg/dL",
+      "ref_low": 70,
+      "ref_high": 100,
+      "ref_text": "70 - 100",
+      "printed_flag": "H"
+    },
+    {
+      "name": "HbA1c (Glycosylated Haemoglobin)",
+      "value": 7.1,
+      "unit": "%",
+      "ref_low": 4,
+      "ref_high": 5.6,
+      "ref_text": "4.0 - 5.6",
+      "printed_flag": "H"
+    },
+    {
+      "name": "Estimated Average Glucose (eAG)",
+      "value": 157,
+      "unit": "mg/dL",
+      "ref_low": 68,
+      "ref_high": 114,
+      "ref_text": "68 - 114",
+      "printed_flag": "H"
+    }
+  ],
+  "pii": {
+    "patient_name": "Rohit Fakename",
+    "age": "45",
+    "sex": "Male",
+    "patient_id": "MW00FAKE5531",
+    "phone": "+91 90000 00003",
+    "doctor_name": "Dr. Example Verma"
+  }
+}

@@ -1,0 +1,106 @@
+{
+  "id": "r1",
+  "layout": "A",
+  "note": null,
+  "lab_name": "Testline Diagnostics Pvt. Ltd.",
+  "tests": [
+    {
+      "name": "Haemoglobin",
+      "value": 11.8,
+      "unit": "g/dL",
+      "ref_low": 13,
+      "ref_high": 17,
+      "ref_text": "13.0 - 17.0",
+      "printed_flag": "L"
+    },
+    {
+      "name": "Total RBC Count",
+      "value": 4.2,
+      "unit": "mill/cumm",
+      "ref_low": 4.5,
+      "ref_high": 5.5,
+      "ref_text": "4.5 - 5.5",
+      "printed_flag": "L"
+    },
+    {
+      "name": "PCV (Haematocrit)",
+      "value": 38.5,
+      "unit": "%",
+      "ref_low": 40,
+      "ref_high": 50,
+      "ref_text": "40 - 50",
+      "printed_flag": "L"
+    },
+    {
+      "name": "MCV",
+      "value": 91.6,
+      "unit": "fL",
+      "ref_low": 83,
+      "ref_high": 101,
+      "ref_text": "83 - 101",
+      "printed_flag": null
+    },
+    {
+      "name": "MCH",
+      "value": 28.1,
+      "unit": "pg",
+      "ref_low": 27,
+      "ref_high": 32,
+      "ref_text": "27 - 32",
+      "printed_flag": null
+    },
+    {
+      "name": "MCHC",
+      "value": 30.7,
+      "unit": "g/dL",
+      "ref_low": 31.5,
+      "ref_high": 34.5,
+      "ref_text": "31.5 - 34.5",
+      "printed_flag": "L"
+    },
+    {
+      "name": "Total WBC Count",
+      "value": 11200,
+      "unit": "/cumm",
+      "ref_low": 4000,
+      "ref_high": 10000,
+      "ref_text": "4000 - 10000",
+      "printed_flag": "H"
+    },
+    {
+      "name": "Neutrophils",
+      "value": 76,
+      "unit": "%",
+      "ref_low": 40,
+      "ref_high": 80,
+      "ref_text": "40 - 80",
+      "printed_flag": null
+    },
+    {
+      "name": "Lymphocytes",
+      "value": 18,
+      "unit": "%",
+      "ref_low": 20,
+      "ref_high": 40,
+      "ref_text": "20 - 40",
+      "printed_flag": "L"
+    },
+    {
+      "name": "Platelet Count",
+      "value": 2.6,
+      "unit": "lakhs/cumm",
+      "ref_low": 1.5,
+      "ref_high": 4.1,
+      "ref_text": "1.5 - 4.1",
+      "printed_flag": null
+    }
+  ],
+  "pii": {
+    "patient_name": "Mr. Aarav Testpatient",
+    "age": "34",
+    "sex": "Male",
+    "patient_id": "TL-FAKE-100231",
+    "phone": "+91 90000 00001",
+    "doctor_name": "Dr. Placeholder Sharma"
+  }
+}

@@ -1,0 +1,43 @@
+{
+  "id": "r4",
+  "layout": "A",
+  "note": "TSH range printed as 0.35-5.50 (common cutoff 0.4-4.0). 5.2 is not flagged by the lab.",
+  "lab_name": "Testline Diagnostics Pvt. Ltd.",
+  "tests": [
+    {
+      "name": "Total T3",
+      "value": 118,
+      "unit": "ng/dL",
+      "ref_low": 80,
+      "ref_high": 200,
+      "ref_text": "80 - 200",
+      "printed_flag": null
+    },
+    {
+      "name": "Total T4",
+      "value": 6.9,
+      "unit": "µg/dL",
+      "ref_low": 5.1,
+      "ref_high": 14.1,
+      "ref_text": "5.1 - 14.1",
+      "printed_flag": null
+    },
+    {
+      "name": "TSH (Ultrasensitive)",
+      "value": 5.2,
+      "unit": "µIU/mL",
+      "ref_low": 0.35,
+      "ref_high": 5.5,
+      "ref_text": "0.35 - 5.50",
+      "printed_flag": null
+    }
+  ],
+  "pii": {
+    "patient_name": "Ms. Kavya Dummydata",
+    "age": "29",
+    "sex": "Female",
+    "patient_id": "TL-FAKE-100877",
+    "phone": "+91 90000 00004",
+    "doctor_name": "Dr. Placeholder Sharma"
+  }
+}
