@@ -32,3 +32,6 @@ test-data/real-samples/
 
 # OCR engine and data, copied from node_modules by scripts/copy-ocr.mjs
 public/ocr/
+
+# Firebase CLI cache
+.firebase/

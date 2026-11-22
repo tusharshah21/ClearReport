@@ -1,5 +1,6 @@
 import { initializeApp } from 'firebase/app'
-import { initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check'
+import { getToken, initializeAppCheck, ReCaptchaEnterpriseProvider } from 'firebase/app-check'
+import { getAuth, signInAnonymously } from 'firebase/auth'
 import { getAI, GoogleAIBackend } from 'firebase/ai'
 
 // Reference each variable directly. Never alias `import.meta.env` as a whole object: in a
@@ -24,6 +25,16 @@ if (import.meta.env.DEV) {
   ;(self as unknown as { FIREBASE_APPCHECK_DEBUG_TOKEN: string | boolean }).FIREBASE_APPCHECK_DEBUG_TOKEN =
     import.meta.env.VITE_APPCHECK_DEBUG_TOKEN || true
 }
-initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(siteKey), isTokenAutoRefreshEnabled: true })
+const appCheck = initializeAppCheck(app, { provider: new ReCaptchaEnterpriseProvider(siteKey), isTokenAutoRefreshEnabled: true })
 
 export const ai = getAI(app, { backend: new GoogleAIBackend() })
+
+// Anonymous Auth on first load: no account, no personal data; the SDK keeps the same anonymous user in this browser.
+// Checked together with App Check at start. Failures are logged, never shown with any report content.
+export type Status = { auth: 'ok' | string; appCheck: 'ok' | string }
+export async function startSession(): Promise<Status> {
+  const [a, c] = await Promise.allSettled([signInAnonymously(getAuth(app)), getToken(appCheck)])
+  const s: Status = { auth: a.status === 'fulfilled' ? 'ok' : String(a.reason), appCheck: c.status === 'fulfilled' ? 'ok' : String(c.reason) }
+  console.info(`ClearReport start: anonymous auth ${s.auth}, App Check ${s.appCheck}`)
+  return s
+}

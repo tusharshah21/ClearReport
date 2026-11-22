@@ -1,0 +1,24 @@
+{
+  "parameters": {
+    "cloud_model": {
+      "defaultValue": { "value": "gemini-3.5-flash-lite" },
+      "description": "Gemini model for cloud extraction and the explanation",
+      "valueType": "STRING"
+    },
+    "prompt_version": {
+      "defaultValue": { "value": "v5" },
+      "description": "Explanation prompt version, shown under each explanation",
+      "valueType": "STRING"
+    },
+    "hindi_enabled": {
+      "defaultValue": { "value": "true" },
+      "description": "Offer the Hindi translation of the explanation",
+      "valueType": "BOOLEAN"
+    },
+    "path3_enabled": {
+      "defaultValue": { "value": "true" },
+      "description": "Show Path 3 (send the full report with consent)",
+      "valueType": "BOOLEAN"
+    }
+  }
+}
