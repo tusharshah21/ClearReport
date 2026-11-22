@@ -1,7 +1,7 @@
 // Renders synthetic Indian lab reports (HTML -> PNG via Playwright) plus ground-truth JSON.
 // All names, IDs and phone numbers are fake. Run: npm run gen
 import { chromium } from 'playwright'
-import { mkdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -196,5 +196,25 @@ for (const r of REPORTS) {
   }
   writeFileSync(join(OUT, 'ground-truth', `${r.id}.json`), JSON.stringify(truth, null, 2) + '\n', 'utf-8')
   console.log(`${r.id}: layout ${r.layout}, ${r.tests.length} tests`)
+}
+
+// "Phone photo" variants: the clean render, rotated, perspective-skewed, blurred, unevenly lit,
+// on a desk-coloured background, saved as JPEG q60. Same ground truth, new id.
+const PHOTOS = [
+  { id: 'r1', rotate: -4, tiltX: 8, tiltY: -6, blur: 0.8, light: '30% 20%' },
+  { id: 'r6', rotate: 6, tiltX: -7, tiltY: 5, blur: 0.9, light: '75% 70%' },
+]
+for (const p of PHOTOS) {
+  const png = readFileSync(join(OUT, 'reports', `${p.id}.png`)).toString('base64')
+  await page.setViewportSize({ width: 1100, height: 1200 })
+  await page.setContent(`<!doctype html><body style="margin:0;background:#6b5a48;width:1100px;height:1200px;display:grid;place-items:center;overflow:hidden">
+    <div style="perspective:1400px"><div style="position:relative;transform:rotateX(${p.tiltX}deg) rotateY(${p.tiltY}deg) rotate(${p.rotate}deg);box-shadow:0 18px 40px rgba(0,0,0,.55)">
+      <img src="data:image/png;base64,${png}" style="display:block;max-height:1000px;filter:blur(${p.blur}px) contrast(.92)">
+      <div style="position:absolute;inset:0;background:radial-gradient(circle at ${p.light},rgba(255,250,235,.25),rgba(0,0,0,.38) 75%)"></div>
+    </div></div></body>`)
+  await page.screenshot({ path: join(OUT, 'reports', `${p.id}-photo.jpg`), type: 'jpeg', quality: 60 })
+  const truth = JSON.parse(readFileSync(join(OUT, 'ground-truth', `${p.id}.json`), 'utf-8'))
+  writeFileSync(join(OUT, 'ground-truth', `${p.id}-photo.json`), JSON.stringify({ ...truth, id: `${p.id}-photo`, note: `Phone-photo version of ${p.id}. ${truth.note ?? ''}`.trim() }, null, 2) + '\n', 'utf-8')
+  console.log(`${p.id}-photo: rotate ${p.rotate}deg, tilt ${p.tiltX}/${p.tiltY}, blur ${p.blur}px, JPEG q60`)
 }
 await browser.close()

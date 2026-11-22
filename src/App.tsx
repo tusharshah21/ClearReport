@@ -4,7 +4,7 @@ import { extract, model, type Mode, type Run } from './extract'
 
 setLogLevel('debug') // SDK logs why on-device was or wasn't used
 
-const SYNTHETIC = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6']
+const SYNTHETIC = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r1-photo', 'r6-photo']
 type Img = { name: string; synthetic: boolean; mimeType: string; data: string; url: string }
 
 const toB64 = (b: Blob) =>
@@ -17,8 +17,8 @@ const toB64 = (b: Blob) =>
 const save = (run: Run) => import.meta.env.DEV && fetch('/__runs', { method: 'POST', body: JSON.stringify(run) })
 
 async function loadSynthetic(id: string): Promise<Img> {
-  const blob = await (await fetch(`/test-data/reports/${id}.png`)).blob()
-  return { name: id, synthetic: true, mimeType: 'image/png', data: await toB64(blob), url: URL.createObjectURL(blob) }
+  const blob = await (await fetch(`/test-data/reports/${id}.${id.endsWith('-photo') ? 'jpg' : 'png'}`)).blob()
+  return { name: id, synthetic: true, mimeType: blob.type, data: await toB64(blob), url: URL.createObjectURL(blob) }
 }
 
 // Chrome's Prompt API global, read directly only for the status panel.
@@ -91,7 +91,7 @@ export default function App() {
       <p>
         <button disabled={busy} onClick={initDevice}>1. Initialize on-device model</button>{' '}
         <button disabled={busy} onClick={checkStatus}>Check status</button>{' '}
-        <button disabled={busy} onClick={runAll}>Run all 6 synthetic reports (device + cloud)</button>
+        <button disabled={busy} onClick={runAll}>Run all 8 synthetic reports (device + cloud)</button>
       </p>
       <p>
         Synthetic:{' '}
