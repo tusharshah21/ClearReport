@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "gen": "tsx test-data/generate.ts",
     "eval": "tsx test-data/eval.ts",
-    "test": "tsx scripts/checks.ts"
+    "test": "tsx scripts/checks.ts",
+    "ranges": "tsx scripts/rangecheck.ts"
   },
   "dependencies": {
     "firebase": "^13.4.0",

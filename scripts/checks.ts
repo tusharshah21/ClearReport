@@ -4,6 +4,8 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { canonical } from '../src/canonical'
 import { ageBand, toPayload } from '../src/privacy'
 import { normalize } from '../src/units'
+import { checkAll, checkTest } from '../src/guidelines'
+import type { Test } from '../src/privacy'
 
 // Every ground-truth name resolves to a known key, and no report has two tests with the same key.
 for (const f of readdirSync('test-data/ground-truth')) {
@@ -111,5 +113,34 @@ const cases: [Parameters<typeof conv>, unknown[]][] = [
   [['Vitamin D', 'ng/mL', 21], ['unknown test', null, 21, null, null]],
 ]
 for (const [args, want] of cases) assert.deepEqual(conv(...args), want, `${args[0]} [${args[1]}]`)
+
+// Range checks. r2: fasting glucose 104 with a printed range of 70-110.
+const gtOf = (id: string) => JSON.parse(readFileSync(`test-data/ground-truth/${id}.json`, 'utf-8'))
+const checksOf = (id: string) => checkAll(toPayload(gtOf(id)).payload)
+const glu = checksOf('r2').find((c) => c.key === 'fasting_glucose')!
+assert.equal(glu.lab, 'normal')
+assert.equal(glu.outcome, 'lab says normal, guideline says borderline or high/low')
+assert.match(glu.message, /Your lab's range for fasting glucose is 70 - 110.*\(ADA\) treats 100-125 mg\/dL as the prediabetes range\. You may want to ask your doctor about this\./)
+assert.match(glu.range_note!, /\(70 - 110\) is different from .*\(below 100 mg\/dL\)/)
+// r4: TSH 0.35-5.50 has no guideline threshold in the table, so it must say so rather than invent one.
+const tsh = checksOf('r4').find((c) => c.key === 'tsh')!
+assert.equal(tsh.outcome, 'no guideline for this test')
+assert.equal(tsh.range_note, null)
+// Same cutoff written inclusively is not a difference; abnormal both ways agrees; mmol/L is converted first.
+const one = (t: Partial<Test>, who = { sex: 'Male' as const, age_band: '30-39' }) => checkTest({ name: '', value: null, unit: 'mg/dL', ref_low: null, ref_high: null, ref_text: null, printed_flag: null, ...t }, who)
+assert.equal(one({ name: 'HbA1c', unit: '%', value: 5.5, ref_low: 4, ref_high: 5.6 }).range_note, null)
+assert.equal(one({ name: 'HbA1c', unit: '%', value: 5.5, ref_low: 4, ref_high: 5.6 }).outcome, 'agrees')
+assert.equal(one({ name: 'LDL', value: 160, ref_high: 100 }).outcome, 'agrees')
+assert.equal(one({ name: 'Total Cholesterol', value: 195, ref_high: 180 }).outcome, 'lab says abnormal, guideline says normal')
+assert.equal(one({ name: 'FBS', unit: 'mmol/L', value: 7.2, ref_low: 3.9, ref_high: 6.1 }).guideline, 'diabetes (126 or higher mg/dL)')
+assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5, ref_low: 12, ref_high: 15 }, { sex: 'Female', age_band: '20-29' }).outcome, 'agrees')
+assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5, ref_low: 12, ref_high: 15 }, { sex: 'Male', age_band: '20-29' }).outcome, 'lab says normal, guideline says borderline or high/low')
+assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5 }, { sex: null as never, age_band: '20-29' }).outcome, 'no guideline for this test')
+assert.equal(one({ name: 'HDL', value: 45, ref_low: 40 }, { sex: 'Female', age_band: '40-49' }).outcome, 'lab says normal, guideline says borderline or high/low')
+assert.equal(one({ name: 'Platelets', unit: 'lakhs/L', value: 2 }).outcome, 'no guideline for this test')
+assert.equal(one({ name: 'FBS', unit: 'mg/L', value: 2 }).outcome, 'unit not recognized')
+// Wording rules: describe, never diagnose or blame.
+for (const f of readdirSync('test-data/ground-truth')) for (const c of checksOf(f.replace('.json', '')))
+  for (const s of [c.message, c.range_note ?? '']) assert.ok(!/you have|you should|wrong|diagnos|treat(ment)? with|take /i.test(s), `${f}: ${s}`)
 
 console.log('checks ok')
