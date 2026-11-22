@@ -170,8 +170,8 @@ assert.deepEqual(trustOf([row('Triglycerides', 145, { ref_high: 150, unit: 'mg/d
   ['verified', 'check', 'verified', 'check', 'image'])
 assert.deepEqual(trustOf([row('Triglycerides', 145, { ref_high: 160, unit: 'mg/dL' })], [page]).map((t) => [t.value, t.range, t.badge]), [['verified', 'mismatch', 'check']])
 // Units: missing (WM14 T3) or misread (WM15 RBC) units on a row that prints one => "check".
-assert.deepEqual(trustOf([row('Triglycerides', 145), row('Triglycerides', 145, { unit: 'mmol/L' }), row('Triglycerides', 145, { unit: 'MG/DL' })], [page]).map((t) => [t.unit, t.badge]),
-  [['mismatch', 'check'], ['mismatch', 'check'], ['verified', 'verified']])
+assert.deepEqual(trustOf([row('Triglycerides', 145), row('Triglycerides', 145, { unit: 'mmol/L' }), row('Triglycerides', 145, { unit: 'MG/DL' }), row('Triglycerides', 145, { unit: 'g/dL' })], [page]).map((t) => [t.unit, t.badge]),
+  [['mismatch', 'check'], ['mismatch', 'check'], ['verified', 'verified'], ['mismatch', 'check']]) // "g/dL" is not "mg/dL" (WM14 T4 read "µg/dL" as "g/dL")
 assert.deepEqual(trustOf([row('Triglycerides', 115)], [null]).map((t) => t.badge), ['image']) // photo: nothing to compare against
 
 console.log('checks ok')

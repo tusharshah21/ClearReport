@@ -12,17 +12,23 @@ const SYNTHETIC = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r1-photo', 'r6-photo']
 const SAMPLES = ['WM14', 'WM15']
 const KNOWN = [...SYNTHETIC, ...SAMPLES]
 type Page = { mimeType: string; data: string; url: string; words: Word[] | null }
-type Img = { name: string; synthetic: boolean; pages: Page[] }
+type Img = { name: string; synthetic: boolean; pages: Page[]; skipped: number[] } // skipped: 1-based PDF pages without results, not sent
 
 // Dev server only (vite.config.ts); the call is compiled out of production builds.
 const save = (run: Run) => import.meta.env.DEV && fetch('/__runs', { method: 'POST', body: JSON.stringify(run) })
 
-const toPages = async (f: Blob): Promise<Page[]> => Promise.all((isPdf(f) ? await pdfPages(f) : [{ png: f, words: null }]).map(async ({ png, words }) => ({ mimeType: png.type, data: await toB64(png), url: URL.createObjectURL(png), words })))
+// Same page dropping as Flow: pages without results are not sent.
+async function toPages(f: Blob): Promise<Pick<Img, 'pages' | 'skipped'>> {
+  const all = isPdf(f) ? await pdfPages(f) : [{ png: f, words: null, results: true }]
+  const kept = all.some((p) => p.results) ? all.filter((p) => p.results) : all
+  const pages = await Promise.all(kept.map(async ({ png, words }) => ({ mimeType: png.type, data: await toB64(png), url: URL.createObjectURL(png), words })))
+  return { pages, skipped: all.flatMap((p, i) => (kept.includes(p) ? [] : [i + 1])) }
+}
 async function loadSynthetic(id: string): Promise<Img> {
   const path = SAMPLES.includes(id) ? `/test-data/real-samples/${id}.pdf` : `/test-data/reports/${id}.${id.endsWith('-photo') ? 'jpg' : 'png'}`
   const res = await fetch(path)
   const blob = new Blob([await res.arrayBuffer()], { type: SAMPLES.includes(id) ? 'application/pdf' : res.headers.get('content-type') ?? '' })
-  return { name: id, synthetic: true, pages: await toPages(blob) }
+  return { name: id, synthetic: true, ...(await toPages(blob)) }
 }
 
 // Chrome's Prompt API global, read directly only for the status panel.
@@ -57,7 +63,8 @@ export default function Spike() {
 
   async function run(target: Img, mode: Mode) {
     if (mode === 'cloud' && !target.synthetic) return say('Cloud runs are blocked for non-synthetic images.')
-    if (target.pages.length > 1) return report(await extractDoc(target.name, mode, target.pages, (i) => say(`${target.name}/${mode}: page ${i + 1} of ${target.pages.length}`)), target)
+    if (target.skipped.length) say(`${target.name}: skipped page(s) ${target.skipped.join(', ')} (no results)`)
+    if (target.pages.length > 1) return report({ ...(await extractDoc(target.name, mode, target.pages, (d, n) => say(`${target.name}/${mode}: ${d} of ${n} pages read`))), skipped_pages: target.skipped }, target)
     let r = await extract(target.name, mode, 'single', target.pages[0])
     report(r, target)
     if (!r.ok) {
@@ -109,7 +116,7 @@ export default function Spike() {
         or upload:{' '}
         <input type="file" accept="image/png,image/jpeg,application/pdf" onChange={async (e) => {
           const f = e.target.files?.[0]
-          if (f) setImg({ name: f.name, synthetic: false, pages: await toPages(f) })
+          if (f) setImg({ name: f.name, synthetic: false, ...(await toPages(f)) })
         }} />
       </p>
       {img && (

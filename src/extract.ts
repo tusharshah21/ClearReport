@@ -85,42 +85,64 @@ export function model(mode: Mode, part: Part): GenerativeModel {
   return cache.get(key)!
 }
 
-export type Call = { part: Part; source: string | null; latency_ms: number; output_chars: number; ok: boolean; error?: string; raw?: string }
-export type Run = { report: string; mode: Mode; strategy: 'single' | 'split' | 'pages'; at: string; latency_ms: number; output_chars: number; ok: boolean; calls: Call[]; output: unknown; page_strategies?: string[]; trust?: unknown[] }
+export type Call = { part: Part; source: string | null; latency_ms: number; output_chars: number; ok: boolean; error?: string; raw?: string; retries?: number }
+export type Run = { report: string; mode: Mode; strategy: 'single' | 'split' | 'pages'; at: string; latency_ms: number; output_chars: number; ok: boolean; calls: Call[]; output: unknown; page_strategies?: (string | null)[]; skipped_pages?: number[]; trust?: unknown[] }
 type Image = { mimeType: string; data: string }
 type Out = { lab_name?: unknown; pii?: Record<string, unknown>; tests?: unknown[] }
 
+// Cloud pages run 3 at a time; on-device stays one at a time (one local session, and a device failure must never be hidden by parallel work).
+const CONCURRENCY: Record<Mode, number> = { cloud: 3, device: 1 }
+
 // One call per page (single, then split if that fails, always the same mode), merged in page order.
 // Header fields take the first non-null value across pages; test rows are concatenated.
-export async function extractDoc(report: string, mode: Mode, pages: Image[], onPage?: (i: number) => void): Promise<Run> {
-  const runs: Run[] = []
-  for (const [i, p] of pages.entries()) {
-    onPage?.(i)
-    let r = await extract(report, mode, 'single', p)
-    if (!r.ok) {
-      const failed = r
-      r = await extract(report, mode, 'split', p)
-      r = { ...r, calls: [...failed.calls, ...r.calls], latency_ms: failed.latency_ms + r.latency_ms, output_chars: failed.output_chars + r.output_chars } // keep why single failed
+// Pages without results are dropped by the caller before this (pdf.ts pagesWithResults). onProgress(done, total) after each page.
+export async function extractDoc(report: string, mode: Mode, pages: Image[], onProgress?: (done: number, total: number) => void): Promise<Run> {
+  const t0 = performance.now()
+  const runs: (Run | null)[] = pages.map(() => null)
+  let next = 0, done = 0, failed = false
+  const worker = async () => {
+    while (!failed && next < pages.length) {
+      const i = next++
+      let r = await extract(report, mode, 'single', pages[i])
+      if (!r.ok) {
+        const first = r
+        r = await extract(report, mode, 'split', pages[i])
+        r = { ...r, calls: [...first.calls, ...r.calls], latency_ms: first.latency_ms + r.latency_ms, output_chars: first.output_chars + r.output_chars } // keep why single failed
+      }
+      runs[i] = r
+      if (!r.ok) failed = true
+      onProgress?.(++done, pages.length)
     }
-    runs.push(r)
-    if (!r.ok) break
   }
-  if (pages.length === 1) return runs[0]
-  const ok = runs.length === pages.length && runs.every((r) => r.ok)
-  const outs = runs.map((r) => (r.output ?? {}) as Out)
+  await Promise.all(Array.from({ length: Math.min(CONCURRENCY[mode], pages.length) }, worker))
+  if (pages.length === 1) return runs[0]!
+  const ok = runs.every((r) => r?.ok)
+  const outs = runs.map((r) => (r?.output ?? {}) as Out)
   const pii: Record<string, unknown> = {}
   for (const o of outs) for (const [k, v] of Object.entries(o.pii ?? {})) pii[k] ??= v ?? undefined
   return {
     report, mode, strategy: 'pages', at: new Date().toISOString(), ok,
-    calls: runs.flatMap((r) => r.calls),
-    page_strategies: runs.map((r) => r.strategy),
-    latency_ms: runs.reduce((s, r) => s + r.latency_ms, 0),
-    output_chars: runs.reduce((s, r) => s + r.output_chars, 0),
+    calls: runs.flatMap((r) => r?.calls ?? []),
+    page_strategies: runs.map((r) => r?.strategy ?? null),
+    latency_ms: Math.round(performance.now() - t0), // wall-clock time; pages overlap, so this is less than the sum of call latencies
+    output_chars: runs.reduce((s, r) => s + (r?.output_chars ?? 0), 0),
     output: ok ? { lab_name: outs.map((o) => o.lab_name).find((v) => v) ?? null, pii: Object.fromEntries(Object.entries(pii).map(([k, v]) => [k, v ?? null])), tests: outs.flatMap((o, i) => (o.tests ?? []).map((t) => ({ ...(t as object), page: i }))) } : null,
   }
 }
 
-async function call(mode: Mode, part: Part, image: { mimeType: string; data: string }): Promise<{ c: Call; json?: Record<string, unknown> }> {
+// Busy or rate-limited cloud ("[500 ] This model is currently experiencing high demand", 503, 429): worth waiting and retrying
+// before the two-call split, which would only add load. Never retried on device (no cloud involved, and errors there are not load).
+const RETRYABLE = /\[(429|500|503)\b|high demand|overloaded|resource.?exhausted/i
+const RETRY_DELAYS_MS = [1500, 4000, 10000]
+async function call(mode: Mode, part: Part, image: Image): Promise<{ c: Call; json?: Record<string, unknown> }> {
+  for (let attempt = 0; ; attempt++) {
+    const r = await callOnce(mode, part, image)
+    if (r.c.ok || mode !== 'cloud' || attempt >= RETRY_DELAYS_MS.length || !RETRYABLE.test(r.c.error ?? '')) return { ...r, c: { ...r.c, retries: attempt } }
+    await new Promise((ok) => setTimeout(ok, RETRY_DELAYS_MS[attempt] * (0.75 + Math.random() / 2))) // jitter so parallel pages don't retry in lockstep
+  }
+}
+
+async function callOnce(mode: Mode, part: Part, image: Image): Promise<{ c: Call; json?: Record<string, unknown> }> {
   const t0 = performance.now()
   try {
     const res = await model(mode, part).generateContent([PROMPTS[part], { type: 'inlineData', inlineData: { mimeType: image.mimeType, data: image.data } }])
@@ -139,7 +161,7 @@ async function call(mode: Mode, part: Part, image: { mimeType: string; data: str
   }
 }
 
-export async function extract(report: string, mode: Mode, strategy: Run['strategy'], image: { mimeType: string; data: string }): Promise<Run> {
+export async function extract(report: string, mode: Mode, strategy: Run['strategy'], image: Image): Promise<Run> {
   // Split = two calls with the SAME mode (a device retry never touches the cloud) and the same SCHEMAS
   // objects that model() passes to responseConstraint (device) and responseJsonSchema (cloud).
   const parts: Part[] = strategy === 'single' ? ['full'] : ['header', 'tests']

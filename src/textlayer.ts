@@ -80,7 +80,24 @@ function rowNumbers(name: string, lines: Line[], nth = 0): { nums: number[]; tex
 // Units compared loosely: "µg/dL" = "ug/dL", "m²" = "m2", case ignored.
 const unitKey = (s: string) => s.toLowerCase().replace(/²/g, '2').replace(/µ|μ/g, 'u').replace(/[^a-z0-9%/.]/g, '')
 // Unit-like tokens in the row text: anything with a slash, or a bare %.
+const keys = (s: string) => s.split(/\s+/).map(unitKey).filter(Boolean).join(' ')
 const unitsIn = (s: string) => s.split(/\s+/).map(unitKey).filter((w) => /[a-z%]/.test(w) && (w.includes('/') || w === '%'))
+
+// A line that could be a result row: a number plus a unit, or a printed range like "8.80 - 10.60".
+// ("110085 -110085" in an address has no space after the dash and does not count.)
+const looksLikeResult = (text: string) => /\d/.test(text) && (unitsIn(text).length > 0 || /\d\s+-\s+\d/.test(text))
+
+// Cheap local check before any model call: which pages can hold results? A page counts as "no results" only if
+// it has a real text layer, no result-like line, and no large image that could be a scanned table.
+// A large image of the same size on EVERY page, in a document whose results are in its text, is a letterhead
+// (Dr Lal draws a 1240x1753 background on each page) and does not count.
+// images[i]: "WxH" of each image page i draws.
+export function pagesWithResults(pages: { words: Word[]; images: string[] }[]): boolean[] {
+  const big = (d: string) => d.split('x').reduce((a, b) => a * Number(b), 1) >= 1e6
+  const text = pages.map((p) => p.words.length >= 20 && toLines(p.words).some((l) => looksLikeResult(l.text)))
+  const template = new Set(text.some(Boolean) ? pages[0]?.images.filter((d) => big(d) && pages.every((p) => p.images.includes(d))) : [])
+  return pages.map((p, i) => p.words.length < 20 || text[i] || p.images.some((d) => big(d) && !template.has(d)))
+}
 
 export type ValueCheck = { value: Check; range: Check; unit: Check }
 export function verify(t: { name: string; value: number | null; unit?: string | null; ref_low: number | null; ref_high: number | null }, lines: Line[] | null, nth = 0): ValueCheck {
@@ -95,6 +112,7 @@ export function verify(t: { name: string; value: number | null; unit?: string | 
     value: t.value === null ? 'unverified' : has(nums, t.value) ? 'verified' : 'mismatch',
     range: !bounds.length ? 'unverified' : bounds.every((b) => has(nums, b)) ? 'verified' : 'mismatch',
     // A missing unit is a mismatch only when the PDF prints one on that row.
-    unit: t.unit ? (unitKey(text).includes(unitKey(t.unit)) ? 'verified' : 'mismatch') : printed.length ? 'mismatch' : 'unverified',
+    // Whole tokens only: "g/dL" must not verify against a printed "µg/dL".
+    unit: t.unit ? (` ${keys(text)} `.includes(` ${keys(t.unit)} `) ? 'verified' : 'mismatch') : printed.length ? 'mismatch' : 'unverified',
   }
 }

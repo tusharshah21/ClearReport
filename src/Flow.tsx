@@ -166,6 +166,7 @@ export default function Flow() {
   const [result, setResult] = useState<Result | null>(null)
   const [pageWords, setPageWords] = useState<(Word[] | null)[]>([]) // PDF text layer per page; null for photos. Local only.
   const [suggest, setSuggest] = useState<Box[][]>([]) // suggested mask boxes per page (Path 2)
+  const [skipped, setSkipped] = useState<number[]>([]) // 1-based PDF pages with no results, never sent
   const devicePrep = useRef<Promise<void> | null>(null)
   // The 18+ notice is shown once per browser. Only this acknowledgement is remembered, never a report or a consent.
   const [adult, setAdult] = useState(() => { try { return localStorage.getItem(ADULT_KEY) === '1' } catch { return false } })
@@ -177,7 +178,7 @@ export default function Flow() {
 
   function reset() {
     for (const i of [...(original ?? []), ...(toSend ?? [])]) URL.revokeObjectURL(i.url)
-    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setConsent(false); setError(''); setResult(null); setProgress(''); setPath(null); setStep('choose')
+    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setSkipped([]); setConsent(false); setError(''); setResult(null); setProgress(''); setPath(null); setStep('choose')
   }
 
   function choose(p: Path) {
@@ -196,7 +197,10 @@ export default function Flow() {
   async function onFile(f: File) {
     try {
       setProgress(isPdf(f) ? 'Reading PDF pages on this device...' : '')
-      const pdf = isPdf(f) ? await pdfPages(f) : null
+      const all = isPdf(f) ? await pdfPages(f) : null
+      // Pages with no results (checked locally, pdf.ts) are dropped here: not masked, not shown for consent, not sent.
+      const pdf = all && (all.some((p) => p.results) ? all.filter((p) => p.results) : all)
+      setSkipped(all ? all.flatMap((p, i) => (pdf!.includes(p) ? [] : [i + 1])) : [])
       const pages = await Promise.all((pdf ? pdf.map((p) => p.png) : [f]).map((b) => reencode(b)))
       setProgress('')
       const words = pdf ? pdf.map((p) => p.words) : [null]
@@ -244,7 +248,8 @@ export default function Flow() {
       if (mode === 'device') await devicePrep.current
       const images = await Promise.all(pages.map(async (p) => ({ mimeType: p.blob.type, data: await toB64(p.blob) })))
       // One page per call. Same mode for every retry: a failed private read never falls back to the cloud.
-      const r = await extractDoc('user', mode, images, (i) => pages.length > 1 && setProgress(`Reading page ${i + 1} of ${pages.length}...`))
+      if (pages.length > 1) setProgress(`Reading ${pages.length} pages...`)
+      const r = await extractDoc('user', mode, images, (done, total) => total > 1 && setProgress(`Read ${done} of ${total} pages...`))
       setProgress('')
       if (!r.ok) throw new Error(r.calls.find((c) => !c.ok)?.error ?? 'unknown error')
       const rows = ((r.output as { tests?: [] })?.tests ?? []) as Parameters<typeof trustOf>[0]
@@ -271,6 +276,11 @@ export default function Flow() {
       )}
       {adult && <p style={{ ...box, background: canDevice(avail) ? '#eef8ee' : '#f6f6f6' }} data-testid="availability">{AVAIL_TEXT[avail]}</p>}
       {adult && progress && <p>{progress}</p>}
+      {adult && skipped.length > 0 && step !== 'choose' && (
+        <p style={{ color: '#555' }} data-testid="skipped">
+          Page{skipped.length > 1 ? 's' : ''} {skipped.join(', ')} of your PDF {skipped.length > 1 ? 'have' : 'has'} no test results (checked on this device), so {skipped.length > 1 ? 'they are' : 'it is'} left out and never sent.
+        </p>
+      )}
 
       {adult && step === 'choose' && (
         <section>
