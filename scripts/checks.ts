@@ -1,7 +1,7 @@
 // Plain assert checks for the no-AI code paths. Run: npm test
 import assert from 'node:assert/strict'
 import { readdirSync, readFileSync } from 'node:fs'
-import { canonical } from '../src/canonical'
+import { canonical, displayName } from '../src/canonical'
 import { ageBand, toPayload } from '../src/privacy'
 import { normalize } from '../src/units'
 import { checkAll, checkTest } from '../src/guidelines'
@@ -134,7 +134,7 @@ assert.equal(one({ name: 'HbA1c', unit: '%', value: 5.5, ref_low: 4, ref_high: 5
 assert.equal(one({ name: 'HbA1c', unit: '%', value: 5.5, ref_low: 4, ref_high: 5.6 }).outcome, 'agrees')
 assert.equal(one({ name: 'LDL', value: 160, ref_high: 100 }).outcome, 'agrees')
 assert.equal(one({ name: 'Total Cholesterol', value: 195, ref_high: 180 }).outcome, 'lab says abnormal, guideline says normal')
-assert.equal(one({ name: 'FBS', unit: 'mmol/L', value: 7.2, ref_low: 3.9, ref_high: 6.1 }).guideline, 'diabetes (126 or higher mg/dL)')
+assert.equal(one({ name: 'FBS', unit: 'mmol/L', value: 7.2, ref_low: 3.9, ref_high: 6.1 }).guideline, 'diabetes (126 mg/dL or higher)')
 assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5, ref_low: 12, ref_high: 15 }, { sex: 'Female', age_band: '20-29' }).outcome, 'agrees')
 assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5, ref_low: 12, ref_high: 15 }, { sex: 'Male', age_band: '20-29' }).outcome, 'lab says normal, guideline says borderline or high/low')
 assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5 }, { sex: null as never, age_band: '20-29' }).outcome, 'no guideline for this test')
@@ -144,5 +144,10 @@ assert.equal(one({ name: 'FBS', unit: 'mg/L', value: 2 }).outcome, 'unit not rec
 // Wording rules: describe, never diagnose or blame.
 for (const f of readdirSync('test-data/ground-truth')) for (const c of checksOf(f.replace('.json', '')))
   for (const s of [c.message, c.range_note ?? '']) assert.ok(!/you have|you should|wrong|diagnos|treat(ment)? with|take /i.test(s), `${f}: ${s}`)
+
+// Payload names drop section headers and method lines the model copied in.
+assert.equal(displayName('Absolute Leucocyte Count\n(Calculated)\nBasophils'), 'Basophils')
+assert.equal(displayName('Creatinine\n(Modified Jaffe,Kinetic)'), 'Creatinine')
+assert.equal(displayName('Some New Test\n(Method)'), 'Some New Test (Method)')
 
 console.log('checks ok')

@@ -1,4 +1,5 @@
 // Plain code, no AI: turns a model's extraction into the payload that may leave the device.
+import { displayName } from './canonical'
 // Whitelist copy (only known non-identity fields survive), then a regex scan of every value.
 
 export type Test = { name: string; value: number | null; unit: string | null; ref_low: number | null; ref_high: number | null; ref_text: string | null; printed_flag: 'H' | 'L' | null }
@@ -58,7 +59,7 @@ export function toPayload(extracted: unknown): { payload: Payload; findings: Fin
     const at = `tests[${i}]`
     const flag = str(t.printed_flag)?.toUpperCase()
     return {
-      name: clean(str(t.name), `${at}.name`) ?? '',
+      name: clean(str(t.name) && displayName(str(t.name)!), `${at}.name`) ?? '',
       value: cleanNum(num(t.value), `${at}.value`),
       unit: clean(str(t.unit), `${at}.unit`),
       ref_low: num(t.ref_low),

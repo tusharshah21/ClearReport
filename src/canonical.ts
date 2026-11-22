@@ -64,6 +64,12 @@ const norm = (s: string) =>
 
 const LOOKUP = new Map(Object.entries(ALIASES).flatMap(([key, names]) => names.map((n) => [norm(n), key] as const)))
 
+// The printed test name without section headers or method lines the model copied in.
+export function displayName(name: string): string {
+  const lines = name.split(/\n/).map((l) => l.trim()).filter(Boolean)
+  return lines.find((l) => !canonical(l).startsWith('?')) ?? lines.join(' ')
+}
+
 export function canonical(name: string | null | undefined): string {
   if (!name) return ''
   // Models sometimes copy extra printed lines into the name: a section header before it

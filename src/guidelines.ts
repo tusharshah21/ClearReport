@@ -134,11 +134,12 @@ export function checkTest(t: Test, who: Pick<Payload, 'sex' | 'age_band'>): Chec
   const band = g.bands.find((b) => b.upTo === null || n.value! < b.upTo)!
   const unitNote = n.value === t.value ? '' : `, which is ${fmt(n.value)} ${g.unit}`
   const src = `a widely used guideline (${g.source})`
-  const gText = `${band.text} ${g.unit}`
+  const withUnit = (text: string) => text.replace(/^(below )?([\d.]+(?:-[\d.]+)?)( or higher)?$/, `$1$2 ${g.unit}$3`) // "126 mg/dL or higher"
+  const gText = withUnit(band.text)
   const lab: Check['lab'] = n.ref_low === null && n.ref_high === null ? 'no range' : n.ref_high !== null && n.value > n.ref_high ? 'high' : n.ref_low !== null && n.value < n.ref_low ? 'low' : 'normal'
   const labRange = lab === 'no range' ? null : rangeText(t)
   const range_note = labRange && (differs(n.ref_high, g.normal.high) || differs(n.ref_low, g.normal.low))
-    ? `Your lab's range for ${g.label} (${labRange}) is different from the range ${src} uses (${g.normal.text} ${g.unit}).`
+    ? `Your lab's range for ${g.label} (${labRange}) is different from the range ${src} uses (${withUnit(g.normal.text)}).`
     : null
   const out = { ...base, lab, guideline: `${band.name} (${gText})`, range_note, source: SOURCES[g.source] }
   const where = `${src} treats ${gText} as ${band.dir === 'normal' ? band.name : `the ${band.name} range`}`
