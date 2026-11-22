@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { guessCorners, straighten, type Quad } from './crop'
-import { DEVICE_CREATE_OPTIONS, extractDoc, model, toB64, type Mode } from './extract'
+import { extractDoc, extractRows, textModel, TEXT_CREATE_OPTIONS, toB64, type Run } from './extract'
 import { explain, type Explained } from './explain'
 import Explanation from './Explanation'
 import { checkAll, DISCLAIMER, type Check } from './guidelines'
@@ -10,6 +10,7 @@ import { toPayload, type Payload } from './privacy'
 import { config } from './remote'
 import Review, { type Result } from './Review'
 import type { Word } from './textlayer'
+import { rowsForModel } from './textrows'
 import { trustOf } from './trust'
 
 // Images (one per page; a PDF is rendered to one PNG per page) live only in memory (Blob + object URL) for the life of one report. Nothing is written
@@ -23,7 +24,7 @@ type Step = 'choose' | 'upload' | 'crop' | 'mask' | 'confirm-masked' | 'consent'
 
 const AVAIL_TEXT: Record<Avail, string> = {
   checking: 'Checking whether this device can read reports privately...',
-  available: 'Good news: this device can read your report privately. The on-device model is ready, so the photo never leaves your computer.',
+  available: 'Good news: this device can read your report privately. The on-device model is ready, so a PDF from your lab can be read without leaving your computer.',
   downloadable: 'This device can read your report privately, but Chrome first needs a one-time download of its built-in AI model (a few GB). It starts when you choose Private.',
   downloading: 'This device can read your report privately. Chrome is still downloading its built-in AI model; Private will wait for it to finish.',
   unavailable: 'This device cannot run Chrome\'s built-in AI model (Chrome reports it as unavailable, usually not enough memory or graphics power). You can still mask your details yourself.',
@@ -226,18 +227,19 @@ export default function Flow() {
   const [skipped, setSkipped] = useState<number[]>([]) // 1-based PDF pages with no results, never sent
   const [approved, setApproved] = useState<{ payload: Payload; checks: Check[]; confirmed: boolean[] } | null>(null)
   const [explained, setExplained] = useState<Explained | null>(null)
+  const [cropped, setCropped] = useState(false)
   const devicePrep = useRef<Promise<void> | null>(null)
   // The 18+ notice is shown once per browser. Only this acknowledgement is remembered, never a report or a consent.
   const [adult, setAdult] = useState(() => { try { return localStorage.getItem(ADULT_KEY) === '1' } catch { return false } })
 
   useEffect(() => {
     if (typeof LanguageModel === 'undefined') return setAvail('no-api')
-    LanguageModel.availability(DEVICE_CREATE_OPTIONS).then((a) => setAvail(a as Avail), () => setAvail('error'))
+    LanguageModel.availability(TEXT_CREATE_OPTIONS).then((a) => setAvail(a as Avail), () => setAvail('error'))
   }, [])
 
   function reset() {
     for (const i of [...(original ?? []), ...(toSend ?? [])]) URL.revokeObjectURL(i.url)
-    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setSkipped([]); setConsent(false); setError(''); setResult(null); setApproved(null); setExplained(null); setProgress(''); setPath(null); setStep('choose')
+    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setSkipped([]); setConsent(false); setError(''); setResult(null); setApproved(null); setExplained(null); setProgress(''); setPath(null); setCropped(false); setStep('choose')
   }
 
   function choose(p: Path) {
@@ -246,10 +248,11 @@ export default function Flow() {
     setError('')
     if (p === 1 && !devicePrep.current) {
       // Must start from this click: Chrome only allows the model download after a user gesture.
-      devicePrep.current = model('device', 'full').initializeDeviceModel((v) => setProgress(`Downloading on-device model: ${Math.round(v * 100)}%`))
+      devicePrep.current = textModel().initializeDeviceModel((v) => setProgress(`Downloading on-device model: ${Math.round(v * 100)}%`))
       devicePrep.current.then(() => setProgress(''), (e) => setProgress(`On-device model could not start: ${e}`))
     }
     if (!original) return setStep('upload')
+    if (isPhotoFile && !cropped) return setStep('crop')
     proceed(p, original)
   }
 
@@ -265,6 +268,12 @@ export default function Flow() {
       const words = pdf ? pdf.map((p) => p.words) : [null]
       setPageWords(words)
       setOriginal(pages)
+      if (path === 1 && !words.some((w) => w?.length)) {
+        // Path 1 reads a PDF's text on this device. Photos and scanned PDFs have no text, so the user picks Path 2 or 3.
+        setPath(null)
+        setError("Private reading works with the PDF your lab sent (it reads the PDF's text). This file has no text to read, so please choose how to continue below.")
+        return setStep('choose')
+      }
       if (!pdf) return setStep('crop') // photos: straighten first
       proceed(path!, pages, words)
     } catch (e) {
@@ -274,7 +283,7 @@ export default function Flow() {
   }
 
   function proceed(p: Path, pages: Img[], words = pageWords) {
-    if (p === 1) return run('device', pages)
+    if (p === 1) return runText(words)
     if (p === 2) { setMasks([]); return prepareMasks(pages, words) }
     setStep('consent')
   }
@@ -306,15 +315,29 @@ export default function Flow() {
     setStep('mask')
   }
 
-  async function run(mode: Mode, pages: Img[]) {
+  // Path 1: the PDF's text, identity removed locally (textrows.ts), read by the on-device model only.
+  function runText(words: (Word[] | null)[]) {
+    return read(async () => {
+      await devicePrep.current
+      const rows = rowsForModel(words.map((w) => w ?? []))
+      return extractRows('user', rows.batches, rows, (done, total) => setProgress(`Read ${done} of ${total} groups of rows on this device...`))
+    })
+  }
+
+  // Paths 2 and 3: one image per page to Gemini in the cloud.
+  function run(pages: Img[]) {
+    return read(async () => {
+      const images = await Promise.all(pages.map(async (p) => ({ mimeType: p.blob.type, data: await toB64(p.blob) })))
+      if (pages.length > 1) setProgress(`Reading ${pages.length} pages...`)
+      return extractDoc('user', 'cloud', images, (done, total) => total > 1 && setProgress(`Read ${done} of ${total} pages...`))
+    })
+  }
+
+  async function read(go: () => Promise<Run>) {
     setStep('extracting')
     setError('')
     try {
-      if (mode === 'device') await devicePrep.current
-      const images = await Promise.all(pages.map(async (p) => ({ mimeType: p.blob.type, data: await toB64(p.blob) })))
-      // One page per call. Same mode for every retry: a failed private read never falls back to the cloud.
-      if (pages.length > 1) setProgress(`Reading ${pages.length} pages...`)
-      const r = await extractDoc('user', mode, images, (done, total) => total > 1 && setProgress(`Read ${done} of ${total} pages...`))
+      const r = await go()
       setProgress('')
       if (!r.ok) throw new Error(r.calls.find((c) => !c.ok)?.error ?? 'unknown error')
       const rows = ((r.output as { tests?: [] })?.tests ?? []) as Parameters<typeof trustOf>[0]
@@ -334,6 +357,10 @@ export default function Flow() {
     setExplained(await explain(payload, checks)) // never throws: falls back to the template
     setStep('explained')
   }
+
+  const noText = !!original && !pageWords.some((w) => w?.length) // a photo or a scanned PDF: Path 1 cannot read it
+  const isPhotoFile = pageWords.length === 1 && pageWords[0] === null
+  const showPath1 = canDevice(avail) && !noText
 
   const box = { border: '1px solid #bbb', borderRadius: 6, padding: 12, margin: '10px 0' }
   return (
@@ -359,20 +386,22 @@ export default function Flow() {
       {adult && step === 'choose' && (
         <section>
           <h2>How should we read your report?</h2>
-          {canDevice(avail) && (
+          {error && <p style={{ background: '#fff4e0', padding: 8 }}>{error}</p>}
+          {showPath1 && (
             <div style={{ ...box, borderColor: '#2a7' }}>
-              <h3>1. Private <small>(recommended)</small></h3>
-              <p>Your photo is read by AI that runs inside Chrome on this device. It is never uploaded. If this device can't manage it, we'll tell you and you can pick another option; we never switch to the cloud on our own.</p>
+              <h3>1. Private, for the PDF from your lab <small>(recommended)</small></h3>
+              <p>Your PDF is read on this device. Only anonymous test results are sent for the explanation, and you approve them first.</p>
+              <p style={{ fontSize: 13, color: '#555' }}>Works with the PDF your lab sent, not photos. If this device can't manage it, we'll tell you; we never switch to the cloud on our own.</p>
               <button onClick={() => choose(1)}><b>Read it privately</b></button>
             </div>
           )}
-          <div style={{ ...box, borderColor: canDevice(avail) ? '#bbb' : '#2a7' }}>
-            <h3>{canDevice(avail) ? '2. ' : ''}Mask it yourself {!canDevice(avail) && <small>(recommended for this device)</small>}</h3>
+          <div style={{ ...box, borderColor: showPath1 ? '#bbb' : '#2a7' }}>
+            <h3>{showPath1 ? '2. ' : ''}Mask it yourself {!showPath1 && <small>(recommended{noText ? '' : ' for this device'})</small>}</h3>
             <p>You cover your name, ID, phone and doctor's name with black boxes. The boxes are burned into a new copy of the photo, which is then read by Google's Gemini AI in the cloud. You see the exact image before it is sent.</p>
             <button onClick={() => choose(2)}>Mask my details</button>
           </div>
           {config().path3 && <div style={box}>
-            <h3>{canDevice(avail) ? '3. ' : ''}Send the full report <small>(needs your consent)</small></h3>
+            <h3>{showPath1 ? '3. ' : ''}Send the full report <small>(needs your consent)</small></h3>
             <p>The whole photo, including your name, is sent to Google's Gemini AI to be read. Only choose this if you are comfortable with that.</p>
             <button onClick={() => choose(3)}>Review what this means</button>
           </div>}
@@ -402,6 +431,7 @@ export default function Flow() {
                 pages = [img]
                 setOriginal(pages)
               }
+              setCropped(true)
               proceed(path!, pages, [null])
             }}
           />
@@ -436,7 +466,7 @@ export default function Flow() {
           {toSend.map((p, i) => <img key={i} src={p.url} alt={`Masked page ${i + 1} that will be sent`} style={{ maxWidth: '100%', border: '2px solid #333', marginBottom: 8 }} />)}
           <p>
             <button onClick={() => { setMasks([]); setStep('mask') }}>Fix the boxes</button>{' '}
-            <button onClick={() => run('cloud', toSend)}><b>Send this image</b></button>
+            <button onClick={() => run(toSend)}><b>Send this image</b></button>
           </p>
         </section>
       )}
@@ -456,7 +486,7 @@ export default function Flow() {
           </p>
           <p>
             <button onClick={() => { setConsent(false); setMasks([]); setStep('mask') }}>Mask my details instead</button>{' '}
-            <button disabled={!consent} onClick={() => run('cloud', original)}><b>Send full report to Gemini</b></button>
+            <button disabled={!consent} onClick={() => run(original)}><b>Send full report to Gemini</b></button>
           </p>
         </section>
       )}

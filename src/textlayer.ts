@@ -85,7 +85,7 @@ const unitsIn = (s: string) => s.split(/\s+/).map(unitKey).filter((w) => /[a-z%]
 
 // A line that could be a result row: a number plus a unit, or a printed range like "8.80 - 10.60".
 // ("110085 -110085" in an address has no space after the dash and does not count.)
-const looksLikeResult = (text: string) => /\d/.test(text) && (unitsIn(text).length > 0 || /\d\s+-\s+\d/.test(text))
+export const looksLikeResult = (text: string) => /\d/.test(text) && (unitsIn(text).length > 0 || /\d\s+-\s+\d/.test(text))
 
 // Cheap local check before any model call: which pages can hold results? A page counts as "no results" only if
 // it has a real text layer, no result-like line, and no large image that could be a scanned table.

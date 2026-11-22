@@ -19,7 +19,7 @@ export function ageBand(age: unknown): string | null {
 }
 const sexOf = (s: unknown) => ({ m: 'Male', f: 'Female' } as const)[String(s ?? '').trim().toLowerCase()[0] as 'm' | 'f'] ?? null
 
-const PATTERNS: [string, RegExp][] = [
+export const PATTERNS: [string, RegExp][] = [
   ['email', /[\w.+-]+@[\w-]+\.[\w.-]+/g],
   ['aadhaar-like 12-digit number', /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g],
   ['phone number', /(?:\+?91[\s-]?)?\b[6-9]\d{4}[\s-]?\d{5}\b/g],

@@ -5,6 +5,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { getDocument, OPS } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { displayName } from '../src/canonical'
 import { suggestMasks } from '../src/masks'
+import { rowsForModel } from '../src/textrows'
 import { pageWords, pagesWithResults, toLines, verify, type Line, type Word } from '../src/textlayer'
 
 const best = (rs: string[]) => (rs.includes('verified') ? 'verified' : rs.includes('mismatch') ? 'mismatch' : 'unverified')
@@ -29,6 +30,16 @@ for (const id of ['WM14', 'WM15']) {
       if (value) assert.ok(covered(field).toLowerCase().includes(String(value).split(/\s+/).at(-1)!.toLowerCase().slice(0, 4)), `${id} page ${p} ${field}: covered "${covered(field)}", want "${value}"`)
   }
   const results = pagesWithResults(raw)
+  // Path 1 (text to the on-device model): no identity text may reach the model; every result row must.
+  const rows = rowsForModel(raw.map((r) => r.words))
+  const sent = rows.batches.map((b) => b.text).join('\n')
+  for (const v of [gt.pii.patient_name, gt.pii.patient_id, gt.pii.phone, gt.pii.doctor_name].filter(Boolean))
+    for (const w of String(v).split(/\s+/).filter((w) => /[a-z]/i.test(w) && w.replace(/\W/g, '').length >= 3)) assert.ok(!sent.toLowerCase().includes(w.toLowerCase().replace(/\W+$/, '')), `${id} Path 1 rows leak "${w}"`)
+  assert.equal(rows.age, gt.pii.age, `${id} Path 1 local age`)
+  assert.equal(rows.sex, gt.pii.sex, `${id} Path 1 local sex`)
+  const missingRows = gt.tests.filter((t: { name: string }) => !sent.toLowerCase().includes(displayName(t.name).toLowerCase().split(/[ ,(]/)[0]))
+  assert.deepEqual(missingRows.map((t: { name: string }) => t.name), [], `${id} Path 1 rows missing tests`)
+  console.log(`textcheck: ${id} Path 1 sends ${rows.batches.length} batches, ${sent.split('\n').length} rows, ${rows.dropped_lines} identity lines dropped`)
   const seen: Record<string, number> = {}
   const sugg = { total: 0, right: 0, wrong: [] as string[] }
   for (const t of gt.tests) {

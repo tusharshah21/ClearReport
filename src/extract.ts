@@ -87,7 +87,7 @@ export function model(mode: Mode, part: Part): GenerativeModel {
 }
 
 export type Call = { part: Part; source: string | null; latency_ms: number; output_chars: number; ok: boolean; error?: string; raw?: string; retries?: number }
-export type Run = { report: string; mode: Mode; strategy: 'single' | 'split' | 'pages'; at: string; latency_ms: number; output_chars: number; ok: boolean; calls: Call[]; output: unknown; page_strategies?: (string | null)[]; skipped_pages?: number[]; trust?: unknown[] }
+export type Run = { report: string; mode: Mode; strategy: 'single' | 'split' | 'pages' | 'rows'; at: string; latency_ms: number; output_chars: number; ok: boolean; calls: Call[]; output: unknown; page_strategies?: (string | null)[]; skipped_pages?: number[]; trust?: unknown[]; sent?: string[] }
 type Image = { mimeType: string; data: string }
 type Out = { lab_name?: unknown; pii?: Record<string, unknown>; tests?: unknown[] }
 
@@ -175,5 +175,48 @@ export async function extract(report: string, mode: Mode, strategy: Run['strateg
     latency_ms: calls.reduce((s, c) => s + c.latency_ms, 0),
     output_chars: calls.reduce((s, c) => s + c.output_chars, 0),
     output: ok ? Object.assign({}, ...results.map((r) => r.json)) : null,
+  }
+}
+
+// ---- Path 1: on-device model on TEXT rows (textrows.ts removes identity text before this is called) ----
+export const TEXT_CREATE_OPTIONS = {
+  expectedInputs: [{ type: 'text' as const, languages: ['en'] }],
+  expectedOutputs: [{ type: 'text' as const, languages: ['en'] }],
+}
+const ROWS_PROMPT = `Each line below is one row of text from a blood test report table; "|" separates columns.
+Extract every test result row as JSON. Skip headings, method names, notes and comments.
+${RULES.split('\nlegible:')[0]}
+legible: always true (this is printed text, not a photo).`
+let rowsModel: GenerativeModel | null = null
+export const textModel = () =>
+  (rowsModel ??= getGenerativeModel(ai, { mode: InferenceMode.ONLY_ON_DEVICE, onDeviceParams: { createOptions: TEXT_CREATE_OPTIONS, promptOptions: { responseConstraint: SCHEMAS.tests } } }))
+
+// One call per batch, one at a time, always ONLY_ON_DEVICE (never the cloud). Rows keep their page for the text-layer cross-check.
+export async function extractRows(report: string, batches: { page: number; text: string }[], local: { age: string | null; sex: string | null }, onProgress?: (done: number, total: number) => void): Promise<Run> {
+  const t0 = performance.now()
+  const calls: Call[] = [], tests: unknown[] = []
+  for (const [i, b] of batches.entries()) {
+    const t1 = performance.now()
+    let c: Call
+    try {
+      const res = await textModel().generateContent([ROWS_PROMPT, b.text])
+      const raw = res.response.text()
+      c = { part: 'tests', source: res.response.inferenceSource ?? null, latency_ms: Math.round(performance.now() - t1), output_chars: raw.length, ok: true, raw }
+      if (c.source !== InferenceSource.ON_DEVICE) c = { ...c, ok: false, error: `served by ${c.source}, expected on_device` }
+      else tests.push(...((JSON.parse(raw) as { tests?: object[] }).tests ?? []).map((t) => ({ ...t, page: b.page })))
+    } catch (e) {
+      c = { part: 'tests', source: null, latency_ms: Math.round(performance.now() - t1), output_chars: 0, ok: false, error: String(e) }
+    }
+    calls.push(c)
+    onProgress?.(i + 1, batches.length)
+    if (!c.ok) break // a failed private read is reported, never retried in the cloud
+  }
+  const ok = calls.length === batches.length && calls.every((c) => c.ok)
+  return {
+    report, mode: 'device', strategy: 'rows', at: new Date().toISOString(), ok, calls,
+    latency_ms: Math.round(performance.now() - t0),
+    output_chars: calls.reduce((s, c) => s + c.output_chars, 0),
+    // Identity never went to the model; age and sex were read locally and only become an age band and sex later.
+    output: ok ? { lab_name: null, pii: { patient_name: null, age: local.age, sex: local.sex, patient_id: null, phone: null, doctor_name: null }, tests } : null,
   }
 }

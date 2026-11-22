@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { setLogLevel } from 'firebase/app'
-import { extract, extractDoc, model, toB64, type Mode, type Run } from './extract'
+import { extract, extractDoc, extractRows, model, textModel, toB64, type Mode, type Run } from './extract'
 import { isPdf, pdfPages } from './pdf'
 import type { Word } from './textlayer'
+import { rowsForModel } from './textrows'
 import { trustOf } from './trust'
 
 setLogLevel('debug') // SDK logs why on-device was or wasn't used
@@ -53,6 +54,7 @@ export default function Spike() {
     say('initializeDeviceModel() called from click')
     try {
       await model('device', 'full').initializeDeviceModel((p) => say(`download progress: ${(p * 100).toFixed(1)}%`))
+      await textModel().initializeDeviceModel(() => {})
       say('initializeDeviceModel() resolved: on-device model ready')
     } catch (e) {
       say(`initializeDeviceModel() FAILED: ${e}`)
@@ -93,6 +95,21 @@ export default function Spike() {
     setBusy(false)
   }
 
+  // New Path 1: text rows (identity removed locally) to the on-device model. The sent text is saved with the run for the leak check.
+  async function runText() {
+    setBusy(true)
+    for (const id of SAMPLES) {
+      const s = await loadSynthetic(id)
+      setImg(s)
+      const rows = rowsForModel(s.pages.map((p) => p.words ?? []))
+      say(`${id}: ${rows.batches.length} batches, local age ${rows.age}, sex ${rows.sex}, ${rows.dropped_lines} identity lines dropped`)
+      const r = await extractRows(id, rows.batches, rows, (d, n) => say(`${id}/rows: ${d} of ${n} batches`))
+      report({ ...r, sent: rows.batches.map((b) => b.text) }, s)
+    }
+    say('Path 1 text runs: done.')
+    setBusy(false)
+  }
+
   async function runOne(mode: Mode) {
     if (!img) return
     setBusy(true)
@@ -107,7 +124,8 @@ export default function Spike() {
         <button disabled={busy} onClick={initDevice}>1. Initialize on-device model</button>{' '}
         <button disabled={busy} onClick={checkStatus}>Check status</button>{' '}
         <button disabled={busy} onClick={() => runAll()}>Run all 8 synthetic reports (device + cloud)</button>{' '}
-        <button disabled={busy} onClick={() => runAll(['device'])}>2. Run all 8 ONLY_ON_DEVICE</button>
+        <button disabled={busy} onClick={() => runAll(['device'])}>2. Run all 8 ONLY_ON_DEVICE</button>{' '}
+        <button disabled={busy} onClick={runText}>3. Run WM14 + WM15 as text ONLY_ON_DEVICE (Path 1)</button>
       </p>
       <p>
         Synthetic:{' '}
