@@ -1,4 +1,4 @@
-import { getGenerativeModel, InferenceMode, type GenerativeModel } from 'firebase/ai'
+import { getGenerativeModel, InferenceMode, InferenceSource, type GenerativeModel } from 'firebase/ai'
 import { ai } from './firebase'
 
 const num = { type: ['number', 'null'] }
@@ -82,6 +82,9 @@ async function call(mode: Mode, part: Part, image: { mimeType: string; data: str
     const res = await model(mode, part).generateContent([PROMPTS[part], { type: 'inlineData', inlineData: { mimeType: image.mimeType, data: image.data } }])
     const raw = res.response.text()
     const c: Call = { part, source: res.response.inferenceSource ?? null, latency_ms: Math.round(performance.now() - t0), output_chars: raw.length, ok: true, raw }
+    // ONLY_ON_DEVICE already makes the SDK throw instead of falling back; this catches it if that ever changes.
+    const expected = mode === 'device' ? InferenceSource.ON_DEVICE : InferenceSource.IN_CLOUD
+    if (c.source !== expected) return { c: { ...c, ok: false, error: `served by ${c.source}, expected ${expected}` } }
     try {
       return { c, json: JSON.parse(raw) }
     } catch (e) {
@@ -93,6 +96,8 @@ async function call(mode: Mode, part: Part, image: { mimeType: string; data: str
 }
 
 export async function extract(report: string, mode: Mode, strategy: Run['strategy'], image: { mimeType: string; data: string }): Promise<Run> {
+  // Split = two calls with the SAME mode (a device retry never touches the cloud) and the same SCHEMAS
+  // objects that model() passes to responseConstraint (device) and responseJsonSchema (cloud).
   const parts: Part[] = strategy === 'single' ? ['full'] : ['header', 'tests']
   const results = []
   for (const p of parts) results.push(await call(mode, p, image)) // sequential: one on-device session at a time
