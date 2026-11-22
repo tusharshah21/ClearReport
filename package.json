@@ -9,7 +9,8 @@
     "lint": "oxlint",
     "preview": "vite preview",
     "gen": "tsx test-data/generate.ts",
-    "eval": "tsx test-data/eval.ts"
+    "eval": "tsx test-data/eval.ts",
+    "test": "tsx scripts/checks.ts"
   },
   "dependencies": {
     "firebase": "^13.4.0",

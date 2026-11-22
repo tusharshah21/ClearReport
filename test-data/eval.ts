@@ -3,6 +3,7 @@
 import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { canonical } from '../src/canonical'
 
 const DIR = dirname(fileURLToPath(import.meta.url))
 type Test = { name: string; value: number | string | null; unit: string | null; ref_low: number | null; ref_high: number | null; ref_text: string | null; printed_flag: string | null }
@@ -14,18 +15,11 @@ const alnum = (s: unknown) => String(s ?? '').toLowerCase().replace(/µ|μ|mc(?=
 const words = (s: unknown) => new Set(String(s ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w && !['mr', 'mrs', 'ms', 'dr'].includes(w)))
 const numEq = (a: unknown, b: unknown) => (a === null || a === undefined ? b === null : b !== null && Math.abs(Number(String(a).replace(/,/g, '')) - Number(b)) < 1e-6)
 
-function matchTest(gt: Test, got: Test[]): Test | undefined {
-  const g = alnum(gt.name)
-  const exact = got.find((t) => alnum(t.name) === g) ?? got.find((t) => alnum(t.name) && (g.includes(alnum(t.name)) || alnum(t.name).includes(g)))
-  if (exact) return exact
-  const gw = words(gt.name)
-  let best: Test | undefined, bestScore = 0
-  for (const t of got) {
-    const tw = words(t.name)
-    const score = [...gw].filter((w) => tw.has(w)).length / new Set([...gw, ...tw]).size
-    if (score > bestScore) [best, bestScore] = [t, score]
-  }
-  return bestScore >= 0.5 ? best : undefined
+// Same canonical key (src/canonical.ts alias table), each extracted row used at most once.
+const matchTest = (gt: Test, got: Test[], used: Set<Test>): Test | undefined => {
+  const m = got.find((t) => !used.has(t) && canonical(t.name) === canonical(gt.name))
+  if (m) used.add(m)
+  return m
 }
 
 // A PII field counts as found only if the extracted value carries the same identity.
@@ -61,9 +55,10 @@ for (const f of readdirSync(join(DIR, 'ground-truth')).sort()) {
       continue
     }
     const got = run.output.tests ?? []
+    const used = new Set<Test>()
     let found = 0, value = 0, unit = 0, range = 0, flag = 0
     for (const t of gt.tests as Test[]) {
-      const m = matchTest(t, got)
+      const m = matchTest(t, got, used)
       if (!m) continue
       found++
       if (numEq(m.value, t.value)) value++
