@@ -163,9 +163,12 @@ assert.equal(displayName('Some New Test\n(Method)'), 'Some New Test (Method)')
 const w = (text: string, x0: number, y: number) => ({ text, x0, x1: x0 + 0.01 * text.length, y0: y, y1: y + 0.012 })
 const page = [w('Triglycerides', 0.1, 0.3), w('145.00', 0.45, 0.3), w('mg/dL', 0.6, 0.3), w('<150.00', 0.75, 0.3), w('HDL', 0.1, 0.33), w('Cholesterol', 0.14, 0.33), w('41.00', 0.45, 0.33)]
 const row = (name: string, value: number | null, extra = {}) => ({ name, value, ref_low: null, ref_high: null, ...extra })
-assert.deepEqual(trustOf([row('Triglycerides', 145, { ref_high: 150 }), row('Triglycerides', 115), row('HDL Cholesterol', 41), row('HDL Cholesterol', null, { legible: false }), row('Urea', 20)], [page]).map((t) => t.badge),
+assert.deepEqual(trustOf([row('Triglycerides', 145, { ref_high: 150, unit: 'mg/dL' }), row('Triglycerides', 115, { unit: 'mg/dL' }), row('HDL Cholesterol', 41), row('HDL Cholesterol', null, { legible: false }), row('Urea', 20)], [page]).map((t) => t.badge),
   ['verified', 'check', 'verified', 'check', 'image'])
-assert.deepEqual(trustOf([row('Triglycerides', 145, { ref_high: 160 })], [page]).map((t) => [t.value, t.range, t.badge]), [['verified', 'mismatch', 'check']])
+assert.deepEqual(trustOf([row('Triglycerides', 145, { ref_high: 160, unit: 'mg/dL' })], [page]).map((t) => [t.value, t.range, t.badge]), [['verified', 'mismatch', 'check']])
+// Units: missing (WM14 T3) or misread (WM15 RBC) units on a row that prints one => "check".
+assert.deepEqual(trustOf([row('Triglycerides', 145), row('Triglycerides', 145, { unit: 'mmol/L' }), row('Triglycerides', 145, { unit: 'MG/DL' })], [page]).map((t) => [t.unit, t.badge]),
+  [['mismatch', 'check'], ['mismatch', 'check'], ['verified', 'verified']])
 assert.deepEqual(trustOf([row('Triglycerides', 115)], [null]).map((t) => t.badge), ['image']) // photo: nothing to compare against
 
 console.log('checks ok')

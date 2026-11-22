@@ -4,14 +4,14 @@ import { displayName } from './canonical'
 import { toLines, verify, type Check, type Word } from './textlayer'
 
 export type Badge = 'verified' | 'check' | 'image'
-export type Trust = { value: Check; range: Check; legible: boolean; badge: Badge; why: string }
+export type Trust = { value: Check; range: Check; unit: Check; legible: boolean; badge: Badge; why: string }
 export const BADGE_TEXT: Record<Badge, string> = {
   verified: 'Verified against your PDF',
   check: 'Please check this value',
   image: 'Read from image',
 }
 
-type Row = { name: string; value: number | null; ref_low: number | null; ref_high: number | null; legible?: boolean; page?: number }
+type Row = { name: string; value: number | null; unit?: string | null; ref_low: number | null; ref_high: number | null; legible?: boolean; page?: number }
 
 // pages[i] = text-layer words of page i, or null for a photo or a scanned PDF page.
 export function trustOf(rows: Row[], pages: (Word[] | null)[]): Trust[] {
@@ -27,6 +27,7 @@ export function trustOf(rows: Row[], pages: (Word[] | null)[]): Trust[] {
     if (!legible) return t('check', 'Part of this value or its range could not be read clearly on the report.')
     if (c.value === 'mismatch') return t('check', 'The number read from the image does not match the number in your PDF.')
     if (c.range === 'mismatch') return t('check', 'The reference range read from the image does not match your PDF.')
+    if (c.unit === 'mismatch') return t('check', 'The unit read from the image does not match your PDF.')
     if (c.value === 'verified') return t('verified', '')
     return t('image', '')
   })
