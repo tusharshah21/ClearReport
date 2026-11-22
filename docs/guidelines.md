@@ -35,10 +35,12 @@ ClearReport explains your report. It does not give medical advice. Always discus
 
 Status: **pending review by a doctor.** Plain code (`farOutOfRange` in `src/guidelines.ts`), not AI, and not taken from any guideline: it is a product rule.
 
-A value counts as far outside the lab's printed range when it is more than 50% beyond either limit:
+It applies only to **hemoglobin, platelets and WBC** (total white cell count). A value counts as far outside the lab's printed range when it is:
 
-- above the upper limit by more than half of that limit (value > 1.5 × upper limit), or
-- below the lower limit by more than half of that limit (value < 0.5 × lower limit).
+- below half of the lab's lower limit (value < 0.5 × lower limit), or
+- above twice the lab's upper limit (value > 2 × upper limit).
+
+Lipids, glucose and HbA1c never trigger the banner: their guideline messages already describe how a result compares with the guideline bands.
 
 Only values with a printed limit count, and only values the user has confirmed (rows still waiting for "Please check" are left out). If any value qualifies, the explanation screen shows one static banner: "Some results are well outside your lab's range. Please share this report with your doctor soon." It never names a condition or says how urgent.
 

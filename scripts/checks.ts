@@ -157,8 +157,12 @@ assert.equal(one({ name: 'FBS', unit: 'mg/L', value: 2 }).outcome, 'unit not rec
 // Wording rules: describe, never diagnose or blame.
 for (const f of readdirSync('test-data/ground-truth')) for (const c of checksOf(f.replace('.json', '')))
   for (const s of [c.message, c.range_note ?? '']) assert.ok(!BANNED.test(s), `${f}: ${s}`)
-// Far-out-of-range banner rule: more than 50% beyond either printed limit.
-assert.deepEqual([[16, 4, 10], [15, 4, 10], [1.9, 4, 10], [2, 4, 10], [300, null, 200], [5, null, null], [null, 4, 10]].map(([value, ref_low, ref_high]) => farOutOfRange({ value, ref_low, ref_high })), [true, false, true, false, false, false, false])
+// Far-out-of-range banner rule: hemoglobin, platelets, WBC only; below 0.5x lower or above 2x upper limit.
+assert.deepEqual(
+  ([['Hemoglobin', 6.4, 13, 17], ['Hemoglobin', 6.5, 13, 17], ['Platelet Count', 9, 1.5, 4.1], ['Platelet Count', 8.2, 1.5, 4.1], ['Total WBC Count', 1900, 4000, 10000], ['TLC', 2000, 4000, 10000],
+    ['LDL Cholesterol', 300, null, 100], ['Glucose Fasting', 250, 70, 100], ['HbA1c', 12, 4, 5.6], ['Hemoglobin', null, 13, 17], ['Hemoglobin', 40, null, null]] as [string, number | null, number | null, number | null][])
+    .map(([name, value, ref_low, ref_high]) => farOutOfRange({ name, value, ref_low, ref_high })),
+  [true, false, true, false, true, false, false, false, false, false, false])
 
 // Payload names drop section headers and method lines the model copied in.
 assert.equal(displayName('Absolute Leucocyte Count\n(Calculated)\nBasophils'), 'Basophils')

@@ -34,10 +34,13 @@ const AVAIL_TEXT: Record<Avail, string> = {
 const ADULT_KEY = 'clearreport.adult-notice-seen'
 const canDevice = (a: Avail) => a === 'available' || a === 'downloadable' || a === 'downloading'
 
+// Long side of every image sent to the cloud (was 2000; smaller uploads, see test-data/results.md).
+const MAX_SIDE = 1600
+
 // Decode (applying EXIF rotation), draw, re-encode as JPEG. The re-encode drops all EXIF/GPS metadata.
 async function reencode(src: Blob, boxes: Box[] = []): Promise<Img> {
   const bmp = await createImageBitmap(src, { imageOrientation: 'from-image' })
-  const scale = Math.min(1, 2000 / Math.max(bmp.width, bmp.height))
+  const scale = Math.min(1, MAX_SIDE / Math.max(bmp.width, bmp.height))
   const c = document.createElement('canvas')
   c.width = Math.round(bmp.width * scale)
   c.height = Math.round(bmp.height * scale)
@@ -327,6 +330,8 @@ export default function Flow() {
   // Paths 2 and 3: one image per page to Gemini in the cloud.
   function run(pages: Img[]) {
     return read(async () => {
+      // Size only, never content: pixel size, type and bytes of each image sent.
+      pages.forEach((p, i) => console.info(`ClearReport sending image ${i + 1}/${pages.length}: ${p.w}x${p.h} ${p.blob.type} ${Math.round(p.blob.size / 1024)} KB`))
       const images = await Promise.all(pages.map(async (p) => ({ mimeType: p.blob.type, data: await toB64(p.blob) })))
       if (pages.length > 1) setProgress(`Reading ${pages.length} pages...`)
       return extractDoc('user', 'cloud', images, (done, total) => total > 1 && setProgress(`Read ${done} of ${total} pages...`))

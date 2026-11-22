@@ -5,6 +5,7 @@
 // I am sure of): WBC, platelets, TSH. See NOT_INCLUDED.
 //
 // Wording follows the Gemini API terms (no medical advice): describe, never diagnose.
+import { canonical } from './canonical'
 import { normalize } from './units'
 import type { Payload, Test } from './privacy'
 
@@ -171,7 +172,10 @@ export const checkAll = (p: Payload) => p.tests.map((t) => checkTest(t, p))
 export const BANNED = /you have|you should|wrong|diagnos|treat(ment)? with|take |diabetes range|prediabetes range/i
 
 // Far-out-of-range rule (product rule, pending review by a doctor; see docs/guidelines.md):
-// a value more than 50% beyond either printed limit.
+// hemoglobin, platelets and WBC only, below half the lab's lower limit or above twice its upper limit.
+// Lipids, glucose and HbA1c are covered by their guideline messages instead.
 export const FAR_OUT_BANNER = 'Some results are well outside your lab\'s range. Please share this report with your doctor soon.'
-export const farOutOfRange = (t: Pick<Test, 'value' | 'ref_low' | 'ref_high'>) =>
-  t.value !== null && ((t.ref_high !== null && t.ref_high > 0 && t.value > t.ref_high * 1.5) || (t.ref_low !== null && t.ref_low > 0 && t.value < t.ref_low * 0.5))
+const FAR_OUT_TESTS = new Set(['hemoglobin', 'platelets', 'wbc'])
+export const farOutOfRange = (t: Pick<Test, 'name' | 'value' | 'ref_low' | 'ref_high'>) =>
+  FAR_OUT_TESTS.has(canonical(t.name)) && t.value !== null &&
+  ((t.ref_high !== null && t.ref_high > 0 && t.value > t.ref_high * 2) || (t.ref_low !== null && t.ref_low > 0 && t.value < t.ref_low * 0.5))
