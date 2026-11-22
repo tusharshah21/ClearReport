@@ -109,3 +109,40 @@ export async function explain(p: Payload, checks: Check[]): Promise<Explained> {
   }
   return { en, hi, path, hindi_note, prompt_version: cfg.promptVersion, model: cfg.model }
 }
+
+// ---- "What does this test mean?": only the test's name is sent, never a value or anything personal. ----
+// PREFER_ON_DEVICE: Chrome's built-in model answers when it is available, otherwise Gemini in the cloud.
+export type Meaning = { text: string; source: 'on_device' | 'in_cloud' | 'template' }
+const MEANING_SCHEMA = { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] }
+const MEANING = (name: string) => `In 2-3 short, plain sentences (reading age about 12), say what the blood test "${name}" measures and why doctors commonly order it.
+General information only. Do not mention any result, number, disease the reader has, medicine or advice.
+Never write "you have", "you should", "take", "treat", "treatment with", "diagnose", "diagnosis" or "wrong". Return JSON {"answer": "..."}.`
+let meaningModel: ReturnType<typeof getGenerativeModel> | null = null
+const meanings = new Map<string, Promise<Meaning>>() // in memory only, per test name, for this page load
+
+export function meaning(name: string): Promise<Meaning> {
+  if (!meanings.has(name)) meanings.set(name, askMeaning(name))
+  return meanings.get(name)!
+}
+async function askMeaning(name: string): Promise<Meaning> {
+  meaningModel ??= getGenerativeModel(ai, {
+    mode: InferenceMode.PREFER_ON_DEVICE,
+    onDeviceParams: { createOptions: { expectedInputs: [{ type: 'text', languages: ['en'] }], expectedOutputs: [{ type: 'text', languages: ['en'] }] }, promptOptions: { responseConstraint: MEANING_SCHEMA } },
+    inCloudParams: { model: config().model, generationConfig: { responseMimeType: 'application/json', responseJsonSchema: MEANING_SCHEMA, temperature: 0.2 } },
+  })
+  for (const prompt of [MEANING(name), MEANING(name) + STRICTER]) {
+    try {
+      const res = await meaningModel.generateContent(prompt)
+      const text = String((JSON.parse(res.response.text()) as { answer?: unknown }).answer ?? '').trim()
+      const source = res.response.inferenceSource === InferenceSource.ON_DEVICE ? 'on_device' : 'in_cloud'
+      console.info(`ClearReport meaning: answered ${source}`)
+      // No numbers except those in the test's own name ("HbA1c", "T3"): a general answer has no results or doses.
+      const strayNumber = (text.match(/\d+(?:\.\d+)?/g) ?? []).some((n) => !name.includes(n))
+      if (text && !BANNED.test(text) && !strayNumber) return { text, source }
+    } catch (e) {
+      console.info(`ClearReport meaning failed: ${String(e)}`)
+    }
+  }
+  meanings.delete(name) // let a later tap try again
+  return { text: 'We could not write a careful answer this time. Your doctor or lab can explain what this test measures.', source: 'template' }
+}
