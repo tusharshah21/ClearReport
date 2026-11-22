@@ -40,7 +40,9 @@ async function reencode(src: Blob, boxes: Box[] = []): Promise<Img> {
   bmp.close()
   g.fillStyle = '#000'
   for (const b of boxes) g.fillRect(b.x * c.width, b.y * c.height, b.w * c.width, b.h * c.height) // burned into pixels
-  const blob = await new Promise<Blob>((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error('encode failed'))), 'image/jpeg', 0.92))
+  // PDF pages stay PNG: JPEG artifacts around watermarks made the model mark far more values unreadable (WM14: 20 rows vs 1).
+  const type = src.type === 'image/png' ? 'image/png' : 'image/jpeg'
+  const blob = await new Promise<Blob>((ok, fail) => c.toBlob((b) => (b ? ok(b) : fail(new Error('encode failed'))), type, 0.92))
   return { blob, url: URL.createObjectURL(blob), w: c.width, h: c.height }
 }
 
@@ -171,7 +173,7 @@ export default function Flow() {
     setError('')
     try {
       if (mode === 'device') await devicePrep.current
-      const images = await Promise.all(pages.map(async (p) => ({ mimeType: 'image/jpeg', data: await toB64(p.blob) })))
+      const images = await Promise.all(pages.map(async (p) => ({ mimeType: p.blob.type, data: await toB64(p.blob) })))
       // One page per call. Same mode for every retry: a failed private read never falls back to the cloud.
       const r = await extractDoc('user', mode, images, (i) => pages.length > 1 && setProgress(`Reading page ${i + 1} of ${pages.length}...`))
       setProgress('')
