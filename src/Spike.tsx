@@ -82,12 +82,12 @@ export default function Spike() {
     if (KNOWN.includes(r.report)) save(r) // never write uploaded (possibly real) reports to disk
   }
 
-  async function runAll() {
+  async function runAll(modes: Mode[] = ['device', 'cloud']) {
     setBusy(true)
     for (const id of SYNTHETIC) {
       const s = await loadSynthetic(id)
       setImg(s)
-      for (const mode of ['device', 'cloud'] as Mode[]) await run(s, mode)
+      for (const mode of modes) await run(s, mode)
     }
     say('Run all: done. Now run `npm run eval`.')
     setBusy(false)
@@ -106,7 +106,8 @@ export default function Spike() {
       <p>
         <button disabled={busy} onClick={initDevice}>1. Initialize on-device model</button>{' '}
         <button disabled={busy} onClick={checkStatus}>Check status</button>{' '}
-        <button disabled={busy} onClick={runAll}>Run all 8 synthetic reports (device + cloud)</button>
+        <button disabled={busy} onClick={() => runAll()}>Run all 8 synthetic reports (device + cloud)</button>{' '}
+        <button disabled={busy} onClick={() => runAll(['device'])}>2. Run all 8 ONLY_ON_DEVICE</button>
       </p>
       <p>
         Synthetic:{' '}
