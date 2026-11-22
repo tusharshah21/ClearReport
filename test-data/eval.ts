@@ -11,7 +11,7 @@ type Pii = Record<string, string | null>
 type Out = { lab_name?: string | null; pii?: Pii; tests?: Test[] }
 type Run = { report: string; mode: string; strategy: string; page_strategies?: string[]; ok: boolean; latency_ms: number; output_chars: number; calls: { source: string | null; error?: string }[]; output: Out | null }
 
-const alnum = (s: unknown) => String(s ?? '').toLowerCase().replace(/µ|μ|mc(?=[gi])/g, 'u').replace(/[^a-z0-9]/g, '')
+const alnum = (s: unknown) => String(s ?? '').toLowerCase().replace(/²/g, '2').replace(/µ|μ|mc(?=[gi])/g, 'u').replace(/[^a-z0-9]/g, '')
 const words = (s: unknown) => new Set(String(s ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w && !['mr', 'mrs', 'ms', 'dr'].includes(w)))
 const numEq = (a: unknown, b: unknown) => (a === null || a === undefined ? b === null : b !== null && Math.abs(Number(String(a).replace(/,/g, '')) - Number(b)) < 1e-6)
 

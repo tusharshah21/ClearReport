@@ -94,7 +94,11 @@ export async function extractDoc(report: string, mode: Mode, pages: Image[], onP
   for (const [i, p] of pages.entries()) {
     onPage?.(i)
     let r = await extract(report, mode, 'single', p)
-    if (!r.ok) r = await extract(report, mode, 'split', p)
+    if (!r.ok) {
+      const failed = r
+      r = await extract(report, mode, 'split', p)
+      r = { ...r, calls: [...failed.calls, ...r.calls], latency_ms: failed.latency_ms + r.latency_ms, output_chars: failed.output_chars + r.output_chars } // keep why single failed
+    }
     runs.push(r)
     if (!r.ok) break
   }

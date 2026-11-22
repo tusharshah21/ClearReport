@@ -66,6 +66,11 @@ const LOOKUP = new Map(Object.entries(ALIASES).flatMap(([key, names]) => names.m
 
 export function canonical(name: string | null | undefined): string {
   if (!name) return ''
+  // Models sometimes copy extra printed lines into the name: a section header before it
+  // ("Absolute Leucocyte Count\n(Calculated)\nBasophils") or the method after it ("Creatinine\n(Modified Jaffe)").
+  // Use the first line that is a known test; section headers are not in the alias table.
+  const lines = name.split(/\n/).map((l) => l.trim()).filter(Boolean)
+  if (lines.length > 1) return lines.map(canonical).find((k) => !k.startsWith('?')) ?? `?${norm(name)}`
   const inside = [...name.matchAll(/\(([^)]*)\)/g)].map((m) => m[1])
   const outside = name.replace(/\([^)]*\)/g, ' ')
   for (const c of [name, outside, ...inside]) {

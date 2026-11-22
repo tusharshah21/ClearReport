@@ -1,20 +1,26 @@
 # Extraction spike results
 
-Generated 2026-11-22T08:58:01.904Z by `npm run eval` from `test-data/runs/`. Accuracy columns are over all ground-truth tests (a test not found counts as wrong). PII missed = identity fields not extracted correctly; each one is a field the stripping step would not know to remove.
+Generated 2026-11-22T09:48:33.512Z by `npm run eval` from `test-data/runs/`. Accuracy columns are over all ground-truth tests (a test not found counts as wrong). PII missed = identity fields not extracted correctly; each one is a field the stripping step would not know to remove.
 
 ## Summary
 
 | mode / set | successful runs | tests found | value | unit | range | flag | PII missed | median latency ms | median out chars |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | cloud clean | 6/6 | 100% | 100% | 100% | 100% | 100% | 0/36 | 4484 | 2168 |
+| cloud pdf | 2/2 | 100% | 95% | 98% | 95% | 100% | 0/7 | 65300 | 12972 |
 | cloud photo | 2/2 | 100% | 100% | 100% | 100% | 100% | 1/12 | 7817 | 4511 |
 | device clean | 0/0 | n/a | n/a | n/a | n/a | n/a | 0/0 | 0 | 0 |
+| device pdf | 0/0 | n/a | n/a | n/a | n/a | n/a | 0/0 | 0 | 0 |
 | device photo | 0/0 | n/a | n/a | n/a | n/a | n/a | 0/0 | 0 | 0 |
 
 ## Per report
 
 | report | layout | mode | attempts | served by | tests found | value | unit | range | flag | PII missed | latency ms | out chars |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| WM14 | LPL-pdf | device | no run |  |  |  |  |  |  |  |  |  |
+| WM14 | LPL-pdf | cloud | pages(single,single,single,single,single):ok | in_cloud | 33/33 | 97% | 97% | 91% | 100% | none | 47840 | 7775 |
+| WM15 | LPL-pdf | device | no run |  |  |  |  |  |  |  |  |  |
+| WM15 | LPL-pdf | cloud | pages(single,single,single,single,single,single):ok | in_cloud | 55/55 | 95% | 98% | 98% | 100% | none | 65300 | 12972 |
 | r1-photo | A | device | no run |  |  |  |  |  |  |  |  |  |
 | r1-photo | A | cloud | single:ok | in_cloud | 10/10 | 100% | 100% | 100% | 100% | none | 7817 | 2168 |
 | r1 | A | device | no run |  |  |  |  |  |  |  |  |  |

@@ -21,6 +21,7 @@ const same: [string, string][] = [
   ['Glucose Fasting (FBS)', 'Fasting Blood Sugar'], ['Total WBC Count', 'Total Leucocyte Count (TLC)'],
   ['LDL Cholesterol', 'LDL-C'], ['Total Cholesterol / HDL Ratio', 'TC/HDL Ratio'],
 ]
+same.push(['Differential Leucocyte Count (DLC)\n(VCS Technology)\nLymphocytes', 'Lymphocytes'], ['Absolute Leucocyte Count\n(Calculated)\nBasophils', 'Basophils'], ['Creatinine\n(Compensated Jaffes reaction, IDMS traceable)', 'Creatinine'])
 for (const [a, b] of same) assert.equal(canonical(a), canonical(b), `${a} vs ${b}`)
 // Near-misses that must NOT match (the old substring matcher got the first one wrong).
 const different: [string, string][] = [['LDL Cholesterol', 'VLDL Cholesterol'], ['HDL Cholesterol', 'LDL Cholesterol'], ['MCH', 'MCHC'], ['Total T3', 'Total T4']]
