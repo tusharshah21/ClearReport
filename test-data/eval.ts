@@ -39,7 +39,7 @@ const totals: Record<string, { n: number; found: number; value: number; unit: nu
 for (const f of readdirSync(join(DIR, 'ground-truth')).sort()) {
   const gt = JSON.parse(readFileSync(join(DIR, 'ground-truth', f), 'utf-8'))
   for (const mode of ['device', 'cloud']) {
-    const T = (totals[mode] ??= { n: 0, found: 0, value: 0, unit: 0, range: 0, flag: 0, piiMissed: 0, piiN: 0, lat: [], chars: [], runs: 0, failed: 0 })
+    const T = (totals[`${mode} ${gt.id.endsWith('-photo') ? 'photo' : 'clean'}`] ??= { n: 0, found: 0, value: 0, unit: 0, range: 0, flag: 0, piiMissed: 0, piiN: 0, lat: [], chars: [], runs: 0, failed: 0 })
     const runs = ['single', 'split'].map((s) => join(DIR, 'runs', `${gt.id}.${mode}.${s}.json`)).filter(existsSync).map((p) => JSON.parse(readFileSync(p, 'utf-8')) as Run)
     if (!runs.length) { rows.push([gt.id, gt.layout, mode, 'no run', '', '', '', '', '', '', '', '', '']); continue }
     const tried = runs.map((r) => `${r.strategy}:${r.ok ? 'ok' : 'fail'}`).join(' ')
@@ -79,14 +79,14 @@ for (const f of readdirSync(join(DIR, 'ground-truth')).sort()) {
 const head = ['report', 'layout', 'mode', 'attempts', 'served by', 'tests found', 'value', 'unit', 'range', 'flag', 'PII missed', 'latency ms', 'out chars']
 const md = (h: string[], rs: string[][]) => [h, h.map(() => '---'), ...rs].map((r) => `| ${r.join(' | ')} |`).join('\n')
 const med = (a: number[]) => (a.length ? [...a].sort((x, y) => x - y)[Math.floor(a.length / 2)] : 0)
-const sumRows = Object.entries(totals).map(([m, t]) => [m, `${t.runs - t.failed}/${t.runs}`, pct(t.found, t.n), pct(t.value, t.n), pct(t.unit, t.n), pct(t.range, t.n), pct(t.flag, t.n), `${t.piiMissed}/${t.piiN}`, String(med(t.lat)), String(med(t.chars))])
+const sumRows = Object.entries(totals).sort(([a], [b]) => a.localeCompare(b)).map(([m, t]) => [m, `${t.runs - t.failed}/${t.runs}`, pct(t.found, t.n), pct(t.value, t.n), pct(t.unit, t.n), pct(t.range, t.n), pct(t.flag, t.n), `${t.piiMissed}/${t.piiN}`, String(med(t.lat)), String(med(t.chars))])
 const out = `# Extraction spike results
 
 Generated ${new Date().toISOString()} by \`npm run eval\` from \`test-data/runs/\`. Accuracy columns are over all ground-truth tests (a test not found counts as wrong). PII missed = identity fields not extracted correctly; each one is a field the stripping step would not know to remove.
 
 ## Summary
 
-${md(['mode', 'successful runs', 'tests found', 'value', 'unit', 'range', 'flag', 'PII missed', 'median latency ms', 'median out chars'], sumRows)}
+${md(['mode / set', 'successful runs', 'tests found', 'value', 'unit', 'range', 'flag', 'PII missed', 'median latency ms', 'median out chars'], sumRows)}
 
 ## Per report
 
