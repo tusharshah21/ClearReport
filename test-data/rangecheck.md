@@ -17,7 +17,7 @@
 | Bilirubin Total | 0.49 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Bilirubin Total yet, so only your lab's range applies. |  |
 | Bilirubin Direct | 0.07 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Bilirubin Direct yet, so only your lab's range applies. |  |
 | Bilirubin Indirect | 0.42 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Bilirubin Indirect yet, so only your lab's range applies. |  |
-| Protein Total | 7.34 g/dL | - | - | no guideline for this test | No guideline threshold is included for Protein Total yet, so only your lab's range applies. |  |
+| Total Protein | 7.34 g/dL | - | - | no guideline for this test | No guideline threshold is included for Total Protein yet, so only your lab's range applies. |  |
 | Albumin | 4.2 g/dL | - | - | no guideline for this test | No guideline threshold is included for Albumin yet, so only your lab's range applies. |  |
 | A : G Ratio | 1.34 | - | - | no guideline for this test | No guideline threshold is included for A : G Ratio yet, so only your lab's range applies. |  |
 | Globulin | 3.14 gm/dL | - | - | no guideline for this test | No guideline threshold is included for Globulin yet, so only your lab's range applies. |  |
@@ -34,7 +34,7 @@
 | Non-HDL Cholesterol | 154 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Non-HDL Cholesterol yet, so only your lab's range applies. |  |
 | Glucose Fasting | 89 mg/dL | normal | normal (below 100 mg/dL) | agrees | Your fasting glucose result (89 mg/dL) is inside your lab's range (70.00 - 100.00), and a widely used guideline (ADA) treats below 100 mg/dL as normal. |  |
 | T3, Total | 0.59 | - | - | no guideline for this test | No guideline threshold is included for T3, Total yet, so only your lab's range applies. |  |
-| T4, Total | 4.9 ug/dL | - | - | no guideline for this test | No guideline threshold is included for T4, Total yet, so only your lab's range applies. |  |
+| T4, Total | 4.9 g/dL | - | - | no guideline for this test | No guideline threshold is included for T4, Total yet, so only your lab's range applies. |  |
 | TSH | 25.17 µIU/mL | - | - | no guideline for this test | No guideline threshold is included for TSH yet, so only your lab's range applies. |  |
 
 ## WM15 (Male, 20-29)
@@ -43,21 +43,22 @@
 |---|---|---|---|---|---|---|
 | Creatinine | 0.72 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Creatinine yet, so only your lab's range applies. |  |
 | GFR Estimated | 130 mL/min/1.73m² | - | - | no guideline for this test | No guideline threshold is included for GFR Estimated yet, so only your lab's range applies. |  |
+| GFR Category | null | - | - | no guideline for this test | No guideline threshold is included for GFR Category yet, so only your lab's range applies. |  |
 | Urea | 14 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Urea yet, so only your lab's range applies. |  |
 | Urea Nitrogen Blood | 6.54 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Urea Nitrogen Blood yet, so only your lab's range applies. |  |
-| BUN/Creatinine Ratio | null | - | - | no guideline for this test | No guideline threshold is included for BUN/Creatinine Ratio yet, so only your lab's range applies. |  |
+| BUN/Creatinine Ratio | 9 | - | - | no guideline for this test | No guideline threshold is included for BUN/Creatinine Ratio yet, so only your lab's range applies. |  |
 | Uric Acid | null mg/dL | - | - | no guideline for this test | No guideline threshold is included for Uric Acid yet, so only your lab's range applies. |  |
 | AST (SGOT) | null U/L | - | - | no guideline for this test | No guideline threshold is included for AST (SGOT) yet, so only your lab's range applies. |  |
-| ALT (SGPT) | 11 U/L | - | - | no guideline for this test | No guideline threshold is included for ALT (SGPT) yet, so only your lab's range applies. |  |
-| GGTP | 72 U/L | - | - | no guideline for this test | No guideline threshold is included for GGTP yet, so only your lab's range applies. |  |
-| Alkaline Phosphatase (ALP) | 31 U/L | - | - | no guideline for this test | No guideline threshold is included for Alkaline Phosphatase (ALP) yet, so only your lab's range applies. |  |
-| Bilirubin Total | 1 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Bilirubin Total yet, so only your lab's range applies. |  |
-| Bilirubin Direct | 0.2 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Bilirubin Direct yet, so only your lab's range applies. |  |
+| ALT (SGPT) | null U/L | - | - | no guideline for this test | No guideline threshold is included for ALT (SGPT) yet, so only your lab's range applies. |  |
+| GGTP | null U/L | - | - | no guideline for this test | No guideline threshold is included for GGTP yet, so only your lab's range applies. |  |
+| Alkaline Phosphatase (ALP) | null U/L | - | - | no guideline for this test | No guideline threshold is included for Alkaline Phosphatase (ALP) yet, so only your lab's range applies. |  |
+| Bilirubin Total | null mg/dL | - | - | no guideline for this test | No guideline threshold is included for Bilirubin Total yet, so only your lab's range applies. |  |
+| Bilirubin Direct | null mg/dL | - | - | no guideline for this test | No guideline threshold is included for Bilirubin Direct yet, so only your lab's range applies. |  |
 | Bilirubin Indirect | null mg/dL | - | - | no guideline for this test | No guideline threshold is included for Bilirubin Indirect yet, so only your lab's range applies. |  |
 | Total Protein | 3.5 g/dL | - | - | no guideline for this test | No guideline threshold is included for Total Protein yet, so only your lab's range applies. |  |
 | Albumin | 3.1 g/dL | - | - | no guideline for this test | No guideline threshold is included for Albumin yet, so only your lab's range applies. |  |
 | A : G Ratio | 7.75 | - | - | no guideline for this test | No guideline threshold is included for A : G Ratio yet, so only your lab's range applies. |  |
-| Globulin(Calculated) | 0.4 gm/dL | - | - | no guideline for this test | No guideline threshold is included for Globulin(Calculated) yet, so only your lab's range applies. |  |
+| Globulin | 0.4 gm/dL | - | - | no guideline for this test | No guideline threshold is included for Globulin yet, so only your lab's range applies. |  |
 | Calcium, Total | 10 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Calcium, Total yet, so only your lab's range applies. |  |
 | Phosphorus | 3.4 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Phosphorus yet, so only your lab's range applies. |  |
 | Sodium | 137 mEq/L | - | - | no guideline for this test | No guideline threshold is included for Sodium yet, so only your lab's range applies. |  |
@@ -71,8 +72,8 @@
 | Non-HDL Cholesterol | 110 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Non-HDL Cholesterol yet, so only your lab's range applies. |  |
 | Glucose Fasting | 100 mg/dL | normal | prediabetes criterion (100-125 mg/dL) | lab says normal, guideline says borderline or high/low | Your lab's range for fasting glucose is 70 - 100, and your result is 100 mg/dL. A widely used guideline (ADA) uses 100-125 mg/dL as one of the criteria doctors consider for prediabetes, usually confirmed with a repeat test. You may want to ask your doctor about this. |  |
 | T3, Total | null ng/mL | - | - | no guideline for this test | No guideline threshold is included for T3, Total yet, so only your lab's range applies. |  |
-| T4, Total | null µg/dL | - | - | no guideline for this test | No guideline threshold is included for T4, Total yet, so only your lab's range applies. |  |
-| TSH | null µIU/mL | - | - | no guideline for this test | No guideline threshold is included for TSH yet, so only your lab's range applies. |  |
+| T4, Total | null μg/dL | - | - | no guideline for this test | No guideline threshold is included for T4, Total yet, so only your lab's range applies. |  |
+| TSH | null μIU/mL | - | - | no guideline for this test | No guideline threshold is included for TSH yet, so only your lab's range applies. |  |
 | HbA1c | 5 % | normal | normal (below 5.7 %) | agrees | Your HbA1c result (5 %) is inside your lab's range (4.00 - 5.60), and a widely used guideline (ADA) treats below 5.7 % as normal. |  |
 | Estimated average glucose (eAG) | 97 mg/dL | - | - | no guideline for this test | No guideline threshold is included for Estimated average glucose (eAG) yet, so only your lab's range applies. |  |
 | Hemoglobin | 14 g/dL | normal | not anaemic (13.0 g/dL or higher) | agrees | Your hemoglobin result (14 g/dL) is inside your lab's range (13.00 - 17.00), and a widely used guideline (WHO) treats 13.0 g/dL or higher as not anaemic. Different ranges apply during pregnancy. |  |
