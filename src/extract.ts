@@ -44,6 +44,18 @@ export const PROMPTS: Record<Part, string> = {
 }
 
 export type Mode = 'device' | 'cloud'
+// Shared with the availability check so it asks Chrome about exactly what extraction needs.
+export const DEVICE_CREATE_OPTIONS = {
+  expectedInputs: [{ type: 'text' as const, languages: ['en'] }, { type: 'image' as const }],
+  expectedOutputs: [{ type: 'text' as const, languages: ['en'] }],
+}
+export const toB64 = (b: Blob) =>
+  new Promise<string>((ok, fail) => {
+    const r = new FileReader()
+    r.onload = () => ok((r.result as string).split(',')[1])
+    r.onerror = () => fail(r.error)
+    r.readAsDataURL(b)
+  })
 const cache = new Map<string, GenerativeModel>()
 export function model(mode: Mode, part: Part): GenerativeModel {
   const key = `${mode}:${part}`
@@ -54,10 +66,7 @@ export function model(mode: Mode, part: Part): GenerativeModel {
         ? getGenerativeModel(ai, {
             mode: InferenceMode.ONLY_ON_DEVICE,
             onDeviceParams: {
-              createOptions: {
-                expectedInputs: [{ type: 'text', languages: ['en'] }, { type: 'image' }],
-                expectedOutputs: [{ type: 'text', languages: ['en'] }],
-              },
+              createOptions: DEVICE_CREATE_OPTIONS,
               promptOptions: { responseConstraint: SCHEMAS[part] },
             },
           })

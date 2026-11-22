@@ -1,18 +1,12 @@
 import { useState } from 'react'
 import { setLogLevel } from 'firebase/app'
-import { extract, model, type Mode, type Run } from './extract'
+import { extract, model, toB64, type Mode, type Run } from './extract'
 
 setLogLevel('debug') // SDK logs why on-device was or wasn't used
 
 const SYNTHETIC = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r1-photo', 'r6-photo']
 type Img = { name: string; synthetic: boolean; mimeType: string; data: string; url: string }
 
-const toB64 = (b: Blob) =>
-  new Promise<string>((ok) => {
-    const r = new FileReader()
-    r.onload = () => ok((r.result as string).split(',')[1])
-    r.readAsDataURL(b)
-  })
 // Dev server only (vite.config.ts); the call is compiled out of production builds.
 const save = (run: Run) => import.meta.env.DEV && fetch('/__runs', { method: 'POST', body: JSON.stringify(run) })
 
@@ -24,7 +18,7 @@ async function loadSynthetic(id: string): Promise<Img> {
 // Chrome's Prompt API global, read directly only for the status panel.
 declare const LanguageModel: { availability(o: object): Promise<string> } | undefined
 
-export default function App() {
+export default function Spike() {
   const [log, setLog] = useState<string[]>([])
   const [img, setImg] = useState<Img | null>(null)
   const [runs, setRuns] = useState<Run[]>([])
