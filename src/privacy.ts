@@ -22,8 +22,9 @@ const PATTERNS: [string, RegExp][] = [
   ['email', /[\w.+-]+@[\w-]+\.[\w.-]+/g],
   ['aadhaar-like 12-digit number', /\b\d{4}[\s-]?\d{4}[\s-]?\d{4}\b/g],
   ['phone number', /(?:\+?91[\s-]?)?\b[6-9]\d{4}[\s-]?\d{5}\b/g],
-  // 8+ chars of letters/digits/-/ that contain both a letter and a digit, e.g. SPL/FAKE/2024/0772, MW00FAKE6020
-  ['long ID string', /\b(?=[A-Z0-9/-]*[A-Z])(?=[A-Z0-9/-]*\d)[A-Z0-9][A-Z0-9/-]{7,}/gi],
+  // 8+ chars of CAPITALS/digits/-/ with both a letter and a digit, e.g. SPL/FAKE/2024/0772, MW00FAKE6020.
+  // Case-sensitive on purpose: lowercase units like mL/min/1.73m2 and thou/mm3 must survive.
+  ['long ID string', /\b(?=[A-Z0-9/-]*[A-Z])(?=[A-Z0-9/-]*\d)[A-Z0-9][A-Z0-9/-]{7,}/g],
 ]
 
 export function toPayload(extracted: unknown): { payload: Payload; findings: Finding[] } {

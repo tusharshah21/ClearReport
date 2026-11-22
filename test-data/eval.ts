@@ -9,7 +9,7 @@ const DIR = dirname(fileURLToPath(import.meta.url))
 type Test = { name: string; value: number | string | null; unit: string | null; ref_low: number | null; ref_high: number | null; ref_text: string | null; printed_flag: string | null }
 type Pii = Record<string, string | null>
 type Out = { lab_name?: string | null; pii?: Pii; tests?: Test[] }
-type Run = { report: string; mode: string; strategy: string; ok: boolean; latency_ms: number; output_chars: number; calls: { source: string | null; error?: string }[]; output: Out | null }
+type Run = { report: string; mode: string; strategy: string; page_strategies?: string[]; ok: boolean; latency_ms: number; output_chars: number; calls: { source: string | null; error?: string }[]; output: Out | null }
 
 const alnum = (s: unknown) => String(s ?? '').toLowerCase().replace(/µ|μ|mc(?=[gi])/g, 'u').replace(/[^a-z0-9]/g, '')
 const words = (s: unknown) => new Set(String(s ?? '').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w && !['mr', 'mrs', 'ms', 'dr'].includes(w)))
@@ -39,19 +39,20 @@ const totals: Record<string, { n: number; found: number; value: number; unit: nu
 for (const f of readdirSync(join(DIR, 'ground-truth')).sort()) {
   const gt = JSON.parse(readFileSync(join(DIR, 'ground-truth', f), 'utf-8'))
   for (const mode of ['device', 'cloud']) {
-    const T = (totals[`${mode} ${gt.id.endsWith('-photo') ? 'photo' : 'clean'}`] ??= { n: 0, found: 0, value: 0, unit: 0, range: 0, flag: 0, piiMissed: 0, piiN: 0, lat: [], chars: [], runs: 0, failed: 0 })
-    const runs = ['single', 'split'].map((s) => join(DIR, 'runs', `${gt.id}.${mode}.${s}.json`)).filter(existsSync).map((p) => JSON.parse(readFileSync(p, 'utf-8')) as Run)
+    const T = (totals[`${mode} ${gt.id.startsWith('WM') ? 'pdf' : gt.id.endsWith('-photo') ? 'photo' : 'clean'}`] ??= { n: 0, found: 0, value: 0, unit: 0, range: 0, flag: 0, piiMissed: 0, piiN: 0, lat: [], chars: [], runs: 0, failed: 0 })
+    const runs = ['single', 'split', 'pages'].map((s) => join(DIR, 'runs', `${gt.id}.${mode}.${s}.json`)).filter(existsSync).map((p) => JSON.parse(readFileSync(p, 'utf-8')) as Run)
     if (!runs.length) { rows.push([gt.id, gt.layout, mode, 'no run', '', '', '', '', '', '', '', '', '']); continue }
-    const tried = runs.map((r) => `${r.strategy}:${r.ok ? 'ok' : 'fail'}`).join(' ')
+    const tried = runs.map((r) => `${r.strategy}${r.page_strategies ? `(${r.page_strategies.join(',')})` : ''}:${r.ok ? 'ok' : 'fail'}`).join(' ')
     const run = runs.find((r) => r.ok) ?? runs[0]
     const served = [...new Set(run.calls.map((c) => c.source ?? 'none'))].join('+')
     T.runs++
     T.n += gt.tests.length
-    T.piiN += 6
+    const piiFields = Object.entries(gt.pii as Pii).filter(([, v]) => v) // null = not printed on this report
+    T.piiN += piiFields.length
     if (!run.ok || !run.output) {
       T.failed++
-      T.piiMissed += 6
-      rows.push([gt.id, gt.layout, mode, tried, served, `0/${gt.tests.length}`, '-', '-', '-', '-', 'all 6 (no output)', String(run.latency_ms), String(run.output_chars)])
+      T.piiMissed += piiFields.length
+      rows.push([gt.id, gt.layout, mode, tried, served, `0/${gt.tests.length}`, '-', '-', '-', '-', 'all (no output)', String(run.latency_ms), String(run.output_chars)])
       continue
     }
     const got = run.output.tests ?? []
@@ -66,7 +67,7 @@ for (const f of readdirSync(join(DIR, 'ground-truth')).sort()) {
       if (numEq(m.ref_low, t.ref_low) && numEq(m.ref_high, t.ref_high)) range++
       if ((m.printed_flag ?? null) === t.printed_flag) flag++
     }
-    const missed = Object.entries(gt.pii as Pii).filter(([k, v]) => !run.output!.pii?.[k] || !PII_CHECK[k](v!, String(run.output!.pii[k]))).map(([k]) => k)
+    const missed = piiFields.filter(([k, v]) => !run.output!.pii?.[k] || !PII_CHECK[k](v!, String(run.output!.pii[k]))).map(([k]) => k)
     const extra = got.length - found
     Object.assign(T, { found: T.found + found, value: T.value + value, unit: T.unit + unit, range: T.range + range, flag: T.flag + flag, piiMissed: T.piiMissed + missed.length })
     T.lat.push(run.latency_ms)

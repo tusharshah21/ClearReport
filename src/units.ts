@@ -7,8 +7,8 @@ type Spec = { unit: string; from: Record<string, Conv> }
 
 // Keys are normalised unit spellings (see normUnit). Every spelling here must be listed on purpose.
 const CELLS_UL = ['/cumm', 'cells/cumm', '/ul', 'cells/ul', '/mm3', 'cells/mm3', '/cmm']
-const THOU_UL = ['thou/ul', 'thou/cumm', '10^3/ul', 'x10^3/ul', '10e3/ul', '10^3/cumm', 'x10^3/cumm', 'k/ul', '10^9/l', 'x10^9/l']
-const MILL_UL = ['mill/cumm', 'million/cumm', 'mill/ul', 'million/ul', '10^6/ul', 'x10^6/ul', '10^12/l', 'x10^12/l', 'm/ul']
+const THOU_UL = ['thou/ul', 'thou/cumm', 'thou/mm3','10^3/ul', 'x10^3/ul', '10e3/ul', '10^3/cumm', 'x10^3/cumm', 'k/ul', '10^9/l', 'x10^9/l']
+const MILL_UL = ['mill/cumm', 'mill/mm3','million/cumm', 'mill/ul', 'million/ul', '10^6/ul', 'x10^6/ul', '10^12/l', 'x10^12/l', 'm/ul']
 const all = (names: string[], c: Conv) => Object.fromEntries(names.map((n) => [n, c]))
 const same = (...names: string[]) => all(names, 1)
 

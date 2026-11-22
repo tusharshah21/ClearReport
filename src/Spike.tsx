@@ -1,18 +1,26 @@
 import { useState } from 'react'
 import { setLogLevel } from 'firebase/app'
-import { extract, model, toB64, type Mode, type Run } from './extract'
+import { extract, extractDoc, model, toB64, type Mode, type Run } from './extract'
+import { isPdf, pdfToPngs } from './pdf'
 
 setLogLevel('debug') // SDK logs why on-device was or wasn't used
 
 const SYNTHETIC = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r1-photo', 'r6-photo']
-type Img = { name: string; synthetic: boolean; mimeType: string; data: string; url: string }
+// Public sample PDFs published by Dr Lal PathLabs (dummy patients), kept locally in test-data/real-samples/.
+const SAMPLES = ['WM14', 'WM15']
+const KNOWN = [...SYNTHETIC, ...SAMPLES]
+type Page = { mimeType: string; data: string; url: string }
+type Img = { name: string; synthetic: boolean; pages: Page[] }
 
 // Dev server only (vite.config.ts); the call is compiled out of production builds.
 const save = (run: Run) => import.meta.env.DEV && fetch('/__runs', { method: 'POST', body: JSON.stringify(run) })
 
+const toPages = async (f: Blob) => Promise.all((isPdf(f) ? await pdfToPngs(f) : [f]).map(async (b) => ({ mimeType: b.type, data: await toB64(b), url: URL.createObjectURL(b) })))
 async function loadSynthetic(id: string): Promise<Img> {
-  const blob = await (await fetch(`/test-data/reports/${id}.${id.endsWith('-photo') ? 'jpg' : 'png'}`)).blob()
-  return { name: id, synthetic: true, mimeType: blob.type, data: await toB64(blob), url: URL.createObjectURL(blob) }
+  const path = SAMPLES.includes(id) ? `/test-data/real-samples/${id}.pdf` : `/test-data/reports/${id}.${id.endsWith('-photo') ? 'jpg' : 'png'}`
+  const res = await fetch(path)
+  const blob = new Blob([await res.arrayBuffer()], { type: SAMPLES.includes(id) ? 'application/pdf' : res.headers.get('content-type') ?? '' })
+  return { name: id, synthetic: true, pages: await toPages(blob) }
 }
 
 // Chrome's Prompt API global, read directly only for the status panel.
@@ -47,18 +55,19 @@ export default function Spike() {
 
   async function run(target: Img, mode: Mode) {
     if (mode === 'cloud' && !target.synthetic) return say('Cloud runs are blocked for non-synthetic images.')
-    let r = await extract(target.name, mode, 'single', target)
+    if (target.pages.length > 1) return report(await extractDoc(target.name, mode, target.pages, (i) => say(`${target.name}/${mode}: page ${i + 1} of ${target.pages.length}`)))
+    let r = await extract(target.name, mode, 'single', target.pages[0])
     report(r)
     if (!r.ok) {
       say(`${target.name}/${mode}: single call failed, trying split (header + tests)`)
-      r = await extract(target.name, mode, 'split', target)
+      r = await extract(target.name, mode, 'split', target.pages[0])
       report(r)
     }
   }
   function report(r: Run) {
     setRuns((rs) => [...rs, r])
-    say(`${r.report}/${r.mode}/${r.strategy}: ${r.ok ? 'ok' : 'FAILED'} served_by=[${r.calls.map((c) => c.source).join(',')}] ${r.latency_ms}ms ${r.output_chars} chars${r.ok ? '' : ` ${r.calls.find((c) => !c.ok)?.error}`}`)
-    if (SYNTHETIC.includes(r.report)) save(r) // never write uploaded (possibly real) reports to disk
+    say(`${r.report}/${r.mode}/${r.strategy}${r.page_strategies ? ` [${r.page_strategies.join(',')}]` : ''}: ${r.ok ? 'ok' : 'FAILED'} served_by=[${r.calls.map((c) => c.source).join(',')}] ${r.latency_ms}ms ${r.output_chars} chars${r.ok ? '' : ` ${r.calls.find((c) => !c.ok)?.error}`}`)
+    if (KNOWN.includes(r.report)) save(r) // never write uploaded (possibly real) reports to disk
   }
 
   async function runAll() {
@@ -89,13 +98,13 @@ export default function Spike() {
       </p>
       <p>
         Synthetic:{' '}
-        {SYNTHETIC.map((id) => (
+        {KNOWN.map((id) => (
           <button key={id} disabled={busy} onClick={async () => setImg(await loadSynthetic(id))}>{id}</button>
         ))}{' '}
         or upload:{' '}
-        <input type="file" accept="image/png,image/jpeg" onChange={async (e) => {
+        <input type="file" accept="image/png,image/jpeg,application/pdf" onChange={async (e) => {
           const f = e.target.files?.[0]
-          if (f) setImg({ name: f.name, synthetic: false, mimeType: f.type, data: await toB64(f), url: URL.createObjectURL(f) })
+          if (f) setImg({ name: f.name, synthetic: false, pages: await toPages(f) })
         }} />
       </p>
       {img && (
@@ -107,7 +116,7 @@ export default function Spike() {
       )}
       <div style={{ display: 'flex', gap: 16 }}>
         <pre style={{ flex: 1, background: '#111', color: '#0f0', padding: 8, whiteSpace: 'pre-wrap', fontSize: 12, maxHeight: 500, overflow: 'auto' }}>{log.join('\n')}</pre>
-        {img && <img src={img.url} style={{ width: 380, border: '1px solid #ccc' }} />}
+        {img && <div style={{ width: 380 }}>{img.pages.map((p, i) => <img key={i} src={p.url} style={{ width: '100%', border: '1px solid #ccc' }} />)}</div>}
       </div>
       <h2>Runs</h2>
       <table border={1} cellPadding={4} style={{ borderCollapse: 'collapse', fontSize: 13 }}>

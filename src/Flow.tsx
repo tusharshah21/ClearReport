@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { DEVICE_CREATE_OPTIONS, extract, model, toB64, type Mode, type Run } from './extract'
+import { DEVICE_CREATE_OPTIONS, extractDoc, model, toB64, type Mode, type Run } from './extract'
+import { isPdf, pdfToPngs } from './pdf'
 import { toPayload, type Finding, type Payload } from './privacy'
 
-// Images live only in memory (Blob + object URL) for the life of one report. Nothing is written
+// Images (one per page; a PDF is rendered to one PNG per page) live only in memory (Blob + object URL) for the life of one report. Nothing is written
 // to storage, logged, or sent anywhere except the single extraction request of the chosen path.
 
 declare const LanguageModel: { availability(o: object): Promise<string> } | undefined
@@ -39,9 +40,9 @@ async function reencode(src: Blob, boxes: Box[] = []): Promise<Img> {
 }
 
 type Box = { x: number; y: number; w: number; h: number } // fractions of image size
-function MaskTool({ img, onDone, onCancel }: { img: Img; onDone: (boxes: Box[]) => void; onCancel: () => void }) {
+function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial: Box[]; label: string; onDone: (boxes: Box[]) => void; onCancel: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null)
-  const [boxes, setBoxes] = useState<Box[]>([])
+  const [boxes, setBoxes] = useState<Box[]>(initial)
   const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const pic = useRef<HTMLImageElement | null>(null)
 
@@ -73,6 +74,7 @@ function MaskTool({ img, onDone, onCancel }: { img: Img; onDone: (boxes: Box[]) 
   }
   return (
     <div>
+      {label && <p><b>{label}</b>{initial.length > 0 && ' (boxes copied from the previous page; move or redraw them if this page is laid out differently)'}</p>}
       <p>Drag to draw black boxes over <b>your name, patient ID / UHID, phone number and the doctor's name</b>, plus any QR code or barcode. Leave the test results visible.</p>
       <div style={{ maxWidth: 800 }}>
         <canvas
@@ -92,7 +94,8 @@ function MaskTool({ img, onDone, onCancel }: { img: Img; onDone: (boxes: Box[]) 
         <button disabled={!boxes.length} onClick={() => setBoxes(boxes.slice(0, -1))}>Undo</button>{' '}
         <button disabled={!boxes.length} onClick={() => setBoxes([])}>Clear</button>{' '}
         <button onClick={onCancel}>Cancel</button>{' '}
-        <button disabled={!boxes.length} onClick={() => onDone(boxes)}><b>Done masking</b></button>
+        <button disabled={!boxes.length} onClick={() => onDone(boxes)}><b>Done masking</b></button>{' '}
+        {label && !boxes.length && <button onClick={() => onDone([])}>Nothing personal on this page</button>}
       </p>
     </div>
   )
@@ -102,8 +105,9 @@ export default function Flow() {
   const [avail, setAvail] = useState<Avail>('checking')
   const [path, setPath] = useState<Path | null>(null)
   const [step, setStep] = useState<Step>('choose')
-  const [original, setOriginal] = useState<Img | null>(null)
-  const [toSend, setToSend] = useState<Img | null>(null)
+  const [original, setOriginal] = useState<Img[] | null>(null)
+  const [toSend, setToSend] = useState<Img[] | null>(null)
+  const [masks, setMasks] = useState<Box[][]>([]) // one list of boxes per page, filled page by page
   const [consent, setConsent] = useState(false)
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
@@ -116,8 +120,8 @@ export default function Flow() {
   }, [])
 
   function reset() {
-    for (const i of [original, toSend]) if (i) URL.revokeObjectURL(i.url)
-    setOriginal(null); setToSend(null); setConsent(false); setError(''); setResult(null); setProgress(''); setPath(null); setStep('choose')
+    for (const i of [...(original ?? []), ...(toSend ?? [])]) URL.revokeObjectURL(i.url)
+    setOriginal(null); setToSend(null); setMasks([]); setConsent(false); setError(''); setResult(null); setProgress(''); setPath(null); setStep('choose')
   }
 
   function choose(p: Path) {
@@ -135,29 +139,32 @@ export default function Flow() {
 
   async function onFile(f: File) {
     try {
-      const img = await reencode(f)
-      setOriginal(img)
-      proceed(path!, img)
-    } catch {
-      setError('Could not read that image. Please use a JPEG or PNG photo of the report.')
+      setProgress(isPdf(f) ? 'Reading PDF pages on this device...' : '')
+      const pages = await Promise.all((isPdf(f) ? await pdfToPngs(f) : [f]).map((b) => reencode(b)))
+      setProgress('')
+      setOriginal(pages)
+      proceed(path!, pages)
+    } catch (e) {
+      setProgress('')
+      setError(`Could not read that file (${(e as Error).message}). Please use a PDF, or a JPEG or PNG photo of the report.`)
     }
   }
 
-  function proceed(p: Path, img: Img) {
-    if (p === 1) return run('device', img)
-    if (p === 2) return setStep('mask')
+  function proceed(p: Path, pages: Img[]) {
+    if (p === 1) return run('device', pages)
+    if (p === 2) { setMasks([]); return setStep('mask') }
     setStep('consent')
   }
 
-  async function run(mode: Mode, img: Img) {
+  async function run(mode: Mode, pages: Img[]) {
     setStep('extracting')
     setError('')
     try {
       if (mode === 'device') await devicePrep.current
-      const image = { mimeType: 'image/jpeg', data: await toB64(img.blob) }
-      // Same mode for the retry: a failed private read never falls back to the cloud.
-      let r = await extract('user', mode, 'single', image)
-      if (!r.ok) r = await extract('user', mode, 'split', image)
+      const images = await Promise.all(pages.map(async (p) => ({ mimeType: 'image/jpeg', data: await toB64(p.blob) })))
+      // One page per call. Same mode for every retry: a failed private read never falls back to the cloud.
+      const r = await extractDoc('user', mode, images, (i) => pages.length > 1 && setProgress(`Reading page ${i + 1} of ${pages.length}...`))
+      setProgress('')
       if (!r.ok) throw new Error(r.calls.find((c) => !c.ok)?.error ?? 'unknown error')
       setResult({ ...toPayload(r.output), run: r })
       setStep('review')
@@ -201,8 +208,8 @@ export default function Flow() {
       {step === 'upload' && (
         <section style={box}>
           <h2>Add a photo of your report</h2>
-          <p>A clear, flat photo or screenshot of one page works best.</p>
-          <input type="file" accept="image/*" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />{' '}
+          <p>The PDF from your lab, or a clear, flat photo or screenshot of each page.</p>
+          <input type="file" accept="image/*,application/pdf" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />{' '}
           <button onClick={reset}>Back</button>
           {error && <p style={{ color: '#b00' }}>{error}</p>}
         </section>
@@ -211,21 +218,31 @@ export default function Flow() {
       {step === 'mask' && original && (
         <section style={box}>
           <h2>Cover your personal details</h2>
-          <MaskTool img={original} onCancel={reset} onDone={async (boxes) => {
-            if (toSend) URL.revokeObjectURL(toSend.url)
-            setToSend(await reencode(original.blob, boxes))
-            setStep('confirm-masked')
-          }} />
+          <MaskTool
+            key={masks.length}
+            img={original[masks.length]}
+            initial={masks.at(-1) ?? []}
+            label={original.length > 1 ? `Page ${masks.length + 1} of ${original.length}` : ''}
+            onCancel={reset}
+            onDone={async (boxes) => {
+              const all = [...masks, boxes]
+              if (all.length < original.length) return setMasks(all)
+              for (const i of toSend ?? []) URL.revokeObjectURL(i.url)
+              setToSend(await Promise.all(original.map((p, i) => reencode(p.blob, all[i]))))
+              setMasks(all)
+              setStep('confirm-masked')
+            }}
+          />
         </section>
       )}
 
       {step === 'confirm-masked' && toSend && (
         <section style={box}>
-          <h2>This exact image will be sent.</h2>
-          <p>Check that your name, ID, phone and doctor's name are fully covered. This image (and nothing else from your device) goes to Google's Gemini AI to be read.</p>
-          <img src={toSend.url} alt="Masked report that will be sent" style={{ maxWidth: '100%', border: '2px solid #333' }} />
+          <h2>{toSend.length > 1 ? `These exact ${toSend.length} images will be sent.` : 'This exact image will be sent.'}</h2>
+          <p>Check that your name, ID, phone and doctor's name are fully covered{toSend.length > 1 ? ' on every page' : ''}. {toSend.length > 1 ? 'These images' : 'This image'} (and nothing else from your device) {toSend.length > 1 ? 'go' : 'goes'} to Google's Gemini AI to be read, one page at a time.</p>
+          {toSend.map((p, i) => <img key={i} src={p.url} alt={`Masked page ${i + 1} that will be sent`} style={{ maxWidth: '100%', border: '2px solid #333', marginBottom: 8 }} />)}
           <p>
-            <button onClick={() => setStep('mask')}>Fix the boxes</button>{' '}
+            <button onClick={() => { setMasks([]); setStep('mask') }}>Fix the boxes</button>{' '}
             <button onClick={() => run('cloud', toSend)}><b>Send this image</b></button>
           </p>
         </section>
@@ -235,17 +252,17 @@ export default function Flow() {
         <section style={box}>
           <h2>Before you send the full report</h2>
           <ul>
-            <li>The <b>full photo of this report, including your name and any other details on it</b>, will be sent to Google's Gemini API to be read.</li>
+            <li>The <b>full {original.length > 1 ? `${original.length} pages` : 'photo'} of this report, including your name and any other details on {original.length > 1 ? 'them' : 'it'}</b>, will be sent to Google's Gemini API to be read.</li>
             <li>ClearReport does not store the photo. Google processes it under the Gemini API terms.</li>
             <li>This applies to this one report only. We will ask again next time.</li>
             <li>If you'd rather not, go back and mask your details yourself instead.</li>
           </ul>
-          <img src={original.url} alt="Report that will be sent" style={{ maxWidth: 260, border: '1px solid #999' }} />
+          {original.map((p, i) => <img key={i} src={p.url} alt={`Page ${i + 1} that will be sent`} style={{ maxWidth: 200, border: '1px solid #999', marginRight: 6 }} />)}
           <p>
             <label><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> I understand and agree to send the full image of this report, including my name, to Google's Gemini API.</label>
           </p>
           <p>
-            <button onClick={() => { setConsent(false); setStep('mask') }}>Mask my details instead</button>{' '}
+            <button onClick={() => { setConsent(false); setMasks([]); setStep('mask') }}>Mask my details instead</button>{' '}
             <button disabled={!consent} onClick={() => run('cloud', original)}><b>Send full report to Gemini</b></button>
           </p>
         </section>
@@ -281,7 +298,7 @@ export default function Flow() {
           )}
           <pre data-testid="payload" style={{ background: '#f4f4f4', padding: 10, overflow: 'auto', maxHeight: 420, fontSize: 12 }}>{JSON.stringify(result.payload, null, 2)}</pre>
           <p style={{ fontSize: 12, color: '#666' }}>
-            Read {result.run.calls.map((c) => c.source).join(' + ') === 'on_device' ? 'on this device' : `by ${result.run.calls.map((c) => c.source).join(' + ')}`} in {(result.run.latency_ms / 1000).toFixed(1)} s ({result.run.strategy} call).
+            Read {result.run.calls.map((c) => c.source).join(' + ') === 'on_device' ? 'on this device' : `by ${result.run.calls.map((c) => c.source).join(' + ')}`} in {(result.run.latency_ms / 1000).toFixed(1)} s ({result.run.strategy === 'pages' ? `${result.run.page_strategies?.length} pages, one call each` : `${result.run.strategy} call`}).
           </p>
           <button onClick={reset}>Cancel</button>{' '}
           <button onClick={() => setStep('approved')}><b>Approve</b></button>

@@ -27,3 +27,5 @@ dist-ssr
 
 # per-run extraction output (may contain project ids in error text)
 test-data/runs/
+# Dr Lal PathLabs sample PDFs: download locally (see ground-truth/WM14.json source), not redistributed
+test-data/real-samples/

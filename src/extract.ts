@@ -83,7 +83,35 @@ export function model(mode: Mode, part: Part): GenerativeModel {
 }
 
 export type Call = { part: Part; source: string | null; latency_ms: number; output_chars: number; ok: boolean; error?: string; raw?: string }
-export type Run = { report: string; mode: Mode; strategy: 'single' | 'split'; at: string; latency_ms: number; output_chars: number; ok: boolean; calls: Call[]; output: unknown }
+export type Run = { report: string; mode: Mode; strategy: 'single' | 'split' | 'pages'; at: string; latency_ms: number; output_chars: number; ok: boolean; calls: Call[]; output: unknown; page_strategies?: string[] }
+type Image = { mimeType: string; data: string }
+type Out = { lab_name?: unknown; pii?: Record<string, unknown>; tests?: unknown[] }
+
+// One call per page (single, then split if that fails, always the same mode), merged in page order.
+// Header fields take the first non-null value across pages; test rows are concatenated.
+export async function extractDoc(report: string, mode: Mode, pages: Image[], onPage?: (i: number) => void): Promise<Run> {
+  const runs: Run[] = []
+  for (const [i, p] of pages.entries()) {
+    onPage?.(i)
+    let r = await extract(report, mode, 'single', p)
+    if (!r.ok) r = await extract(report, mode, 'split', p)
+    runs.push(r)
+    if (!r.ok) break
+  }
+  if (pages.length === 1) return runs[0]
+  const ok = runs.length === pages.length && runs.every((r) => r.ok)
+  const outs = runs.map((r) => (r.output ?? {}) as Out)
+  const pii: Record<string, unknown> = {}
+  for (const o of outs) for (const [k, v] of Object.entries(o.pii ?? {})) pii[k] ??= v ?? undefined
+  return {
+    report, mode, strategy: 'pages', at: new Date().toISOString(), ok,
+    calls: runs.flatMap((r) => r.calls),
+    page_strategies: runs.map((r) => r.strategy),
+    latency_ms: runs.reduce((s, r) => s + r.latency_ms, 0),
+    output_chars: runs.reduce((s, r) => s + r.output_chars, 0),
+    output: ok ? { lab_name: outs.map((o) => o.lab_name).find((v) => v) ?? null, pii: Object.fromEntries(Object.entries(pii).map(([k, v]) => [k, v ?? null])), tests: outs.flatMap((o) => o.tests ?? []) } : null,
+  }
+}
 
 async function call(mode: Mode, part: Part, image: { mimeType: string; data: string }): Promise<{ c: Call; json?: Record<string, unknown> }> {
   const t0 = performance.now()
