@@ -1,7 +1,9 @@
 import { useState } from 'react'
 import { setLogLevel } from 'firebase/app'
 import { extract, extractDoc, model, toB64, type Mode, type Run } from './extract'
-import { isPdf, pdfToPngs } from './pdf'
+import { isPdf, pdfPages } from './pdf'
+import type { Word } from './textlayer'
+import { trustOf } from './trust'
 
 setLogLevel('debug') // SDK logs why on-device was or wasn't used
 
@@ -9,13 +11,13 @@ const SYNTHETIC = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r1-photo', 'r6-photo']
 // Public sample PDFs published by Dr Lal PathLabs (dummy patients), kept locally in test-data/real-samples/.
 const SAMPLES = ['WM14', 'WM15']
 const KNOWN = [...SYNTHETIC, ...SAMPLES]
-type Page = { mimeType: string; data: string; url: string }
+type Page = { mimeType: string; data: string; url: string; words: Word[] | null }
 type Img = { name: string; synthetic: boolean; pages: Page[] }
 
 // Dev server only (vite.config.ts); the call is compiled out of production builds.
 const save = (run: Run) => import.meta.env.DEV && fetch('/__runs', { method: 'POST', body: JSON.stringify(run) })
 
-const toPages = async (f: Blob) => Promise.all((isPdf(f) ? await pdfToPngs(f) : [f]).map(async (b) => ({ mimeType: b.type, data: await toB64(b), url: URL.createObjectURL(b) })))
+const toPages = async (f: Blob): Promise<Page[]> => Promise.all((isPdf(f) ? await pdfPages(f) : [{ png: f, words: null }]).map(async ({ png, words }) => ({ mimeType: png.type, data: await toB64(png), url: URL.createObjectURL(png), words })))
 async function loadSynthetic(id: string): Promise<Img> {
   const path = SAMPLES.includes(id) ? `/test-data/real-samples/${id}.pdf` : `/test-data/reports/${id}.${id.endsWith('-photo') ? 'jpg' : 'png'}`
   const res = await fetch(path)
@@ -55,16 +57,19 @@ export default function Spike() {
 
   async function run(target: Img, mode: Mode) {
     if (mode === 'cloud' && !target.synthetic) return say('Cloud runs are blocked for non-synthetic images.')
-    if (target.pages.length > 1) return report(await extractDoc(target.name, mode, target.pages, (i) => say(`${target.name}/${mode}: page ${i + 1} of ${target.pages.length}`)))
+    if (target.pages.length > 1) return report(await extractDoc(target.name, mode, target.pages, (i) => say(`${target.name}/${mode}: page ${i + 1} of ${target.pages.length}`)), target)
     let r = await extract(target.name, mode, 'single', target.pages[0])
-    report(r)
+    report(r, target)
     if (!r.ok) {
       say(`${target.name}/${mode}: single call failed, trying split (header + tests)`)
       r = await extract(target.name, mode, 'split', target.pages[0])
-      report(r)
+      report(r, target)
     }
   }
-  function report(r: Run) {
+  function report(r: Run, target?: Img) {
+    // Badges per row (legible flag + PDF text-layer check), saved with the run for the eval.
+    const rows = (r.output as { tests?: [] } | null)?.tests
+    if (target && rows) r = { ...r, trust: trustOf(rows, target.pages.map((p) => p.words)) }
     setRuns((rs) => [...rs, r])
     say(`${r.report}/${r.mode}/${r.strategy}${r.page_strategies ? ` [${r.page_strategies.join(',')}]` : ''}: ${r.ok ? 'ok' : 'FAILED'} served_by=[${r.calls.map((c) => c.source).join(',')}] ${r.latency_ms}ms ${r.output_chars} chars${r.ok ? '' : ` ${r.calls.find((c) => !c.ok)?.error}`}`)
     if (KNOWN.includes(r.report)) save(r) // never write uploaded (possibly real) reports to disk

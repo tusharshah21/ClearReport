@@ -15,8 +15,9 @@ const TESTS = {
       ref_high: num,
       ref_text: str,
       printed_flag: { type: ['string', 'null'], enum: ['H', 'L', null] },
+      legible: { type: 'boolean' },
     },
-    required: ['name', 'value', 'unit', 'ref_low', 'ref_high', 'ref_text', 'printed_flag'],
+    required: ['name', 'value', 'unit', 'ref_low', 'ref_high', 'ref_text', 'printed_flag', 'legible'],
   },
 }
 const PII = {
@@ -34,9 +35,11 @@ export const SCHEMAS = {
 export type Part = keyof typeof SCHEMAS
 
 const RULES = `Copy values exactly as printed. Use null for anything not printed.
-ref_text is the reference interval exactly as printed. ref_low/ref_high are its numeric bounds ("< 200" means ref_low null, ref_high 200).
+name is only the test's own name as printed, without section headings or method lines.
+ref_text is the reference interval exactly as printed. ref_low/ref_high are its numeric bounds ("< 200" means ref_low null, ref_high 200; "> 40" means ref_low 40, ref_high null).
 printed_flag is "H" or "L" only if the report itself marks the result (H/L, High/Low, arrows), else null. Do not judge values yourself.
-Numbers without thousands separators.`
+Numbers without thousands separators.
+legible: false if ANY digit, decimal point or sign of the value or the reference interval is unclear, covered (by a stamp, watermark, fold, glare or mark) or cut off. In that case set value to null (and the affected range bound to null). Never guess or reconstruct a digit. Otherwise legible: true.`
 export const PROMPTS: Record<Part, string> = {
   full: `This is a photo of a blood test report. Extract the lab name, the patient identity fields and every test row as JSON.\n${RULES}`,
   header: `This is a photo of a blood test report. Extract only the lab name and the patient identity fields (name, age, sex, patient/lab ID, phone, referring doctor) as JSON. Copy exactly as printed; null if absent.`,
@@ -83,7 +86,7 @@ export function model(mode: Mode, part: Part): GenerativeModel {
 }
 
 export type Call = { part: Part; source: string | null; latency_ms: number; output_chars: number; ok: boolean; error?: string; raw?: string }
-export type Run = { report: string; mode: Mode; strategy: 'single' | 'split' | 'pages'; at: string; latency_ms: number; output_chars: number; ok: boolean; calls: Call[]; output: unknown; page_strategies?: string[] }
+export type Run = { report: string; mode: Mode; strategy: 'single' | 'split' | 'pages'; at: string; latency_ms: number; output_chars: number; ok: boolean; calls: Call[]; output: unknown; page_strategies?: string[]; trust?: unknown[] }
 type Image = { mimeType: string; data: string }
 type Out = { lab_name?: unknown; pii?: Record<string, unknown>; tests?: unknown[] }
 
@@ -113,7 +116,7 @@ export async function extractDoc(report: string, mode: Mode, pages: Image[], onP
     page_strategies: runs.map((r) => r.strategy),
     latency_ms: runs.reduce((s, r) => s + r.latency_ms, 0),
     output_chars: runs.reduce((s, r) => s + r.output_chars, 0),
-    output: ok ? { lab_name: outs.map((o) => o.lab_name).find((v) => v) ?? null, pii: Object.fromEntries(Object.entries(pii).map(([k, v]) => [k, v ?? null])), tests: outs.flatMap((o) => o.tests ?? []) } : null,
+    output: ok ? { lab_name: outs.map((o) => o.lab_name).find((v) => v) ?? null, pii: Object.fromEntries(Object.entries(pii).map(([k, v]) => [k, v ?? null])), tests: outs.flatMap((o, i) => (o.tests ?? []).map((t) => ({ ...(t as object), page: i }))) } : null,
   }
 }
 

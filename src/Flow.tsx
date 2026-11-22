@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { DEVICE_CREATE_OPTIONS, extractDoc, model, toB64, type Mode, type Run } from './extract'
-import { isPdf, pdfToPngs } from './pdf'
-import { toPayload, type Finding, type Payload } from './privacy'
+import { DEVICE_CREATE_OPTIONS, extractDoc, model, toB64, type Mode } from './extract'
+import { isPdf, pdfPages } from './pdf'
+import { toPayload } from './privacy'
+import Review, { type Result } from './Review'
+import type { Word } from './textlayer'
+import { trustOf } from './trust'
 
 // Images (one per page; a PDF is rendered to one PNG per page) live only in memory (Blob + object URL) for the life of one report. Nothing is written
 // to storage, logged, or sent anywhere except the single extraction request of the chosen path.
@@ -111,7 +114,8 @@ export default function Flow() {
   const [consent, setConsent] = useState(false)
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
-  const [result, setResult] = useState<{ payload: Payload; findings: Finding[]; run: Run } | null>(null)
+  const [result, setResult] = useState<Result | null>(null)
+  const [pageWords, setPageWords] = useState<(Word[] | null)[]>([]) // PDF text layer per page; null for photos. Local only.
   const devicePrep = useRef<Promise<void> | null>(null)
 
   useEffect(() => {
@@ -121,7 +125,7 @@ export default function Flow() {
 
   function reset() {
     for (const i of [...(original ?? []), ...(toSend ?? [])]) URL.revokeObjectURL(i.url)
-    setOriginal(null); setToSend(null); setMasks([]); setConsent(false); setError(''); setResult(null); setProgress(''); setPath(null); setStep('choose')
+    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setConsent(false); setError(''); setResult(null); setProgress(''); setPath(null); setStep('choose')
   }
 
   function choose(p: Path) {
@@ -140,8 +144,10 @@ export default function Flow() {
   async function onFile(f: File) {
     try {
       setProgress(isPdf(f) ? 'Reading PDF pages on this device...' : '')
-      const pages = await Promise.all((isPdf(f) ? await pdfToPngs(f) : [f]).map((b) => reencode(b)))
+      const pdf = isPdf(f) ? await pdfPages(f) : null
+      const pages = await Promise.all((pdf ? pdf.map((p) => p.png) : [f]).map((b) => reencode(b)))
       setProgress('')
+      setPageWords(pdf ? pdf.map((p) => p.words) : [null])
       setOriginal(pages)
       proceed(path!, pages)
     } catch (e) {
@@ -166,7 +172,8 @@ export default function Flow() {
       const r = await extractDoc('user', mode, images, (i) => pages.length > 1 && setProgress(`Reading page ${i + 1} of ${pages.length}...`))
       setProgress('')
       if (!r.ok) throw new Error(r.calls.find((c) => !c.ok)?.error ?? 'unknown error')
-      setResult({ ...toPayload(r.output), run: r })
+      const rows = ((r.output as { tests?: [] })?.tests ?? []) as Parameters<typeof trustOf>[0]
+      setResult({ ...toPayload(r.output), run: r, trust: trustOf(rows, pageWords) })
       setStep('review')
     } catch (e) {
       setError(String(e))
@@ -287,23 +294,7 @@ export default function Flow() {
         </section>
       )}
 
-      {step === 'review' && result && (
-        <section style={box}>
-          <h2>Review what will be sent</h2>
-          <p>Your name, ID, phone and doctor's name have been removed by plain code (no AI). Age is shown only as a range. This is <b>exactly</b> what will be sent for the explanation:</p>
-          {result.findings.length > 0 && (
-            <p style={{ background: '#fff4e0', padding: 8 }}>
-              Removed {result.findings.length} leftover item(s) that looked personal: {[...new Set(result.findings.map((f) => `${f.kind} in ${f.where}`))].join('; ')}.
-            </p>
-          )}
-          <pre data-testid="payload" style={{ background: '#f4f4f4', padding: 10, overflow: 'auto', maxHeight: 420, fontSize: 12 }}>{JSON.stringify(result.payload, null, 2)}</pre>
-          <p style={{ fontSize: 12, color: '#666' }}>
-            Read {result.run.calls.map((c) => c.source).join(' + ') === 'on_device' ? 'on this device' : `by ${result.run.calls.map((c) => c.source).join(' + ')}`} in {(result.run.latency_ms / 1000).toFixed(1)} s ({result.run.strategy === 'pages' ? `${result.run.page_strategies?.length} pages, one call each` : `${result.run.strategy} call`}).
-          </p>
-          <button onClick={reset}>Cancel</button>{' '}
-          <button onClick={() => setStep('approved')}><b>Approve</b></button>
-        </section>
-      )}
+      {step === 'review' && result && <Review result={result} onCancel={reset} onApprove={() => setStep('approved')} />}
 
       {step === 'approved' && (
         <section style={box}>
