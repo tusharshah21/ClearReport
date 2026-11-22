@@ -11,13 +11,17 @@
     "gen": "tsx test-data/generate.ts",
     "eval": "tsx test-data/eval.ts",
     "test": "tsx scripts/checks.ts && tsx scripts/textcheck.ts",
-    "ranges": "tsx scripts/rangecheck.ts"
+    "ranges": "tsx scripts/rangecheck.ts",
+    "predev": "node scripts/copy-ocr.mjs",
+    "prebuild": "node scripts/copy-ocr.mjs"
   },
   "dependencies": {
+    "@tesseract.js-data/eng": "^1.0.0",
     "firebase": "^13.4.0",
     "pdfjs-dist": "^5.4.149",
     "react": "^19.3.1",
-    "react-dom": "^19.3.1"
+    "react-dom": "^19.3.1",
+    "tesseract.js": "^7.0.0"
   },
   "devDependencies": {
     "@types/node": "^24.19.2",

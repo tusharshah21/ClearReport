@@ -29,3 +29,6 @@ dist-ssr
 test-data/runs/
 # Dr Lal PathLabs sample PDFs: download locally (see ground-truth/WM14.json source), not redistributed
 test-data/real-samples/
+
+# OCR engine and data, copied from node_modules by scripts/copy-ocr.mjs
+public/ocr/

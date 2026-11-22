@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { DEVICE_CREATE_OPTIONS, extractDoc, model, toB64, type Mode } from './extract'
 import { DISCLAIMER } from './guidelines'
+import { ocrWords, suggestMasks } from './masks'
 import { isPdf, pdfPages } from './pdf'
 import { toPayload } from './privacy'
 import Review, { type Result } from './Review'
@@ -46,12 +47,17 @@ async function reencode(src: Blob, boxes: Box[] = []): Promise<Img> {
   return { blob, url: URL.createObjectURL(blob), w: c.width, h: c.height }
 }
 
-type Box = { x: number; y: number; w: number; h: number } // fractions of image size
+// Fractions of image size. field is set on boxes suggested by masks.ts until the user moves or keeps them; all boxes are burned in the same way.
+type Box = { x: number; y: number; w: number; h: number; field?: string }
+const SUGGESTED = '#e07000'
 function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial: Box[]; label: string; onDone: (boxes: Box[]) => void; onCancel: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [boxes, setBoxes] = useState<Box[]>(initial)
   const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
+  const [move, setMove] = useState<{ i: number; dx: number; dy: number } | null>(null)
+  const [sel, setSel] = useState<number | null>(null)
   const pic = useRef<HTMLImageElement | null>(null)
+  const nSuggested = boxes.filter((b) => b.field).length
 
   useEffect(() => {
     const el = new Image()
@@ -67,8 +73,29 @@ function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial
     c.height = (c.width * img.h) / img.w
     const g = c.getContext('2d')!
     g.drawImage(el, 0, 0, c.width, c.height)
-    g.fillStyle = '#000'
-    for (const b of boxes) g.fillRect(b.x * c.width, b.y * c.height, b.w * c.width, b.h * c.height)
+    boxes.forEach((b, i) => {
+      const [x, y, w, h] = [b.x * c.width, b.y * c.height, b.w * c.width, b.h * c.height]
+      if (b.field) {
+        // Suggested: see-through so the user can check what is underneath; burned in solid black like the rest.
+        g.fillStyle = 'rgba(224, 112, 0, 0.45)'
+        g.fillRect(x, y, w, h)
+        g.strokeStyle = SUGGESTED
+        g.lineWidth = 2
+        g.strokeRect(x, y, w, h)
+        g.font = '11px system-ui, sans-serif'
+        g.fillStyle = SUGGESTED
+        g.textBaseline = 'middle'
+        g.fillText('Suggested, please check', x + w + 4, y + h / 2) // beside the box: stacked rows would overlap labels above
+      } else {
+        g.fillStyle = '#000'
+        g.fillRect(x, y, w, h)
+      }
+      if (i === sel) {
+        g.strokeStyle = '#06c'
+        g.lineWidth = 3
+        g.strokeRect(x - 2, y - 2, w + 4, h + 4)
+      }
+    })
     if (drag) {
       g.strokeStyle = '#e00'
       g.lineWidth = 2
@@ -81,25 +108,43 @@ function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial
   }
   return (
     <div>
-      {label && <p><b>{label}</b>{initial.length > 0 && ' (boxes copied from the previous page; move or redraw them if this page is laid out differently)'}</p>}
+      {label && <p><b>{label}</b>{initial.some((b) => !b.field) && ' (your boxes from the previous page are copied here; move or redraw them if this page is laid out differently)'}</p>}
       <p>Drag to draw black boxes over <b>your name, patient ID / UHID, phone number and the doctor's name</b>, plus any QR code or barcode. Leave the test results visible.</p>
+      {nSuggested > 0 && (
+        <p style={{ background: '#fff4e0', padding: 8 }} data-testid="suggested-note">
+          <b style={{ color: SUGGESTED }}>{nSuggested} suggested box{nSuggested === 1 ? '' : 'es'}</b> (orange, found on this device). They can miss things or cover the wrong spot, so please check each one: drag a box to move it, or click it and press <i>Remove selected box</i>. Add any boxes they missed.
+        </p>
+      )}
       <div style={{ maxWidth: 800 }}>
         <canvas
           ref={canvas}
           style={{ width: '100%', cursor: 'crosshair', touchAction: 'none', border: '1px solid #999' }}
-          onPointerDown={(e) => { e.currentTarget.setPointerCapture(e.pointerId); const p = at(e); setDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y }) }}
-          onPointerMove={(e) => drag && setDrag({ ...drag, x1: at(e).x, y1: at(e).y })}
+          onPointerDown={(e) => {
+            e.currentTarget.setPointerCapture(e.pointerId)
+            const p = at(e)
+            const hit = boxes.findLastIndex((b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h)
+            setSel(hit < 0 ? null : hit)
+            if (hit >= 0) setMove({ i: hit, dx: p.x - boxes[hit].x, dy: p.y - boxes[hit].y })
+            else setDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y })
+          }}
+          onPointerMove={(e) => {
+            const p = at(e)
+            if (move) setBoxes(boxes.map((b, i) => (i === move.i ? { ...b, x: Math.min(1 - b.w, Math.max(0, p.x - move.dx)), y: Math.min(1 - b.h, Math.max(0, p.y - move.dy)) } : b)))
+            else if (drag) setDrag({ ...drag, x1: p.x, y1: p.y })
+          }}
           onPointerUp={() => {
             if (drag && Math.abs(drag.x1 - drag.x0) > 0.005 && Math.abs(drag.y1 - drag.y0) > 0.005)
               setBoxes([...boxes, { x: Math.min(drag.x0, drag.x1), y: Math.min(drag.y0, drag.y1), w: Math.abs(drag.x1 - drag.x0), h: Math.abs(drag.y1 - drag.y0) }])
             setDrag(null)
+            setMove(null)
           }}
         />
       </div>
       <p>
         {boxes.length} box{boxes.length === 1 ? '' : 'es'}.{' '}
-        <button disabled={!boxes.length} onClick={() => setBoxes(boxes.slice(0, -1))}>Undo</button>{' '}
-        <button disabled={!boxes.length} onClick={() => setBoxes([])}>Clear</button>{' '}
+        <button disabled={sel === null} onClick={() => { setBoxes(boxes.filter((_, i) => i !== sel)); setSel(null) }}>Remove selected box</button>{' '}
+        <button disabled={!boxes.length} onClick={() => { setBoxes(boxes.slice(0, -1)); setSel(null) }}>Undo</button>{' '}
+        <button disabled={!boxes.length} onClick={() => { setBoxes([]); setSel(null) }}>Clear</button>{' '}
         <button onClick={onCancel}>Cancel</button>{' '}
         <button disabled={!boxes.length} onClick={() => onDone(boxes)}><b>Done masking</b></button>{' '}
         {label && !boxes.length && <button onClick={() => onDone([])}>Nothing personal on this page</button>}
@@ -120,6 +165,7 @@ export default function Flow() {
   const [error, setError] = useState('')
   const [result, setResult] = useState<Result | null>(null)
   const [pageWords, setPageWords] = useState<(Word[] | null)[]>([]) // PDF text layer per page; null for photos. Local only.
+  const [suggest, setSuggest] = useState<Box[][]>([]) // suggested mask boxes per page (Path 2)
   const devicePrep = useRef<Promise<void> | null>(null)
   // The 18+ notice is shown once per browser. Only this acknowledgement is remembered, never a report or a consent.
   const [adult, setAdult] = useState(() => { try { return localStorage.getItem(ADULT_KEY) === '1' } catch { return false } })
@@ -131,7 +177,7 @@ export default function Flow() {
 
   function reset() {
     for (const i of [...(original ?? []), ...(toSend ?? [])]) URL.revokeObjectURL(i.url)
-    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setConsent(false); setError(''); setResult(null); setProgress(''); setPath(null); setStep('choose')
+    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setConsent(false); setError(''); setResult(null); setProgress(''); setPath(null); setStep('choose')
   }
 
   function choose(p: Path) {
@@ -153,19 +199,42 @@ export default function Flow() {
       const pdf = isPdf(f) ? await pdfPages(f) : null
       const pages = await Promise.all((pdf ? pdf.map((p) => p.png) : [f]).map((b) => reencode(b)))
       setProgress('')
-      setPageWords(pdf ? pdf.map((p) => p.words) : [null])
+      const words = pdf ? pdf.map((p) => p.words) : [null]
+      setPageWords(words)
       setOriginal(pages)
-      proceed(path!, pages)
+      proceed(path!, pages, words)
     } catch (e) {
       setProgress('')
       setError(`Could not read that file (${(e as Error).message}). Please use a PDF, or a JPEG or PNG photo of the report.`)
     }
   }
 
-  function proceed(p: Path, pages: Img[]) {
+  function proceed(p: Path, pages: Img[], words = pageWords) {
     if (p === 1) return run('device', pages)
-    if (p === 2) { setMasks([]); return setStep('mask') }
+    if (p === 2) { setMasks([]); return prepareMasks(pages, words) }
     setStep('consent')
+  }
+
+  // Suggested boxes from the PDF text layer, or from local OCR for photos and scanned pages. Never sent anywhere.
+  async function prepareMasks(pages: Img[], words: (Word[] | null)[]) {
+    const out: Box[][] = []
+    try {
+      for (const [i, img] of pages.entries()) {
+        let w = words[i]
+        if (!w?.length) {
+          setProgress(`Looking for your details on page ${i + 1} of ${pages.length}, on this device...`)
+          const t0 = performance.now()
+          w = await ocrWords(img.blob)
+          console.info(`ClearReport OCR page ${i + 1}: ${Math.round(performance.now() - t0)} ms, ${w.length} words`) // timing only, no text
+        }
+        out.push(suggestMasks(w))
+      }
+    } catch (e) {
+      console.warn('Mask suggestions unavailable:', String(e)) // the user can still mask by hand
+    }
+    setProgress('')
+    setSuggest(out)
+    setStep('mask')
   }
 
   async function run(mode: Mode, pages: Img[]) {
@@ -242,7 +311,7 @@ export default function Flow() {
           <MaskTool
             key={masks.length}
             img={original[masks.length]}
-            initial={masks.at(-1) ?? []}
+            initial={[...(masks.at(-1) ?? []).filter((b) => !b.field), ...(suggest[masks.length] ?? [])]}
             label={original.length > 1 ? `Page ${masks.length + 1} of ${original.length}` : ''}
             onCancel={reset}
             onDone={async (boxes) => {
