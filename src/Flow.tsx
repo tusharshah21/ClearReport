@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { DEVICE_CREATE_OPTIONS, extractDoc, model, toB64, type Mode } from './extract'
+import { DISCLAIMER } from './guidelines'
 import { isPdf, pdfPages } from './pdf'
 import { toPayload } from './privacy'
 import Review, { type Result } from './Review'
@@ -24,6 +25,7 @@ const AVAIL_TEXT: Record<Avail, string> = {
   'no-api': 'This browser does not have Chrome\'s built-in AI. Private on-device reading needs desktop Chrome 139 or newer. You can still mask your details yourself.',
   error: 'Could not check for on-device AI. You can still mask your details yourself.',
 }
+const ADULT_KEY = 'clearreport.adult-notice-seen'
 const canDevice = (a: Avail) => a === 'available' || a === 'downloadable' || a === 'downloading'
 
 // Decode (applying EXIF rotation), draw, re-encode as JPEG. The re-encode drops all EXIF/GPS metadata.
@@ -117,6 +119,8 @@ export default function Flow() {
   const [result, setResult] = useState<Result | null>(null)
   const [pageWords, setPageWords] = useState<(Word[] | null)[]>([]) // PDF text layer per page; null for photos. Local only.
   const devicePrep = useRef<Promise<void> | null>(null)
+  // The 18+ notice is shown once per browser. Only this acknowledgement is remembered, never a report or a consent.
+  const [adult, setAdult] = useState(() => { try { return localStorage.getItem(ADULT_KEY) === '1' } catch { return false } })
 
   useEffect(() => {
     if (typeof LanguageModel === 'undefined') return setAvail('no-api')
@@ -185,11 +189,19 @@ export default function Flow() {
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 860, margin: '0 auto', padding: 16, lineHeight: 1.45 }}>
       <h1 style={{ marginBottom: 4 }}>ClearReport</h1>
-      <p style={{ marginTop: 0, color: '#555' }}>Understand your blood test report, privately. Not medical advice.</p>
-      <p style={{ ...box, background: canDevice(avail) ? '#eef8ee' : '#f6f6f6' }} data-testid="availability">{AVAIL_TEXT[avail]}</p>
-      {progress && <p>{progress}</p>}
+      <p style={{ marginTop: 0, color: '#555' }}>Understand your blood test report, privately.</p>
+      <p style={{ ...box, background: '#fffbe6' }} data-testid="disclaimer">{DISCLAIMER}</p>
+      {!adult && (
+        <section style={{ ...box, borderColor: '#b35900' }} data-testid="adult-notice">
+          <h2>Before you start</h2>
+          <p>ClearReport is for adults aged 18 and over. Results for children and teenagers use different ranges. If you are under 18, please go through your report with a parent or guardian and your doctor.</p>
+          <button onClick={() => { try { localStorage.setItem(ADULT_KEY, '1') } catch { /* private mode: ask again next time */ } setAdult(true) }}><b>I am 18 or older</b></button>
+        </section>
+      )}
+      {adult && <p style={{ ...box, background: canDevice(avail) ? '#eef8ee' : '#f6f6f6' }} data-testid="availability">{AVAIL_TEXT[avail]}</p>}
+      {adult && progress && <p>{progress}</p>}
 
-      {step === 'choose' && (
+      {adult && step === 'choose' && (
         <section>
           <h2>How should we read your report?</h2>
           {canDevice(avail) && (

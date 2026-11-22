@@ -139,6 +139,9 @@ assert.equal(one({ name: 'FBS', unit: 'mmol/L', value: 7.2, ref_low: 3.9, ref_hi
 assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5, ref_low: 12, ref_high: 15 }, { sex: 'Female', age_band: '20-29' }).outcome, 'agrees')
 assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5, ref_low: 12, ref_high: 15 }, { sex: 'Male', age_band: '20-29' }).outcome, 'lab says normal, guideline says borderline or high/low')
 assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5 }, { sex: null as never, age_band: '20-29' }).outcome, 'no guideline for this test')
+// WHO 2024 adult cutoffs cover ages 15 to 65: bands crossing that span are skipped.
+for (const [age_band, applies] of [['10-19', false], ['20-29', true], ['50-59', true], ['60-69', false], ['90+', false], [null, false]] as const)
+  assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5, ref_low: 12 }, { sex: 'Male', age_band: age_band as never }).outcome !== 'no guideline for this test', applies, String(age_band))
 // Decisions of 2026-11-22: HDL below 40 for everyone; LDL 100-129 not flagged; lipid, pregnancy and ADA wording notes.
 assert.equal(one({ name: 'HDL', value: 45, ref_low: 40 }, { sex: 'Female', age_band: '40-49' }).outcome, 'agrees')
 assert.equal(one({ name: 'HDL', value: 38, ref_low: 40 }, { sex: 'Female', age_band: '40-49' }).outcome, 'agrees')

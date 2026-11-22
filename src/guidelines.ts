@@ -16,7 +16,7 @@ type Guideline = {
   label: string
   unit: string
   sex?: 'Male' | 'Female'
-  adultOnly?: boolean
+  ages?: [number, number] // the guideline covers only these ages; applied only when the whole age band is inside
   source: string
   normal: { low: number | null; high: number | null; text: string } // for the "your lab's range differs" note
   bands: Band[]
@@ -24,6 +24,7 @@ type Guideline = {
 }
 
 export const REVIEW_STATUS = 'pending review by a doctor'
+export const DISCLAIMER = 'ClearReport explains your report. It does not give medical advice. Always discuss results with your doctor.'
 export const NOT_INCLUDED = {
   wbc: 'No single named guideline sets a general adult WBC threshold; labs use local reference intervals.',
   platelets: '150,000/µL is a widely taught lower limit, but I could not pin it to one named guideline (ITP criteria use 100,000/µL, a different purpose).',
@@ -89,7 +90,7 @@ export const GUIDELINES: Record<string, Guideline[]> = {
   hemoglobin: (['Male', 'Female'] as const).map((sex) => {
     const cut = sex === 'Male' ? 13 : 12
     return {
-      label: 'hemoglobin', unit: 'g/dL', sex, adultOnly: true, source: 'WHO', normal: { low: cut, high: null, text: `${cut}.0 or higher` },
+      label: 'hemoglobin', unit: 'g/dL', sex, ages: [15, 65] as [number, number], source: 'WHO', normal: { low: cut, high: null, text: `${cut}.0 or higher` },
       note: 'Different ranges apply during pregnancy.',
       bands: [
         { upTo: cut, dir: 'low' as const, name: 'anaemia', text: `below ${cut}.0` },
@@ -98,11 +99,11 @@ export const GUIDELINES: Record<string, Guideline[]> = {
     }
   }),
 }
-// Exact editions. Verification status of each threshold: see docs/guidelines.md.
+// Exact editions, each threshold checked against the source text on 2026-11-22: see docs/guidelines.md.
 export const SOURCES: Record<string, string> = {
-  ADA: 'American Diabetes Association, Standards of Care in Diabetes 2026, Section 2: Diagnosis and Classification of Diabetes (Diabetes Care 2026;49(Suppl. 1):S27)',
-  'NCEP ATP III': 'NCEP Adult Treatment Panel III Final Report (Circulation 2002;106:3143-3421)',
-  WHO: 'WHO Guideline on haemoglobin cutoffs to define anaemia in individuals and populations (2024), non-pregnant adults aged 15 and over',
+  ADA: 'American Diabetes Association, Standards of Care in Diabetes 2026, Section 2: Diagnosis and Classification of Diabetes, Tables 2.1 and 2.2 (Diabetes Care 2026;49(Suppl. 1):S27-S49, doi:10.2337/dc26-S002)',
+  'NCEP ATP III': 'NCEP Adult Treatment Panel III Final Report (Circulation 2002;106(25):3143-3421), ATP III classification of LDL, total, HDL cholesterol and triglycerides',
+  WHO: 'WHO Guideline on haemoglobin cutoffs to define anaemia in individuals and populations (Geneva: WHO, 2024; ISBN 978-92-4-008854-2), Table 2, non-pregnant adults aged 15 to 65',
 }
 
 export type Outcome =
@@ -132,9 +133,11 @@ export function checkTest(t: Test, who: Pick<Payload, 'sex' | 'age_band'>): Chec
   if (n.status !== 'ok') return { ...base, outcome: 'unit not recognized', message: `The unit "${t.unit ?? 'none'}" for ${t.name} was not recognized, so no range check was done.` }
   if (n.value === null) return { ...base, outcome: 'no value', message: `No value was read for ${t.name}.` }
   const g = options.find((o) => !o.sex || o.sex === who.sex)
-  const child = who.age_band === '0-9' || who.age_band === '10-19'
-  if (!g || (g.adultOnly && (child || !who.age_band)))
+  if (!g || (g.ages && !who.age_band))
     return { ...base, outcome: 'no guideline for this test', message: `The guideline for ${t.name} depends on ${!g ? 'sex' : 'age'}, which was not read from the report, so only your lab's range applies.` }
+  const [lo, hi] = (who.age_band ?? '').split(/[-+]/).map(Number) // "60-69" -> 60, 69; "90+" -> 90, NaN
+  if (g.ages && !(lo >= g.ages[0] && (hi || 120) <= g.ages[1]))
+    return { ...base, outcome: 'no guideline for this test', message: `The guideline for ${t.name} covers ages ${g.ages[0]} to ${g.ages[1]}, so only your lab's range applies.` }
 
   const band = g.bands.find((b) => b.upTo === null || n.value! < b.upTo)!
   const unitNote = n.value === t.value ? '' : `, which is ${fmt(n.value)} ${g.unit}`

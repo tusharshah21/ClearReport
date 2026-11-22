@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import type { Run } from './extract'
-import { checkTest } from './guidelines'
+import { checkTest, DISCLAIMER, REVIEW_STATUS } from './guidelines'
 import type { Finding, Payload } from './privacy'
 import { BADGE_TEXT, type Trust } from './trust'
 
@@ -52,6 +52,7 @@ export default function Review({ result, onCancel, onApprove }: { result: Result
       {checks.length > 0 && (
         <>
           <h3>Your lab's ranges compared with common guidelines</h3>
+          <p style={{ fontSize: 13, color: '#555' }}>{DISCLAIMER} These guideline comparisons are {REVIEW_STATUS}.</p>
           <ul>
             {checks.map(({ c, i }) => (
               <li key={i} style={{ marginBottom: 6 }}>
