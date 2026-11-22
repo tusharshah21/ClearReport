@@ -13,7 +13,8 @@ const toB64 = (b: Blob) =>
     r.onload = () => ok((r.result as string).split(',')[1])
     r.readAsDataURL(b)
   })
-const save = (run: Run) => fetch('/__runs', { method: 'POST', body: JSON.stringify(run) })
+// Dev server only (vite.config.ts); the call is compiled out of production builds.
+const save = (run: Run) => import.meta.env.DEV && fetch('/__runs', { method: 'POST', body: JSON.stringify(run) })
 
 async function loadSynthetic(id: string): Promise<Img> {
   const blob = await (await fetch(`/test-data/reports/${id}.png`)).blob()

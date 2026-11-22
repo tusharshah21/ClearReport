@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 // Dev-only endpoint: the spike page POSTs each synthetic run here; eval.ts scores the files.
 const saveRuns: Plugin = {
   name: 'save-runs',
+  apply: 'serve', // dev server only, never part of a build
   configureServer(server) {
     server.middlewares.use('/__runs', (req, res) => {
       let body = ''
