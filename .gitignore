@@ -24,3 +24,6 @@ dist-ssr
 *.sw?
 
 .env
+
+# per-run extraction output (may contain project ids in error text)
+test-data/runs/
