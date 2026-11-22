@@ -76,7 +76,7 @@ export default function Review({ result, onCancel, onApprove }: { result: Result
       )}
       <pre data-testid="payload" style={{ background: '#f4f4f4', padding: 10, overflow: 'auto', maxHeight: 420, fontSize: 12 }}>{JSON.stringify(payload, null, 2)}</pre>
       <p style={{ fontSize: 12, color: '#666' }}>
-        Read {result.run.calls.every((c) => c.source === 'on_device') ? 'on this device' : 'by Gemini in the cloud'} in {(result.run.latency_ms / 1000).toFixed(1)} s ({result.run.strategy === 'pages' ? `${result.run.page_strategies?.length} pages` : `${result.run.strategy} call`}).
+        Read {result.run.calls.every((c) => c.source === 'on_device') ? 'on this device' : 'by Gemini in the cloud'} in {(result.run.latency_ms / 1000).toFixed(1)} s ({result.run.strategy === 'pages' ? `${result.run.page_strategies?.length} pages` : result.run.strategy === 'rows' ? `${result.run.calls.length} on-device calls` : `${result.run.strategy} call`}).
       </p>
       <button onClick={onCancel}>Cancel</button>{' '}
       <button disabled={nPending > 0} onClick={() => onApprove(payload, tests.map((_, i) => !!edits[i]?.confirmed))}><b>Approve</b></button>

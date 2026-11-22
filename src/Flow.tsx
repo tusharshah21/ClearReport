@@ -320,7 +320,7 @@ export default function Flow() {
 
   // Path 1: the PDF's text, identity removed locally (textrows.ts), read by the on-device model only.
   function runText(words: (Word[] | null)[]) {
-    return read(async () => {
+    return read(words, async () => {
       await devicePrep.current
       const rows = rowsForModel(words.map((w) => w ?? []))
       return extractRows('user', rows.batches, rows, (done, total) => setProgress(`Read ${done} of ${total} groups of rows on this device...`))
@@ -329,7 +329,7 @@ export default function Flow() {
 
   // Paths 2 and 3: one image per page to Gemini in the cloud.
   function run(pages: Img[]) {
-    return read(async () => {
+    return read(pageWords, async () => {
       // Size only, never content: pixel size, type and bytes of each image sent.
       pages.forEach((p, i) => console.info(`ClearReport sending image ${i + 1}/${pages.length}: ${p.w}x${p.h} ${p.blob.type} ${Math.round(p.blob.size / 1024)} KB`))
       const images = await Promise.all(pages.map(async (p) => ({ mimeType: p.blob.type, data: await toB64(p.blob) })))
@@ -338,7 +338,8 @@ export default function Flow() {
     })
   }
 
-  async function read(go: () => Promise<Run>) {
+  // words: passed in, because Path 1 starts in the same tick the upload sets pageWords (state would still be stale here).
+  async function read(words: (Word[] | null)[], go: () => Promise<Run>) {
     setStep('extracting')
     setError('')
     try {
@@ -346,7 +347,7 @@ export default function Flow() {
       setProgress('')
       if (!r.ok) throw new Error(r.calls.find((c) => !c.ok)?.error ?? 'unknown error')
       const rows = ((r.output as { tests?: [] })?.tests ?? []) as Parameters<typeof trustOf>[0]
-      setResult({ ...toPayload(r.output), run: r, trust: trustOf(rows, pageWords) })
+      setResult({ ...toPayload(r.output), run: r, trust: trustOf(rows, words) })
       setStep('review')
     } catch (e) {
       setError(String(e))
