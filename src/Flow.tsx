@@ -1,9 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { DEVICE_CREATE_OPTIONS, extractDoc, model, toB64, type Mode } from './extract'
-import { DISCLAIMER } from './guidelines'
+import { explain, type Explained } from './explain'
+import Explanation from './Explanation'
+import { checkAll, DISCLAIMER, type Check } from './guidelines'
 import { ocrWords, suggestMasks } from './masks'
 import { isPdf, pdfPages } from './pdf'
-import { toPayload } from './privacy'
+import { toPayload, type Payload } from './privacy'
+import { config } from './remote'
 import Review, { type Result } from './Review'
 import type { Word } from './textlayer'
 import { trustOf } from './trust'
@@ -15,7 +18,7 @@ declare const LanguageModel: { availability(o: object): Promise<string> } | unde
 type Avail = 'checking' | 'available' | 'downloadable' | 'downloading' | 'unavailable' | 'no-api' | 'error'
 type Path = 1 | 2 | 3
 type Img = { blob: Blob; url: string; w: number; h: number }
-type Step = 'choose' | 'upload' | 'mask' | 'confirm-masked' | 'consent' | 'extracting' | 'failed' | 'review' | 'approved'
+type Step = 'choose' | 'upload' | 'mask' | 'confirm-masked' | 'consent' | 'extracting' | 'failed' | 'review' | 'explaining' | 'explained'
 
 const AVAIL_TEXT: Record<Avail, string> = {
   checking: 'Checking whether this device can read reports privately...',
@@ -167,6 +170,8 @@ export default function Flow() {
   const [pageWords, setPageWords] = useState<(Word[] | null)[]>([]) // PDF text layer per page; null for photos. Local only.
   const [suggest, setSuggest] = useState<Box[][]>([]) // suggested mask boxes per page (Path 2)
   const [skipped, setSkipped] = useState<number[]>([]) // 1-based PDF pages with no results, never sent
+  const [approved, setApproved] = useState<{ payload: Payload; checks: Check[]; confirmed: boolean[] } | null>(null)
+  const [explained, setExplained] = useState<Explained | null>(null)
   const devicePrep = useRef<Promise<void> | null>(null)
   // The 18+ notice is shown once per browser. Only this acknowledgement is remembered, never a report or a consent.
   const [adult, setAdult] = useState(() => { try { return localStorage.getItem(ADULT_KEY) === '1' } catch { return false } })
@@ -178,7 +183,7 @@ export default function Flow() {
 
   function reset() {
     for (const i of [...(original ?? []), ...(toSend ?? [])]) URL.revokeObjectURL(i.url)
-    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setSkipped([]); setConsent(false); setError(''); setResult(null); setProgress(''); setPath(null); setStep('choose')
+    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setSkipped([]); setConsent(false); setError(''); setResult(null); setApproved(null); setExplained(null); setProgress(''); setPath(null); setStep('choose')
   }
 
   function choose(p: Path) {
@@ -261,6 +266,15 @@ export default function Flow() {
     }
   }
 
+  // Only the approved anonymous payload and the plain-code range checks go to the explanation call.
+  async function approve(payload: Payload, confirmed: boolean[]) {
+    const checks = checkAll(payload)
+    setApproved({ payload, checks, confirmed })
+    setStep('explaining')
+    setExplained(await explain(payload, checks)) // never throws: falls back to the template
+    setStep('explained')
+  }
+
   const box = { border: '1px solid #bbb', borderRadius: 6, padding: 12, margin: '10px 0' }
   return (
     <main style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 860, margin: '0 auto', padding: 16, lineHeight: 1.45 }}>
@@ -297,11 +311,11 @@ export default function Flow() {
             <p>You cover your name, ID, phone and doctor's name with black boxes. The boxes are burned into a new copy of the photo, which is then read by Google's Gemini AI in the cloud. You see the exact image before it is sent.</p>
             <button onClick={() => choose(2)}>Mask my details</button>
           </div>
-          <div style={box}>
+          {config().path3 && <div style={box}>
             <h3>{canDevice(avail) ? '3. ' : ''}Send the full report <small>(needs your consent)</small></h3>
             <p>The whole photo, including your name, is sent to Google's Gemini AI to be read. Only choose this if you are comfortable with that.</p>
             <button onClick={() => choose(3)}>Review what this means</button>
-          </div>
+          </div>}
         </section>
       )}
 
@@ -378,7 +392,7 @@ export default function Flow() {
             <>
               <p>Nothing was sent anywhere. You can choose another option:</p>
               <button onClick={() => choose(2)}>Mask my details yourself</button>{' '}
-              <button onClick={() => choose(3)}>Send the full report (asks for consent)</button>{' '}
+              {config().path3 && <><button onClick={() => choose(3)}>Send the full report (asks for consent)</button>{' '}</>}
             </>
           ) : (
             <button onClick={() => proceed(path!, original!)}>Try again</button>
@@ -387,14 +401,12 @@ export default function Flow() {
         </section>
       )}
 
-      {step === 'review' && result && <Review result={result} onCancel={reset} onApprove={() => setStep('approved')} />}
+      {step === 'review' && result && <Review result={result} onCancel={reset} onApprove={approve} />}
 
-      {step === 'approved' && (
-        <section style={box}>
-          <h2>Approved</h2>
-          <p>The explanation step is not built yet (next milestone). Nothing has been sent for explanation.</p>
-          <button onClick={reset}>Read another report</button>
-        </section>
+      {step === 'explaining' && <p style={box}>Writing a plain-language explanation from the anonymous summary you approved...</p>}
+
+      {step === 'explained' && approved && explained && result && (
+        <Explanation payload={approved.payload} checks={approved.checks} badges={result.trust.map((t) => t.badge)} confirmed={approved.confirmed} explained={explained} onDone={reset} />
       )}
     </main>
   )

@@ -31,6 +31,17 @@ ClearReport explains your report. It does not give medical advice. Always discus
 - ADA: the source now names the full page range (S27-S49), the DOI and the two tables. Its footnote says that without unequivocal hyperglycemia a diagnosis needs two abnormal results, which matches the "usually confirmed with a repeat test" wording.
 - ATP III and WHO: source strings now name the exact table and edition.
 
+## Far-out-of-range banner
+
+Status: **pending review by a doctor.** Plain code (`farOutOfRange` in `src/guidelines.ts`), not AI, and not taken from any guideline: it is a product rule.
+
+A value counts as far outside the lab's printed range when it is more than 50% beyond either limit:
+
+- above the upper limit by more than half of that limit (value > 1.5 × upper limit), or
+- below the lower limit by more than half of that limit (value < 0.5 × lower limit).
+
+Only values with a printed limit count, and only values the user has confirmed (rows still waiting for "Please check" are left out). If any value qualifies, the explanation screen shows one static banner: "Some results are well outside your lab's range. Please share this report with your doctor soon." It never names a condition or says how urgent.
+
 ## Wording rules
 
 - ADA bands are described as "one of the criteria doctors consider for diabetes (or prediabetes), usually confirmed with a repeat test". The phrase "diabetes range" is never used (checked in `scripts/checks.ts`).

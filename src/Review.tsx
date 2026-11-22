@@ -8,7 +8,7 @@ export type Result = { payload: Payload; findings: Finding[]; run: Run; trust: T
 const COLORS = { verified: '#1a7f37', check: '#b35900', image: '#555' }
 
 // Values flagged "Please check" stay out of the range check until the user confirms or corrects them.
-export default function Review({ result, onCancel, onApprove }: { result: Result; onCancel: () => void; onApprove: (p: Payload) => void }) {
+export default function Review({ result, onCancel, onApprove }: { result: Result; onCancel: () => void; onApprove: (p: Payload, confirmed: boolean[]) => void }) {
   const [edits, setEdits] = useState<Record<number, { text: string; confirmed: boolean }>>({})
   const pending = (i: number) => result.trust[i].badge === 'check' && !edits[i]?.confirmed
   const tests = result.payload.tests.map((t, i) => (edits[i]?.confirmed ? { ...t, value: edits[i].text.trim() === '' ? null : Number(edits[i].text) } : t))
@@ -75,7 +75,7 @@ export default function Review({ result, onCancel, onApprove }: { result: Result
         Read {result.run.calls.every((c) => c.source === 'on_device') ? 'on this device' : 'by Gemini in the cloud'} in {(result.run.latency_ms / 1000).toFixed(1)} s ({result.run.strategy === 'pages' ? `${result.run.page_strategies?.length} pages` : `${result.run.strategy} call`}).
       </p>
       <button onClick={onCancel}>Cancel</button>{' '}
-      <button disabled={nPending > 0} onClick={() => onApprove(payload)}><b>Approve</b></button>
+      <button disabled={nPending > 0} onClick={() => onApprove(payload, tests.map((_, i) => !!edits[i]?.confirmed))}><b>Approve</b></button>
       {nPending > 0 && <small> Confirm or correct the highlighted value{nPending > 1 ? 's' : ''} first (leave the box empty if you can't read it).</small>}
     </section>
   )

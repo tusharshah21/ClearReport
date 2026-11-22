@@ -1,5 +1,6 @@
 import { getGenerativeModel, InferenceMode, InferenceSource, type GenerativeModel } from 'firebase/ai'
 import { ai } from './firebase'
+import { config } from './remote'
 
 const num = { type: ['number', 'null'] }
 const str = { type: ['string', 'null'] }
@@ -76,7 +77,7 @@ export function model(mode: Mode, part: Part): GenerativeModel {
         : getGenerativeModel(ai, {
             mode: InferenceMode.ONLY_IN_CLOUD,
             inCloudParams: {
-              model: 'gemini-3.5-flash-lite', // documented default, pinned so results are reproducible
+              model: config().model, // Remote Config, default pinned in remote.ts so results are reproducible
               generationConfig: { responseMimeType: 'application/json', responseJsonSchema: SCHEMAS[part], temperature: 0 },
             },
           }),

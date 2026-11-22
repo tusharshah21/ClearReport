@@ -166,3 +166,12 @@ export function checkTest(t: Test, who: Pick<Payload, 'sex' | 'age_band'>): Chec
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
 export const checkAll = (p: Payload) => p.tests.map((t) => checkTest(t, p))
+
+// Wording rules for every user-facing sentence (engine messages and the AI explanation): describe, never diagnose or blame.
+export const BANNED = /you have|you should|wrong|diagnos|treat(ment)? with|take |diabetes range|prediabetes range/i
+
+// Far-out-of-range rule (product rule, pending review by a doctor; see docs/guidelines.md):
+// a value more than 50% beyond either printed limit.
+export const FAR_OUT_BANNER = 'Some results are well outside your lab\'s range. Please share this report with your doctor soon.'
+export const farOutOfRange = (t: Pick<Test, 'value' | 'ref_low' | 'ref_high'>) =>
+  t.value !== null && ((t.ref_high !== null && t.ref_high > 0 && t.value > t.ref_high * 1.5) || (t.ref_low !== null && t.ref_low > 0 && t.value < t.ref_low * 0.5))

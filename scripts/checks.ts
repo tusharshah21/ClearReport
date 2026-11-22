@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { canonical, displayName } from '../src/canonical'
 import { ageBand, toPayload } from '../src/privacy'
 import { normalize } from '../src/units'
-import { checkAll, checkTest } from '../src/guidelines'
+import { BANNED, checkAll, checkTest, farOutOfRange } from '../src/guidelines'
 import type { Test } from '../src/privacy'
 import { trustOf } from '../src/trust'
 
@@ -155,7 +155,9 @@ assert.equal(one({ name: 'Platelets', unit: 'lakhs/L', value: 2 }).outcome, 'no 
 assert.equal(one({ name: 'FBS', unit: 'mg/L', value: 2 }).outcome, 'unit not recognized')
 // Wording rules: describe, never diagnose or blame.
 for (const f of readdirSync('test-data/ground-truth')) for (const c of checksOf(f.replace('.json', '')))
-  for (const s of [c.message, c.range_note ?? '']) assert.ok(!/you have|you should|wrong|diagnos|treat(ment)? with|take |diabetes range|prediabetes range/i.test(s), `${f}: ${s}`)
+  for (const s of [c.message, c.range_note ?? '']) assert.ok(!BANNED.test(s), `${f}: ${s}`)
+// Far-out-of-range banner rule: more than 50% beyond either printed limit.
+assert.deepEqual([[16, 4, 10], [15, 4, 10], [1.9, 4, 10], [2, 4, 10], [300, null, 200], [5, null, null], [null, 4, 10]].map(([value, ref_low, ref_high]) => farOutOfRange({ value, ref_low, ref_high })), [true, false, true, false, false, false, false])
 
 // Payload names drop section headers and method lines the model copied in.
 assert.equal(displayName('Absolute Leucocyte Count\n(Calculated)\nBasophils'), 'Basophils')
