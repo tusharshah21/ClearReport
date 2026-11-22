@@ -191,3 +191,26 @@ console.log('checks ok')
   rect.forEach((p, i) => { const q = apply(H, p); assert.ok(Math.abs(q.x - quad[i].x) < 1e-6 && Math.abs(q.y - quad[i].y) < 1e-6, `homography corner ${i}`) })
 }
 console.log('crop ok')
+
+// Path 1 plain-code corrections after the on-device model.
+{
+  const { parseRange, fixFromRow, isResultRow, rowFor } = await import('../src/textrows')
+  assert.deepEqual(parseRange('0.67 - 1.17'), [0.67, 1.17])
+  assert.deepEqual(parseRange('<200.00'), [null, 200])
+  assert.deepEqual(parseRange('>59'), [59, null])
+  assert.equal(parseRange('Negative'), null)
+  const row = 'LDL Cholesterol, Calculated | 160.20 | mg/dL | <100.00'
+  assert.deepEqual(fixFromRow({ name: 'LDL Cholesterol, Calculated', ref_text: '<100.00', ref_low: 100, ref_high: null, printed_flag: 'H' }, row), { name: 'LDL Cholesterol, Calculated', ref_text: '<100.00', ref_low: null, ref_high: 100, printed_flag: null })
+  assert.equal(fixFromRow({ name: 'Hb', printed_flag: null }, 'Hb | 9.1 | L | g/dL | 13 - 17').printed_flag, 'L')
+  assert.ok(isResultRow('Sodium | 140.00 | mEq/L | 136.00 - 146.00'))
+  assert.ok(!isResultRow('1. | TSH levels are subject to circadian variation, reaching peak levels between 2 - 4.a.m. and at a'))
+  assert.equal(rowFor('VLDL Cholesterol, Calculated', ['LDL Cholesterol | 1', 'VLDL Cholesterol,Calculated | 33.30']), 'VLDL Cholesterol,Calculated | 33.30')
+  console.log('textrows ok')
+}
+{
+  const { skippedRows } = await import('../src/textrows')
+  const rows = ['Monocytes | 6 | % | 2 - 10', 'Lymphocytes | 30 | % | 20 - 40', 'Monocytes | 0.4 | thou/mm3 | 0.2 - 1.0']
+  assert.deepEqual(skippedRows(rows, ['Monocytes', 'Lymphocytes']), ['Monocytes | 0.4 | thou/mm3 | 0.2 - 1.0'])
+  assert.deepEqual(skippedRows(rows, ['Monocytes', 'Lymphocytes', 'Monocytes']), [])
+  console.log('skipped rows ok')
+}

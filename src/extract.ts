@@ -1,6 +1,7 @@
 import { getGenerativeModel, InferenceMode, InferenceSource, type GenerativeModel } from 'firebase/ai'
 import { ai } from './firebase'
 import { config } from './remote'
+import { fixFromRow, rowFor, skippedRows } from './textrows'
 
 const num = { type: ['number', 'null'] }
 const str = { type: ['string', 'null'] }
@@ -195,23 +196,40 @@ export const textModel = () =>
 export async function extractRows(report: string, batches: { page: number; text: string }[], local: { age: string | null; sex: string | null }, onProgress?: (done: number, total: number) => void): Promise<Run> {
   const t0 = performance.now()
   const calls: Call[] = [], tests: unknown[] = []
-  for (const [i, b] of batches.entries()) {
+  const ask = async (text: string): Promise<{ name: string; [k: string]: unknown }[] | null> => {
     const t1 = performance.now()
-    let c: Call
+    let c: Call, out: { name: string; [k: string]: unknown }[] | null = null
     try {
-      const res = await textModel().generateContent([ROWS_PROMPT, b.text])
+      // ponytail: a hung on-device call (seen once, 9+ min on one batch) is abandoned after 180 s, not cancelled; the first call of a session alone can take 100 s.
+      const res = await Promise.race([
+        textModel().generateContent([ROWS_PROMPT, text]),
+        new Promise<never>((_, no) => setTimeout(() => no(new Error('on-device call took over 180 s')), 180_000)),
+      ])
       const raw = res.response.text()
       c = { part: 'tests', source: res.response.inferenceSource ?? null, latency_ms: Math.round(performance.now() - t1), output_chars: raw.length, ok: true, raw }
       if (c.source !== InferenceSource.ON_DEVICE) c = { ...c, ok: false, error: `served by ${c.source}, expected on_device` }
-      else tests.push(...((JSON.parse(raw) as { tests?: object[] }).tests ?? []).map((t) => ({ ...t, page: b.page })))
+      else out = (JSON.parse(raw) as { tests?: { name: string }[] }).tests ?? []
     } catch (e) {
       c = { part: 'tests', source: null, latency_ms: Math.round(performance.now() - t1), output_chars: 0, ok: false, error: String(e) }
     }
     calls.push(c)
-    onProgress?.(i + 1, batches.length)
-    if (!c.ok) break // a failed private read is reported, never retried in the cloud
+    return c.ok ? out : null
   }
-  const ok = calls.length === batches.length && calls.every((c) => c.ok)
+  let ok = true
+  for (const [i, b] of batches.entries()) {
+    const rows = b.text.split('\n')
+    const got = await ask(b.text)
+    if (!got) { ok = false; break } // a failed private read is reported, never retried in the cloud
+    // The small model sometimes returns only the first rows of a batch (and skipped the same rows again when re-sent
+    // together): send each skipped row on its own. A row it still cannot read is kept with a blank value and
+    // legible: false, so the review screen asks the user to check it (with the PDF-text suggestion); never dropped.
+    for (const r of skippedRows(rows, got.map((t) => t.name))) {
+      const more = (await ask(r))?.filter((t) => rowFor(t.name, [r]))
+      got.push(...(more?.length ? more : [{ name: r.split(' | ')[0], value: null, unit: null, ref_low: null, ref_high: null, ref_text: null, printed_flag: null, legible: false }]))
+    }
+    tests.push(...got.map((t) => ({ ...fixFromRow(t, rowFor(t.name, rows)), page: b.page })))
+    onProgress?.(i + 1, batches.length)
+  }
   return {
     report, mode: 'device', strategy: 'rows', at: new Date().toISOString(), ok, calls,
     latency_ms: Math.round(performance.now() - t0),

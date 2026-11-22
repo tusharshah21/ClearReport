@@ -41,8 +41,54 @@ export function rowsForModel(pages: Word[][], perBatch = 10): Rows {
       .filter((k) => k.page === p)
       .map((k) => k.text.split(' ').filter((w) => !identity.has(tok(w)) || !tok(w)).join(' '))
       .map((t) => PATTERNS.reduce((s, [, re]) => s.replace(re, '[removed]'), t))
-      .filter(looksLikeResult) // headings, comments and footers never reach the model
+      .filter((t) => looksLikeResult(t) && isResultRow(t)) // headings, comments and footers never reach the model
     for (let i = 0; i < rows.length; i += perBatch) batches.push({ page: p, text: rows.slice(i, i + perBatch).join('\n') })
   }
   return { batches, age, sex, dropped_lines: dropped }
+}
+
+// A result row: a first column with letters (the test name) and a later column starting with a number or < >.
+// Numbered notes ("1. | TSH levels ...") and wrapped comment lines fail this.
+const cols = (row: string) => row.split(' | ').map((c) => c.trim())
+export const isResultRow = (row: string) => {
+  const c = cols(row)
+  return /[a-z]/i.test(c[0]) && c.slice(1).some((x) => /^[<>≤≥]?\s*\d/.test(x))
+}
+
+const key = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+// The row a model's test name came from: same first column, or one contains the other ("VLDL Cholesterol,Calculated").
+export const rowFor = (name: string, rows: string[]) => {
+  const n = key(name)
+  return rows.find((r) => key(cols(r)[0]) === n) ?? rows.find((r) => n && (key(cols(r)[0]).includes(n) || n.includes(key(cols(r)[0]))))
+}
+
+// "0.67 - 1.17" -> [0.67, 1.17]; "<200.00" -> [null, 200]; ">59" -> [59, null]; anything else -> null (keep the model's).
+export function parseRange(text: string | null | undefined): [number | null, number | null] | null {
+  const s = String(text ?? '').replace(/,/g, '').trim()
+  let m = s.match(/^(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)$/)
+  if (m) return [Number(m[1]), Number(m[2])]
+  if ((m = s.match(/^(?:<|<=|≤|up ?to)\s*(\d+(?:\.\d+)?)$/i))) return [null, Number(m[1])]
+  if ((m = s.match(/^(?:>|>=|≥)\s*(\d+(?:\.\d+)?)$/))) return [Number(m[1]), null]
+  return null
+}
+
+type T = { name: string; ref_text?: string | null; ref_low?: number | null; ref_high?: number | null; printed_flag?: string | null }
+// Plain-code corrections after the on-device model (it mixed up "<" ranges and added flags the report never printed):
+// bounds come from the printed range text, and a flag is kept only if the row itself prints H/L/High/Low.
+export function fixFromRow<X extends T>(t: X, row: string | undefined): X {
+  const r = parseRange(t.ref_text)
+  const printed = row ? cols(row).slice(1).map((c) => c.toLowerCase()).find((c) => ['h', 'l', 'high', 'low'].includes(c)) : undefined
+  return { ...t, ...(r ? { ref_low: r[0], ref_high: r[1] } : {}), printed_flag: printed ? (printed[0] === 'h' ? 'H' : 'L') : null }
+}
+
+// Rows the model returned nothing for. Each returned test covers ONE row, so a name printed twice
+// (WM15: "Monocytes" as % and as an absolute count) needs two answers.
+export function skippedRows(rows: string[], names: string[]): string[] {
+  const used = new Set<number>()
+  return rows.filter((r) => {
+    const i = names.findIndex((n, k) => !used.has(k) && rowFor(n, [r]))
+    if (i < 0) return true
+    used.add(i)
+    return false
+  })
 }

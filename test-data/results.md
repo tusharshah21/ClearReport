@@ -1,6 +1,6 @@
 # Extraction spike results
 
-Generated 2026-11-22T17:46:59.259Z by `npm run eval` from `test-data/runs/`. Accuracy columns are over all ground-truth tests (a test not found counts as wrong). PII missed = identity fields not extracted correctly; each one is a field the stripping step would not know to remove.
+Generated 2026-11-22T19:17:49.960Z by `npm run eval` from `test-data/runs/`. Accuracy columns are over all ground-truth tests (a test not found counts as wrong). PII missed = identity fields not extracted correctly; each one is a field the stripping step would not know to remove.
 
 ## Summary
 
@@ -10,16 +10,16 @@ Generated 2026-11-22T17:46:59.259Z by `npm run eval` from `test-data/runs/`. Acc
 | cloud pdf | 2/2 | 100% | 85% | 98% | 95% | 100% | 0/7 | 19905 | 12707 |
 | cloud photo | 2/2 | 100% | 100% | 100% | 100% | 100% | 0/12 | 10318 | 5017 |
 | device clean | 6/6 | 98% | 91% | 95% | 58% | 89% | 7/36 | 106527 | 1756 |
-| device pdf | 0/0 | n/a | n/a | n/a | n/a | n/a | 0/0 | 0 | 0 |
+| device pdf | 2/2 | 97% | 94% | 97% | 97% | 97% | 0/7 | 425829 | 7806 |
 | device photo | 2/2 | 91% | 66% | 44% | 19% | 44% | 6/12 | 138253 | 3068 |
 
 ## Per report
 
 | report | layout | mode | attempts | served by | tests found | value | unit | range | flag | PII missed | latency ms | out chars |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| WM14 | LPL-pdf | device | no run |  |  |  |  |  |  |  |  |  |
+| WM14 | LPL-pdf | device | rows(8 calls):ok | on_device | 32/33 | 94% | 97% | 97% | 97% | none | 262672 | 4811 |
 | WM14 | LPL-pdf | cloud | pages(single,single,single,single):ok | in_cloud | 33/33 | 97% | 94% | 91% | 100% | none | 15712 | 6807 |
-| WM15 | LPL-pdf | device | no run |  |  |  |  |  |  |  |  |  |
+| WM15 | LPL-pdf | device | rows(15 calls):ok | on_device | 53/55 | 95% | 96% | 96% | 96% | none | 425829 | 7806 |
 | WM15 | LPL-pdf | cloud | pages(single,single,single,single,single):ok | in_cloud | 55/55 | 78% | 100% | 98% | 100% | none | 19905 | 12707 |
 | r1-photo | A | device | single:ok | on_device | 10/10 | 100% | 30% | 10% | 50% | doctor_name | 81144 | 1703 |
 | r1-photo | A | cloud | single:ok | in_cloud | 10/10 | 100% | 100% | 100% | 100% | none | 10318 | 2368 |
