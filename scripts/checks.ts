@@ -123,7 +123,7 @@ const checksOf = (id: string) => checkAll(toPayload(gtOf(id)).payload)
 const glu = checksOf('r2').find((c) => c.key === 'fasting_glucose')!
 assert.equal(glu.lab, 'normal')
 assert.equal(glu.outcome, 'lab says normal, guideline says borderline or high/low')
-assert.match(glu.message, /Your lab's range for fasting glucose is 70 - 110.*\(ADA\) treats 100-125 mg\/dL as the prediabetes range\. You may want to ask your doctor about this\./)
+assert.match(glu.message, /Your lab's range for fasting glucose is 70 - 110.*A widely used guideline \(ADA\) uses 100-125 mg\/dL as one of the criteria doctors consider for prediabetes, usually confirmed with a repeat test\. You may want to ask your doctor about this\./)
 assert.match(glu.range_note!, /\(70 - 110\) is different from .*\(below 100 mg\/dL\)/)
 // r4: TSH 0.35-5.50 has no guideline threshold in the table, so it must say so rather than invent one.
 const tsh = checksOf('r4').find((c) => c.key === 'tsh')!
@@ -135,16 +135,24 @@ assert.equal(one({ name: 'HbA1c', unit: '%', value: 5.5, ref_low: 4, ref_high: 5
 assert.equal(one({ name: 'HbA1c', unit: '%', value: 5.5, ref_low: 4, ref_high: 5.6 }).outcome, 'agrees')
 assert.equal(one({ name: 'LDL', value: 160, ref_high: 100 }).outcome, 'agrees')
 assert.equal(one({ name: 'Total Cholesterol', value: 195, ref_high: 180 }).outcome, 'lab says abnormal, guideline says normal')
-assert.equal(one({ name: 'FBS', unit: 'mmol/L', value: 7.2, ref_low: 3.9, ref_high: 6.1 }).guideline, 'diabetes (126 mg/dL or higher)')
+assert.equal(one({ name: 'FBS', unit: 'mmol/L', value: 7.2, ref_low: 3.9, ref_high: 6.1 }).guideline, 'diabetes criterion (126 mg/dL or higher)')
 assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5, ref_low: 12, ref_high: 15 }, { sex: 'Female', age_band: '20-29' }).outcome, 'agrees')
 assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5, ref_low: 12, ref_high: 15 }, { sex: 'Male', age_band: '20-29' }).outcome, 'lab says normal, guideline says borderline or high/low')
 assert.equal(one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.5 }, { sex: null as never, age_band: '20-29' }).outcome, 'no guideline for this test')
-assert.equal(one({ name: 'HDL', value: 45, ref_low: 40 }, { sex: 'Female', age_band: '40-49' }).outcome, 'lab says normal, guideline says borderline or high/low')
+// Decisions of 2026-11-22: HDL below 40 for everyone; LDL 100-129 not flagged; lipid, pregnancy and ADA wording notes.
+assert.equal(one({ name: 'HDL', value: 45, ref_low: 40 }, { sex: 'Female', age_band: '40-49' }).outcome, 'agrees')
+assert.equal(one({ name: 'HDL', value: 38, ref_low: 40 }, { sex: 'Female', age_band: '40-49' }).outcome, 'agrees')
+assert.equal(one({ name: 'LDL', value: 115, ref_high: 130 }).outcome, 'agrees')
+assert.equal(one({ name: 'LDL', value: 115, ref_high: 100 }).outcome, 'lab says abnormal, guideline says normal')
+assert.equal(one({ name: 'LDL', value: 135, ref_high: 130 }).guideline, 'borderline high (130-159 mg/dL)')
+for (const name of ['Total Cholesterol', 'LDL', 'HDL', 'Triglycerides']) assert.ok(one({ name, value: 100, ref_high: 200 }).message.endsWith('Indian guidelines (Lipid Association of India, 2020) set targets based on overall heart risk, so your doctor may use different goals.'), name)
+assert.ok(one({ name: 'Hemoglobin', unit: 'g/dL', value: 14, ref_low: 13, ref_high: 17 }).message.endsWith('Different ranges apply during pregnancy.'))
+assert.match(one({ name: 'FBS', value: 132, ref_low: 70, ref_high: 100 }).message, /\(ADA\) uses 126 mg\/dL or higher as one of the criteria doctors consider for diabetes, usually confirmed with a repeat test\./)
 assert.equal(one({ name: 'Platelets', unit: 'lakhs/L', value: 2 }).outcome, 'no guideline for this test')
 assert.equal(one({ name: 'FBS', unit: 'mg/L', value: 2 }).outcome, 'unit not recognized')
 // Wording rules: describe, never diagnose or blame.
 for (const f of readdirSync('test-data/ground-truth')) for (const c of checksOf(f.replace('.json', '')))
-  for (const s of [c.message, c.range_note ?? '']) assert.ok(!/you have|you should|wrong|diagnos|treat(ment)? with|take /i.test(s), `${f}: ${s}`)
+  for (const s of [c.message, c.range_note ?? '']) assert.ok(!/you have|you should|wrong|diagnos|treat(ment)? with|take |diabetes range|prediabetes range/i.test(s), `${f}: ${s}`)
 
 // Payload names drop section headers and method lines the model copied in.
 assert.equal(displayName('Absolute Leucocyte Count\n(Calculated)\nBasophils'), 'Basophils')

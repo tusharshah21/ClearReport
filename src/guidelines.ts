@@ -10,7 +10,8 @@ import type { Payload, Test } from './privacy'
 
 type Dir = 'normal' | 'high' | 'low'
 // Bands are ordered; a value belongs to the first band whose upTo it is below (exclusive). Last band: upTo null.
-type Band = { upTo: number | null; dir: Dir; name: string; text: string }
+// criterion: for diagnostic thresholds (ADA), describe the band as one criterion doctors consider, never as "the X range".
+type Band = { upTo: number | null; dir: Dir; name: string; text: string; criterion?: string }
 type Guideline = {
   label: string
   unit: string
@@ -19,6 +20,7 @@ type Guideline = {
   source: string
   normal: { low: number | null; high: number | null; text: string } // for the "your lab's range differs" note
   bands: Band[]
+  note?: string // appended to every message for this test
 }
 
 export const REVIEW_STATUS = 'pending review by a doctor'
@@ -28,47 +30,47 @@ export const NOT_INCLUDED = {
   tsh: 'ATA/AACE material discusses a population range of about 0.45-4.12 mIU/L (NHANES III), but it is a study-derived reference interval, not a guideline threshold, and it shifts with age and pregnancy.',
 }
 
-const ADA = 'ADA Standards of Care in Diabetes, diagnosis criteria'
-const ATP3 = 'NCEP ATP III (US National Cholesterol Education Program)'
-const WHO_HB = 'WHO guideline on haemoglobin cutoffs for anaemia (2024), non-pregnant adults'
+const LIPID_NOTE = 'Indian guidelines (Lipid Association of India, 2020) set targets based on overall heart risk, so your doctor may use different goals.'
+const REPEAT = 'usually confirmed with a repeat test'
 
 export const GUIDELINES: Record<string, Guideline[]> = {
   fasting_glucose: [{
     label: 'fasting glucose', unit: 'mg/dL', source: 'ADA', normal: { low: null, high: 100, text: 'below 100' },
     bands: [
       { upTo: 100, dir: 'normal', name: 'normal', text: 'below 100' },
-      { upTo: 126, dir: 'high', name: 'prediabetes', text: '100-125' },
-      { upTo: null, dir: 'high', name: 'diabetes', text: '126 or higher' },
+      { upTo: 126, dir: 'high', name: 'prediabetes criterion', text: '100-125', criterion: 'prediabetes' },
+      { upTo: null, dir: 'high', name: 'diabetes criterion', text: '126 or higher', criterion: 'diabetes' },
     ],
   }],
   hba1c: [{
     label: 'HbA1c', unit: '%', source: 'ADA', normal: { low: null, high: 5.7, text: 'below 5.7' },
     bands: [
       { upTo: 5.7, dir: 'normal', name: 'normal', text: 'below 5.7' },
-      { upTo: 6.5, dir: 'high', name: 'prediabetes', text: '5.7-6.4' },
-      { upTo: null, dir: 'high', name: 'diabetes', text: '6.5 or higher' },
+      { upTo: 6.5, dir: 'high', name: 'prediabetes criterion', text: '5.7-6.4', criterion: 'prediabetes' },
+      { upTo: null, dir: 'high', name: 'diabetes criterion', text: '6.5 or higher', criterion: 'diabetes' },
     ],
   }],
   total_cholesterol: [{
-    label: 'total cholesterol', unit: 'mg/dL', source: 'NCEP ATP III', normal: { low: null, high: 200, text: 'below 200' },
+    label: 'total cholesterol', unit: 'mg/dL', source: 'NCEP ATP III', normal: { low: null, high: 200, text: 'below 200' }, note: LIPID_NOTE,
     bands: [
       { upTo: 200, dir: 'normal', name: 'desirable', text: 'below 200' },
       { upTo: 240, dir: 'high', name: 'borderline high', text: '200-239' },
       { upTo: null, dir: 'high', name: 'high', text: '240 or higher' },
     ],
   }],
+  // Not flagged below 130 (product decision): ATP III calls 100-129 "near or above optimal", not borderline.
   ldl: [{
-    label: 'LDL cholesterol', unit: 'mg/dL', source: 'NCEP ATP III', normal: { low: null, high: 100, text: 'below 100' },
+    label: 'LDL cholesterol', unit: 'mg/dL', source: 'NCEP ATP III', normal: { low: null, high: 130, text: 'below 130' }, note: LIPID_NOTE,
     bands: [
       { upTo: 100, dir: 'normal', name: 'optimal', text: 'below 100' },
-      { upTo: 130, dir: 'high', name: 'near or above optimal', text: '100-129' },
+      { upTo: 130, dir: 'normal', name: 'near or above optimal', text: '100-129' },
       { upTo: 160, dir: 'high', name: 'borderline high', text: '130-159' },
       { upTo: 190, dir: 'high', name: 'high', text: '160-189' },
       { upTo: null, dir: 'high', name: 'very high', text: '190 or higher' },
     ],
   }],
   triglycerides: [{
-    label: 'triglycerides', unit: 'mg/dL', source: 'NCEP ATP III', normal: { low: null, high: 150, text: 'below 150' },
+    label: 'triglycerides', unit: 'mg/dL', source: 'NCEP ATP III', normal: { low: null, high: 150, text: 'below 150' }, note: LIPID_NOTE,
     bands: [
       { upTo: 150, dir: 'normal', name: 'normal', text: 'below 150' },
       { upTo: 200, dir: 'high', name: 'borderline high', text: '150-199' },
@@ -76,21 +78,19 @@ export const GUIDELINES: Record<string, Guideline[]> = {
       { upTo: null, dir: 'high', name: 'very high', text: '500 or higher' },
     ],
   }],
-  // ATP III: "low HDL" is <40 overall; its metabolic syndrome criteria use <40 for men and <50 for women.
-  hdl: (['Male', 'Female'] as const).map((sex) => {
-    const cut = sex === 'Male' ? 40 : 50
-    return {
-      label: 'HDL cholesterol', unit: 'mg/dL', sex, source: 'NCEP ATP III, metabolic syndrome criteria', normal: { low: cut, high: null, text: `${cut} or higher` },
-      bands: [
-        { upTo: cut, dir: 'low' as const, name: 'low', text: `below ${cut}` },
-        { upTo: null, dir: 'normal' as const, name: 'not low', text: `${cut} or higher` },
-      ],
-    }
-  }),
+  // ATP III general cutoff for everyone (product decision; the sex-specific 50 came from its metabolic syndrome criteria).
+  hdl: [{
+    label: 'HDL cholesterol', unit: 'mg/dL', source: 'NCEP ATP III', normal: { low: 40, high: null, text: '40 or higher' }, note: LIPID_NOTE,
+    bands: [
+      { upTo: 40, dir: 'low', name: 'low', text: 'below 40' },
+      { upTo: null, dir: 'normal', name: 'not low', text: '40 or higher' },
+    ],
+  }],
   hemoglobin: (['Male', 'Female'] as const).map((sex) => {
     const cut = sex === 'Male' ? 13 : 12
     return {
       label: 'hemoglobin', unit: 'g/dL', sex, adultOnly: true, source: 'WHO', normal: { low: cut, high: null, text: `${cut}.0 or higher` },
+      note: 'Different ranges apply during pregnancy.',
       bands: [
         { upTo: cut, dir: 'low' as const, name: 'anaemia', text: `below ${cut}.0` },
         { upTo: null, dir: 'normal' as const, name: 'not anaemic', text: `${cut}.0 or higher` },
@@ -98,7 +98,12 @@ export const GUIDELINES: Record<string, Guideline[]> = {
     }
   }),
 }
-export const SOURCES: Record<string, string> = { ADA, 'NCEP ATP III': ATP3, 'NCEP ATP III, metabolic syndrome criteria': ATP3, WHO: WHO_HB }
+// Exact editions. Verification status of each threshold: see docs/guidelines.md.
+export const SOURCES: Record<string, string> = {
+  ADA: 'American Diabetes Association, Standards of Care in Diabetes 2026, Section 2: Diagnosis and Classification of Diabetes (Diabetes Care 2026;49(Suppl. 1):S27)',
+  'NCEP ATP III': 'NCEP Adult Treatment Panel III Final Report (Circulation 2002;106:3143-3421)',
+  WHO: 'WHO Guideline on haemoglobin cutoffs to define anaemia in individuals and populations (2024), non-pregnant adults aged 15 and over',
+}
 
 export type Outcome =
   | 'agrees'
@@ -142,14 +147,17 @@ export function checkTest(t: Test, who: Pick<Payload, 'sex' | 'age_band'>): Chec
     ? `Your lab's range for ${g.label} (${labRange}) is different from the range ${src} uses (${withUnit(g.normal.text)}).`
     : null
   const out = { ...base, lab, guideline: `${band.name} (${gText})`, range_note, source: SOURCES[g.source] }
-  const where = `${src} treats ${gText} as ${band.dir === 'normal' ? band.name : `the ${band.name} range`}`
+  const where = band.criterion
+    ? `${src} uses ${gText} as one of the criteria doctors consider for ${band.criterion}, ${REPEAT}`
+    : `${src} treats ${gText} as ${band.dir === 'normal' ? band.name : `the ${band.name} range`}`
+  const done = (c: Check): Check => (g.note ? { ...c, message: `${c.message} ${g.note}` } : c)
 
-  if (lab === 'no range') return { ...out, outcome: 'no printed range', message: `Your report shows no range for ${g.label}. Your result is ${shown}${unitNote}; ${where}.${band.dir === 'normal' ? '' : ' You may want to ask your doctor about this.'}` }
-  if (lab === 'normal' && band.dir === 'normal') return { ...out, outcome: 'agrees', message: `Your ${g.label} result (${shown}${unitNote}) is inside your lab's range (${labRange}), and ${where}.` }
-  if (lab === 'normal') return { ...out, outcome: 'lab says normal, guideline says borderline or high/low', message: `Your lab's range for ${g.label} is ${labRange}, and your result is ${shown}${unitNote}. ${cap(where)}. You may want to ask your doctor about this.` }
-  if (band.dir === 'normal') return { ...out, outcome: 'lab says abnormal, guideline says normal', message: `Your lab marks your ${g.label} result (${shown}${unitNote}) as outside its range (${labRange}). ${cap(where)}. You may want to ask your doctor how to read this.` }
-  if (band.dir === lab) return { ...out, outcome: 'agrees', message: `Your ${g.label} result (${shown}${unitNote}) is outside your lab's range (${labRange}), and ${where}. You may want to ask your doctor about this.` }
-  return { ...out, outcome: 'lab and guideline point in opposite directions', message: `Your lab's range for ${g.label} is ${labRange} and ${where}; they point in different directions for your result (${shown}${unitNote}). You may want to ask your doctor about this.` }
+  if (lab === 'no range') return done({ ...out, outcome: 'no printed range', message: `Your report shows no range for ${g.label}. Your result is ${shown}${unitNote}; ${where}.${band.dir === 'normal' ? '' : ' You may want to ask your doctor about this.'}` })
+  if (lab === 'normal' && band.dir === 'normal') return done({ ...out, outcome: 'agrees', message: `Your ${g.label} result (${shown}${unitNote}) is inside your lab's range (${labRange}), and ${where}.` })
+  if (lab === 'normal') return done({ ...out, outcome: 'lab says normal, guideline says borderline or high/low', message: `Your lab's range for ${g.label} is ${labRange}, and your result is ${shown}${unitNote}. ${cap(where)}. You may want to ask your doctor about this.` })
+  if (band.dir === 'normal') return done({ ...out, outcome: 'lab says abnormal, guideline says normal', message: `Your lab marks your ${g.label} result (${shown}${unitNote}) as outside its range (${labRange}). ${cap(where)}. You may want to ask your doctor how to read this.` })
+  if (band.dir === lab) return done({ ...out, outcome: 'agrees', message: `Your ${g.label} result (${shown}${unitNote}) is outside your lab's range (${labRange}), and ${where}. You may want to ask your doctor about this.` })
+  return done({ ...out, outcome: 'lab and guideline point in opposite directions', message: `Your lab's range for ${g.label} is ${labRange} and ${where}; they point in different directions for your result (${shown}${unitNote}). You may want to ask your doctor about this.` })
 }
 
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
