@@ -1,10 +1,10 @@
 // Plain code, runs locally: one badge per extracted row, from the model's own "legible" flag and,
 // for digital PDFs, a cross-check against the page's text layer.
 import { displayName } from './canonical'
-import { toLines, verify, type Check, type Word } from './textlayer'
+import { toLines, verify, type ValueCheck, type Word } from './textlayer'
 
 export type Badge = 'verified' | 'check' | 'image'
-export type Trust = { value: Check; range: Check; unit: Check; legible: boolean; badge: Badge; why: string }
+export type Trust = ValueCheck & { legible: boolean; badge: Badge; why: string }
 export const BADGE_TEXT: Record<Badge, string> = {
   verified: 'Verified against your PDF',
   check: 'Please check this value',
@@ -28,6 +28,7 @@ export function trustOf(rows: Row[], pages: (Word[] | null)[]): Trust[] {
     if (c.value === 'mismatch') return t('check', 'The number read from the image does not match the number in your PDF.')
     if (c.range === 'mismatch') return t('check', 'The reference range read from the image does not match your PDF.')
     if (c.unit === 'mismatch') return t('check', 'The unit read from the image does not match your PDF.')
+    if (r.value === null && c.pdf_value !== null) return t('check', "No value was read from the image, but your PDF's text has a number on this row.")
     if (c.value === 'verified') return t('verified', '')
     return t('image', '')
   })

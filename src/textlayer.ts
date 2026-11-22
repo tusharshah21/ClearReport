@@ -58,7 +58,7 @@ const has = (nums: number[], v: number) => nums.some((n) => Math.abs(n - v) < 1e
 // Finds the test's row on the page and the numbers printed to the right of its name, on the same row
 // or within one row-height (values often sit a few points off the name's baseline).
 // nth: which occurrence of a repeated name (WM15 prints "Neutrophils" as % and as an absolute count).
-function rowNumbers(name: string, lines: Line[], nth = 0): { nums: number[]; text: string } | null {
+function rowNumbers(name: string, lines: Line[], nth = 0): { nums: number[]; bare: number[]; text: string } | null {
   const want = norm(displayName(name).replace(/\([^)]*\)/g, ' ')).split(' ').slice(0, 4).join(' ') // "Creatinine (Modified Jaffe)" -> "creatinine"
   if (!want) return null
   const at = (l: Line) => ` ${norm(l.text)} `.indexOf(` ${want} `) // word-bounded: "ldl" must not match "vldl"
@@ -69,7 +69,7 @@ function rowNumbers(name: string, lines: Line[], nth = 0): { nums: number[]; tex
     for (const w of line.words) { if (seen >= n) break; seen += norm(w.text).split(' ').filter(Boolean).length; end = w.x1 }
     const h = line.y1 - line.y0 // values often sit a little above or below the name's baseline
     const words = lines.filter((l) => l.y1 > line.y0 - h * 0.5 && l.y0 < line.y1 + h * 0.5).flatMap((l) => l.words.filter((w) => w.x0 > end))
-    return { nums: words.flatMap((w) => numbersIn(w.text)), text: words.map((w) => w.text).join(' ') }
+    return { nums: words.flatMap((w) => numbersIn(w.text)), bare: words.filter((w) => /^\d+(?:\.\d+)?$/.test(w.text)).map((w) => Number(w.text)), text: words.map((w) => w.text).join(' ') }
   }
   // Rows that start with the name first; a name later in a line (e.g. inside "Non-HDL") is a fallback.
   // Headings such as "GLUCOSE, FASTING (F), PLASMA" have no numbers beside them and are skipped.
@@ -99,16 +99,18 @@ export function pagesWithResults(pages: { words: Word[]; images: string[] }[]): 
   return pages.map((p, i) => p.words.length < 20 || text[i] || p.images.some((d) => big(d) && !template.has(d)))
 }
 
-export type ValueCheck = { value: Check; range: Check; unit: Check }
+// pdf_value: the first number printed beside the test name, offered to the user as a suggestion (never auto-accepted).
+export type ValueCheck = { value: Check; range: Check; unit: Check; pdf_value: number | null }
 export function verify(t: { name: string; value: number | null; unit?: string | null; ref_low: number | null; ref_high: number | null }, lines: Line[] | null, nth = 0): ValueCheck {
-  const none: ValueCheck = { value: 'unverified', range: 'unverified', unit: 'unverified' }
+  const none: ValueCheck = { value: 'unverified', range: 'unverified', unit: 'unverified', pdf_value: null }
   if (!lines?.length) return none
   const row = rowNumbers(t.name, lines, nth)
   if (!row) return none
-  const { nums, text } = row
+  const { nums, bare, text } = row
   const bounds = [t.ref_low, t.ref_high].filter((b): b is number => b !== null)
   const printed = unitsIn(text)
   return {
+    pdf_value: bare[0] ?? null, // a number standing alone, not a digit inside a method name like "P5P"
     value: t.value === null ? 'unverified' : has(nums, t.value) ? 'verified' : 'mismatch',
     range: !bounds.length ? 'unverified' : bounds.every((b) => has(nums, b)) ? 'verified' : 'mismatch',
     // A missing unit is a mismatch only when the PDF prints one on that row.

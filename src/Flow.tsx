@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { guessCorners, straighten, type Quad } from './crop'
 import { DEVICE_CREATE_OPTIONS, extractDoc, model, toB64, type Mode } from './extract'
 import { explain, type Explained } from './explain'
 import Explanation from './Explanation'
@@ -18,7 +19,7 @@ declare const LanguageModel: { availability(o: object): Promise<string> } | unde
 type Avail = 'checking' | 'available' | 'downloadable' | 'downloading' | 'unavailable' | 'no-api' | 'error'
 type Path = 1 | 2 | 3
 type Img = { blob: Blob; url: string; w: number; h: number }
-type Step = 'choose' | 'upload' | 'mask' | 'confirm-masked' | 'consent' | 'extracting' | 'failed' | 'review' | 'explaining' | 'explained'
+type Step = 'choose' | 'upload' | 'crop' | 'mask' | 'confirm-masked' | 'consent' | 'extracting' | 'failed' | 'review' | 'explaining' | 'explained'
 
 const AVAIL_TEXT: Record<Avail, string> = {
   checking: 'Checking whether this device can read reports privately...',
@@ -156,6 +157,59 @@ function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial
   )
 }
 
+// Photos only: drag the 4 corners onto the page's corners, pre-placed by a cheap brightness guess (crop.ts).
+function CropTool({ img, onDone }: { img: Img; onDone: (q: Quad | null) => void }) {
+  const canvas = useRef<HTMLCanvasElement>(null)
+  const pic = useRef<HTMLImageElement | null>(null)
+  const [q, setQ] = useState<Quad | null>(null)
+  const [drag, setDrag] = useState<number | null>(null)
+  useEffect(() => {
+    const el = new Image()
+    el.onload = () => { pic.current = el; setQ(guessCorners(el)) }
+    el.src = img.url
+  }, [img.url])
+  useEffect(() => {
+    const c = canvas.current, el = pic.current
+    if (!c || !el || !q) return
+    c.width = Math.min(800, c.parentElement!.clientWidth)
+    c.height = (c.width * img.h) / img.w
+    const g = c.getContext('2d')!
+    g.drawImage(el, 0, 0, c.width, c.height)
+    g.strokeStyle = '#06c'; g.lineWidth = 2; g.fillStyle = 'rgba(0, 102, 204, 0.35)'
+    g.beginPath(); q.forEach((p, i) => (i ? g.lineTo : g.moveTo).call(g, p.x * c.width, p.y * c.height)); g.closePath(); g.stroke()
+    for (const p of q) { g.beginPath(); g.arc(p.x * c.width, p.y * c.height, 10, 0, 2 * Math.PI); g.fill(); g.stroke() }
+  })
+  const at = (e: React.PointerEvent) => {
+    const r = canvas.current!.getBoundingClientRect()
+    return { x: Math.min(1, Math.max(0, (e.clientX - r.left) / r.width)), y: Math.min(1, Math.max(0, (e.clientY - r.top) / r.height)) }
+  }
+  return (
+    <div>
+      <p>Drag the four blue dots onto the corners of the report page. The page is then straightened on this device, so the text is easier to read.</p>
+      <div style={{ maxWidth: 800 }}>
+        <canvas
+          ref={canvas}
+          aria-label="Report photo with four corner handles"
+          style={{ width: '100%', touchAction: 'none', border: '1px solid #999', cursor: 'move' }}
+          onPointerDown={(e) => {
+            if (!q) return
+            const p = at(e), r = canvas.current!.getBoundingClientRect()
+            const d = q.map((c) => Math.hypot((c.x - p.x) * r.width, (c.y - p.y) * r.height))
+            const i = d.indexOf(Math.min(...d))
+            if (d[i] < 30) { e.currentTarget.setPointerCapture(e.pointerId); setDrag(i) }
+          }}
+          onPointerMove={(e) => drag !== null && q && setQ(q.map((c, i) => (i === drag ? at(e) : c)) as Quad)}
+          onPointerUp={() => setDrag(null)}
+        />
+      </div>
+      <p>
+        <button onClick={() => onDone(null)}>Use the photo as it is</button>{' '}
+        <button disabled={!q} onClick={() => onDone(q)}><b>Straighten</b></button>
+      </p>
+    </div>
+  )
+}
+
 export default function Flow() {
   const [avail, setAvail] = useState<Avail>('checking')
   const [path, setPath] = useState<Path | null>(null)
@@ -211,6 +265,7 @@ export default function Flow() {
       const words = pdf ? pdf.map((p) => p.words) : [null]
       setPageWords(words)
       setOriginal(pages)
+      if (!pdf) return setStep('crop') // photos: straighten first
       proceed(path!, pages, words)
     } catch (e) {
       setProgress('')
@@ -236,7 +291,12 @@ export default function Flow() {
           w = await ocrWords(img.blob)
           console.info(`ClearReport OCR page ${i + 1}: ${Math.round(performance.now() - t0)} ms, ${w.length} words`) // timing only, no text
         }
-        out.push(suggestMasks(w))
+        let found = suggestMasks(w)
+        if (!words[i]?.length && found.length < 2) {
+          const again = suggestMasks(await ocrWords(img.blob, true)) // dim photo: retry with strong contrast, keep the better one
+          if (again.length > found.length) found = again
+        }
+        out.push(found)
       }
     } catch (e) {
       console.warn('Mask suggestions unavailable:', String(e)) // the user can still mask by hand
@@ -326,6 +386,25 @@ export default function Flow() {
           <input type="file" accept="image/*,application/pdf" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />{' '}
           <button onClick={reset}>Back</button>
           {error && <p style={{ color: '#b00' }}>{error}</p>}
+        </section>
+      )}
+
+      {step === 'crop' && original && (
+        <section style={box}>
+          <h2>Straighten the photo</h2>
+          <CropTool
+            img={original[0]}
+            onDone={async (q) => {
+              let pages = original
+              if (q) {
+                const img = await reencode(await straighten(original[0].blob, q))
+                URL.revokeObjectURL(original[0].url)
+                pages = [img]
+                setOriginal(pages)
+              }
+              proceed(path!, pages, [null])
+            }}
+          />
         </section>
       )}
 

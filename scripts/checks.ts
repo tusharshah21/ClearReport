@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { canonical, displayName } from '../src/canonical'
 import { ageBand, toPayload } from '../src/privacy'
 import { normalize } from '../src/units'
+import { apply, homography } from '../src/crop'
 import { BANNED, checkAll, checkTest, farOutOfRange } from '../src/guidelines'
 import type { Test } from '../src/privacy'
 import { trustOf } from '../src/trust'
@@ -177,3 +178,12 @@ assert.deepEqual(trustOf([row('Triglycerides', 145), row('Triglycerides', 145, {
 assert.deepEqual(trustOf([row('Triglycerides', 115)], [null]).map((t) => t.badge), ['image']) // photo: nothing to compare against
 
 console.log('checks ok')
+
+// Homography: the four corners of a tilted quad map exactly onto the output rectangle.
+{
+  const quad = [{ x: 12, y: 30 }, { x: 410, y: 8 }, { x: 450, y: 600 }, { x: 0, y: 560 }]
+  const rect = [{ x: 0, y: 0 }, { x: 400, y: 0 }, { x: 400, y: 580 }, { x: 0, y: 580 }]
+  const H = homography(rect, quad)
+  rect.forEach((p, i) => { const q = apply(H, p); assert.ok(Math.abs(q.x - quad[i].x) < 1e-6 && Math.abs(q.y - quad[i].y) < 1e-6, `homography corner ${i}`) })
+}
+console.log('crop ok')

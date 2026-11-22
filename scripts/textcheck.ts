@@ -30,6 +30,7 @@ for (const id of ['WM14', 'WM15']) {
   }
   const results = pagesWithResults(raw)
   const seen: Record<string, number> = {}
+  const sugg = { total: 0, right: 0, wrong: [] as string[] }
   for (const t of gt.tests) {
     const k = displayName(t.name).toLowerCase()
     const nth = (seen[k] = (seen[k] ?? -1) + 1)
@@ -38,12 +39,16 @@ for (const id of ['WM14', 'WM15']) {
     // Page skipping must never drop a page that holds a result.
     ok.forEach((r, p) => r.value === 'verified' && assert.ok(results[p], `${id} page ${p + 1} holds ${t.name} but would be skipped`))
     if (t.value !== null) assert.equal(best(ok.map((r) => r.value)), 'verified', `${id} ${t.name} ${t.value}`)
+    // The "From your PDF's text" suggestion for a blanked value: the first number beside the name on the page that holds it.
+    if (t.value !== null) { sugg.total++; const s = check({ ...t, value: null }).find((_, p) => ok[p].value === 'verified')?.pdf_value; if (s === t.value) sugg.right++; else sugg.wrong.push(`${t.name}: ${s} (want ${t.value})`) }
     if (t.ref_low !== null || t.ref_high !== null) assert.equal(best(ok.map((r) => r.range)), 'verified', `${id} ${t.name} range`)
     if (t.unit) assert.equal(best(ok.map((r) => r.unit)), 'verified', `${id} ${t.name} unit ${t.unit}`)
     assert.notEqual(best(check({ ...t, unit: null }).map((r) => r.unit)), 'verified', `${id} ${t.name} null unit must not verify`)
     // A guessed digit (like the watermark misreads) must not verify.
     if (t.value !== null) assert.notEqual(best(check({ ...t, value: t.value + 10 }).map((r) => r.value)), 'verified', `${id} ${t.name} altered`)
   }
+  console.log(`textcheck: ${id} PDF-text suggestion right for ${sugg.right}/${sugg.total} values${sugg.wrong.length ? `; wrong: ${sugg.wrong.join('; ')}` : ''}`)
+  assert.equal(sugg.right, sugg.total, `${id} PDF-text suggestions`)
   console.log(`textcheck: ${id} pages skipped as having no results: ${results.flatMap((r, p) => (r ? [] : [p + 1])).join(', ') || 'none'}`)
 }
 // A scanned page (big image of its own) in a digital PDF must still be read; a letterhead on every page is ignored.

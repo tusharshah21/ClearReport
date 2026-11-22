@@ -74,14 +74,17 @@ export function suggestMasks(words: Word[]): Suggestion[] {
 
 // Local OCR for photos. Worker, engine and English data are served from this site (/ocr/, copied by
 // scripts/copy-ocr.mjs); the image never leaves the device. Loaded only when a photo needs it.
-export async function ocrWords(img: Blob): Promise<Word[]> {
+// enhance: grayscale + strong contrast. Helps dim photos (straightened r6-photo: 0 -> 3 fields) but hurts clean scans (r3: 5 -> 2), so callers use it only as a fallback.
+export async function ocrWords(img: Blob, enhance = false): Promise<Word[]> {
   const { createWorker, PSM } = await import('tesseract.js')
   // Small text OCRs badly (r1 at 900 px lost the name row): scale up so the long side is at least 2000 px.
   const bmp = await createImageBitmap(img)
   const s = Math.max(1, 2000 / Math.max(bmp.width, bmp.height))
   const c = document.createElement('canvas')
   const [w, h] = [(c.width = Math.round(bmp.width * s)), (c.height = Math.round(bmp.height * s))]
-  c.getContext('2d')!.drawImage(bmp, 0, 0, w, h)
+  const g = c.getContext('2d')!
+  if (enhance) g.filter = 'grayscale(1) contrast(2.5) brightness(1.1)'
+  g.drawImage(bmp, 0, 0, w, h)
   bmp.close()
   const base = `${location.origin}/ocr/`
   const worker = await createWorker('eng', 1, { workerPath: `${base}worker.min.js`, corePath: base, langPath: base.slice(0, -1) })

@@ -35,6 +35,10 @@ export default function Review({ result, onCancel, onApprove }: { result: Result
                     <>
                       <input aria-label={`Value for ${t.name}`} style={{ width: 80 }} value={e?.text ?? (t.value === null ? '' : String(t.value))} onChange={(ev) => setEdits({ ...edits, [i]: { text: ev.target.value, confirmed: false } })} />{' '}
                       <button disabled={!validNumber(e?.text ?? String(t.value ?? ''))} onClick={() => setEdits({ ...edits, [i]: { text: e?.text ?? (t.value === null ? '' : String(t.value)), confirmed: true } })}>Confirm</button>
+                      {/* One tap fills the box; the user still has to press Confirm. */}
+                      {tr.pdf_value !== null && tr.pdf_value !== t.value && (e?.text ?? '') !== String(tr.pdf_value) && (
+                        <div><button data-testid="pdf-suggestion" style={{ fontSize: 12 }} onClick={() => setEdits({ ...edits, [i]: { text: String(tr.pdf_value), confirmed: false } })}>From your PDF's text: {tr.pdf_value}</button></div>
+                      )}
                     </>
                   ) : (
                     <>{t.value ?? '-'}{e?.confirmed && <small> (you confirmed)</small>}</>
