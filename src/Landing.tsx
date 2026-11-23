@@ -1,9 +1,37 @@
 import Beam from './Beam'
-import { DISCLAIMER } from './guidelines'
+import { checkTest, DISCLAIMER } from './guidelines'
+import { Badge, Icon } from './ui'
 // The landing page at "/". Static: no Firebase, no AI, no report. The tool lives at /app.
 // Hero layout inspired by "Hero Section Dark" by kinfe123 / FarmUI (MIT), rebuilt in plain CSS with the Sage tokens.
 
 const REPO = 'https://github.com/tusharshah21/ClearReport'
+
+// The phone hero: the sample report's fasting glucose card, live HTML instead of a shrunken screenshot.
+// The callout is the range-check engine's own text for this result, so it always matches the app.
+const GLUCOSE = { name: 'Glucose Fasting (FBS)', value: 104, unit: 'mg/dL', ref_low: 70, ref_high: 110, ref_text: '70 - 110', printed_flag: null }
+const glucose = checkTest(GLUCOSE, { sex: 'Male', age_band: '50-59' })
+
+function GlucoseCard() {
+  return (
+    <article className="test-card hero-card" aria-labelledby="hero-card-title">
+      <p className="hero-card-from">From the synthetic sample report</p>
+      <div className="head">
+        <h2 id="hero-card-title">{GLUCOSE.name}</h2>
+        <span className="badges">
+          <Badge kind="ok" icon={Icon.ok}>Within range</Badge>
+          {glucose.tag && <Badge kind="note" icon={Icon.ruler}>Guideline: {glucose.tag}</Badge>}
+        </span>
+      </div>
+      <p className="hero-card-value"><span className="value">{GLUCOSE.value} {GLUCOSE.unit}</span><span className="range"> · Lab range {GLUCOSE.ref_text}</span></p>
+      {glucose.callout && (
+        <div className="range-note">
+          {Icon.ruler}
+          <div><b>Your lab and a common guideline use different ranges</b>{glucose.callout}</div>
+        </div>
+      )}
+    </article>
+  )
+}
 
 const FAQ: [string, React.ReactNode][] = [
   ['Is this medical advice?', <>No. ClearReport explains your report in plain words and compares each result with your lab's range and a named guideline. It does not give medical advice and never says you have a condition. Always discuss your results with your doctor.</>],
@@ -34,8 +62,9 @@ export default function Landing() {
             </div>
             <figure className="browser-frame">
               <div className="browser-bar" aria-hidden="true"><i /><i /><i /><span>clearreport-717f3.web.app/app</span></div>
-              <picture><source media="(max-width: 600px)" srcSet="/landing/hero-mobile.webp" type="image/webp" /><source media="(max-width: 600px)" srcSet="/landing/hero-mobile.jpg" /><source srcSet="/landing/hero.webp" type="image/webp" /><img src="/landing/hero.jpg" width="1120" height="700" fetchPriority="high" alt="ClearReport explaining a synthetic report: the fasting glucose result of 104 mg/dL is within the lab's range of 70 to 110, and a callout says a widely used guideline (ADA 2026) would call it borderline. The data trail beside it shows which steps happened on the device and which in the cloud." /></picture>
+              <picture><source media="(max-width: 600px)" srcSet="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" /><source srcSet="/landing/hero.webp" type="image/webp" /><img src="/landing/hero.jpg" width="1120" height="700" fetchPriority="high" alt="ClearReport explaining a synthetic report: the fasting glucose result of 104 mg/dL is within the lab's range of 70 to 110, and a callout says a widely used guideline (ADA 2026) would call it borderline. The data trail beside it shows which steps happened on the device and which in the cloud." /></picture>
             </figure>
+            <GlucoseCard />
           </div>
         </section>
 
@@ -50,7 +79,7 @@ export default function Landing() {
           <div className="land-grid2">
             <div className="card fact">
               <p className="fact-big">33,244</p>
-              <p>Indian diagnostic centres were covered by a 2026 preprint analysing 794,811 examinations. It found significant variation in laboratory reference ranges, so "inside your lab's range" is not a fixed truth.</p>
+              <p>Indian labs: a 2026 preprint found their reference ranges vary significantly, so "inside your lab's range" is not a fixed truth.</p>
               <p className="small muted">Lakhani S., medRxiv preprint, June 2026. <a href="https://www.medrxiv.org/content/10.64898/2026.06.01.26354654v1">Read the preprint</a></p>
             </div>
             <div className="card fact">
@@ -68,6 +97,41 @@ export default function Landing() {
             <li><b>2. Check</b>You see exactly what will be sent, with your name and details removed, and approve it.</li>
             <li><b>3. Explain</b>Gemini explains the anonymous numbers in plain English or Hindi, with questions for your doctor.</li>
           </ol>
+        </section>
+
+        <section className="land-section" aria-labelledby="hood-title">
+          <h2 id="hood-title">Under the hood</h2>
+          <div className="hood">
+            <div className="card hood-col device">
+              <h3>On this device</h3>
+              <p className="small muted">Chrome's built-in Gemini Nano, through Firebase AI Logic</p>
+              <ul>
+                <li><code>ONLY_ON_DEVICE</code> Reads result rows from a PDF layout the parser does not know. The cross-check marks every row it cannot confirm.</li>
+                <li><code>ONLY_ON_DEVICE</code> Finds names, ID numbers and phone numbers in a photo's text, so you can cover them.</li>
+                <li><code>PREFER_ON_DEVICE</code> "What does this test mean?", sending only the test's name. Gemini in the cloud answers when this device cannot.</li>
+              </ul>
+            </div>
+            <div className="card hood-col cloud">
+              <h3>In the cloud</h3>
+              <p className="small muted">Gemini Flash-Lite, through Firebase AI Logic</p>
+              <ul>
+                <li><code>ONLY_IN_CLOUD</code> Reads the image you covered (or the full report, only if you chose that and agreed).</li>
+                <li><code>ONLY_IN_CLOUD</code> Writes the plain-language explanation and the Hindi translation from the anonymous numbers.</li>
+                <li>It sees only what you approved.</li>
+              </ul>
+            </div>
+            <div className="card hood-col code">
+              <h3>Plain code, no AI</h3>
+              <p className="small muted">Runs in your browser</p>
+              <ul>
+                <li>PDF parser for known lab layouts</li>
+                <li>Cross-check of every value against the PDF text</li>
+                <li>Identity removal before anything is sent</li>
+                <li>Range-check engine comparing your lab's range with named guidelines</li>
+              </ul>
+            </div>
+          </div>
+          <p className="small muted hood-more">Also Firebase App Check, Anonymous Auth, Remote Config and Hosting. <a href={`${REPO}#how-we-use-firebase-ai-logic`}>Every AI call, with its code</a></p>
         </section>
 
         <section className="land-section" aria-labelledby="privacy-title">
