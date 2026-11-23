@@ -3,7 +3,6 @@ import { guessCorners, straighten, type Quad } from './crop'
 import { extractDoc, extractRows, findPersonal, TEXT_CREATE_OPTIONS, toB64, warmText, type Run } from './extract'
 import { explain, type Explained } from './explain'
 import Explanation from './Explanation'
-import Beam from './Beam'
 import { Busy, DataTrail } from './ui'
 import { checkAll, DISCLAIMER, type Check } from './guidelines'
 import { aiBoxes, nonResultLines, ocrWords, suggestMasks, type Suggestion } from './masks'
@@ -352,11 +351,39 @@ export default function Flow() {
   const devicePrep = useRef<Promise<void> | null>(null)
   // The 18+ notice is shown once per browser. Only this acknowledgement is remembered, never a report or a consent.
   const [adult, setAdult] = useState(() => { try { return localStorage.getItem(ADULT_KEY) === '1' } catch { return false } })
+  // "Try a sample report" (/app?sample=demo): the synthetic demo.pdf, served as a static file, loaded as if chosen.
+  const [sample, setSample] = useState(false)
+  const wantsSample = useRef(new URLSearchParams(location.search).get('sample') === 'demo')
 
   useEffect(() => {
     if (typeof LanguageModel === 'undefined') return setAvail('no-api')
     LanguageModel.availability(TEXT_CREATE_OPTIONS).then((a) => setAvail(a as Avail), () => setAvail('error'))
   }, [])
+
+  // The sample loads once the 18+ notice is answered, then the user picks a path as usual (PDF text and page image
+  // are both kept, so every path works and Mask it yourself gets its suggested boxes from the PDF text).
+  useEffect(() => {
+    if (!adult || !wantsSample.current) return
+    wantsSample.current = false
+    ;(async () => {
+      try {
+        setProgress('Loading the sample report...')
+        const res = await fetch('/samples/demo.pdf')
+        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+        const all = await pdfPages(await res.blob())
+        const pdf = all.some((p) => p.results) ? all.filter((p) => p.results) : all
+        setSkipped(all.flatMap((p, i) => (pdf.includes(p) ? [] : [i + 1])))
+        const pages = await Promise.all(pdf.flatMap((p) => (p.png ? [p.png] : [])).map((b) => reencode(b)))
+        setPageWords(pdf.map((p) => p.words))
+        setOriginal(pages)
+        setSample(true)
+        setProgress('')
+      } catch (e) {
+        setProgress('')
+        setError(`The sample report could not be loaded (${(e as Error).message}). You can still add your own report.`)
+      }
+    })()
+  }, [adult])
 
   // Each new screen moves keyboard and screen-reader focus to its heading (not on first load).
   const firstStep = useRef(true)
@@ -378,6 +405,7 @@ export default function Flow() {
   function reset() {
     for (const i of [...(original ?? []), ...(toSend ?? [])]) URL.revokeObjectURL(i.url)
     setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setOcrLines([]); setSkipped([]); setConsent(false); setError(''); setResult(null); setApproved(null); setExplained(null); setProgress(''); setPath(null); setCropped(false); setStep('choose')
+    if (sample) { setSample(false); history.replaceState(null, '', '/app') } // Start over means your own report
   }
 
   function choose(p: Path) {
@@ -529,11 +557,12 @@ export default function Flow() {
   return (
     <div className="app">
       <header>
-        <p className="brand">ClearReport</p>
+        <p className="brand"><a href="/">ClearReport</a></p>
         <p>Understand your blood test report, in plain words, privately.</p>
       </header>
       <main className="content" id="main">
         <p className="notice no-print" data-testid="disclaimer">{DISCLAIMER}</p>
+        {sample && <p className="notice calm sample-banner no-print" role="status" data-testid="sample-banner">You are using a synthetic sample report. No real person's data.</p>}
 
         {step === 'choose' && !original && (
           <section className="card hero" aria-labelledby="hero-title">
@@ -543,8 +572,6 @@ export default function Flow() {
               <li><b>2. Check</b>You see exactly what will be sent, with your name and details removed, and approve it.</li>
               <li><b>3. Explain</b>Gemini explains the anonymous numbers in plain English or Hindi, with questions for your doctor.</li>
             </ol>
-            <h2 style={{ fontSize: '1.1rem', marginTop: 18 }}>What leaves your device</h2>
-            <Beam />
           </section>
         )}
 
