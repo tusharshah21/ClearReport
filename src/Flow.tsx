@@ -3,6 +3,7 @@ import { guessCorners, straighten, type Quad } from './crop'
 import { extractDoc, extractRows, findPersonal, TEXT_CREATE_OPTIONS, toB64, warmText, type Run } from './extract'
 import { explain, type Explained } from './explain'
 import Explanation from './Explanation'
+import Beam from './Beam'
 import { Busy, DataTrail } from './ui'
 import { checkAll, DISCLAIMER, type Check } from './guidelines'
 import { aiBoxes, nonResultLines, ocrWords, suggestMasks, type Suggestion } from './masks'
@@ -520,11 +521,7 @@ export default function Flow() {
               <li><b>3. Explain</b>Gemini explains the anonymous numbers in plain English or Hindi, with questions for your doctor.</li>
             </ol>
             <h2 style={{ fontSize: '1.1rem', marginTop: 18 }}>What leaves your device</h2>
-            <div className="flowmap" role="list">
-              <div className="flowrow" role="listitem"><span className="who">Private (PDF)</span><span className="here">Your PDF is read here; name, ID and phone removed here</span><span className="arrow" aria-hidden="true">→</span><span className="there">Only anonymous numbers, age range and sex</span></div>
-              <div className="flowrow" role="listitem"><span className="who">Mask it yourself</span><span className="here">You cover your details with black boxes here</span><span className="arrow" aria-hidden="true">→</span><span className="there">The covered image, then anonymous numbers</span></div>
-              <div className="flowrow" role="listitem"><span className="who">Full report</span><span className="here">Nothing is removed first</span><span className="arrow" aria-hidden="true">→</span><span className="there">The full report image, only with your consent</span></div>
-            </div>
+            <Beam />
           </section>
         )}
 
