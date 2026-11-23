@@ -179,3 +179,12 @@ All of it, from scratch, starting 21 November 2026: the three paths, the on-devi
 ## License
 
 [Apache-2.0](LICENSE)
+
+## Design credits
+
+No UI library is installed. These MIT-licensed designs were used as visual references only and rebuilt in plain CSS and SVG:
+
+- Theme colours based on "Sage Garden" from 21st.dev, adjusted so every pair passes WCAG AA (`npx tsx scripts/contrast.ts --table`).
+- The "What leaves your device" beam: Magic UI "Animated Beam" by dillionverma, MIT, https://21st.dev/@dillionverma/components/animated-beam
+- The Data trail timeline: Dice UI "Timeline", MIT, https://21st.dev/@diceui/components/timeline
+- The upload drop zone: "File Upload" by Edu Calvo (educlopez), MIT, https://21st.dev/@educlopez/components/file-upload
