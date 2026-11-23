@@ -71,6 +71,13 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
   const [move, setMove] = useState<{ i: number; dx: number; dy: number } | null>(null)
   const [sel, setSel] = useState<number | null>(null)
   const pic = useRef<HTMLImageElement | null>(null)
+  // Zoom for small screens: pinch with two fingers (which also pans), or the zoom buttons. One finger still draws.
+  const [zoom, setZoom] = useState(1)
+  const wrap = useRef<HTMLDivElement>(null)
+  const touches = useRef(new Map<number, { x: number; y: number }>())
+  const pinch = useRef<{ d: number; z: number; mx: number; my: number; sl: number; st: number } | null>(null)
+  const spread = () => { const [a, b] = [...touches.current.values()]; return { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, mx: (a.x + b.x) / 2, my: (a.y + b.y) / 2 } }
+  const zoomTo = (z: number) => setZoom(Math.min(4, Math.max(1, Math.round(z * 100) / 100)))
   const nSuggested = boxes.filter((b) => b.field).length
   const numbers = new Map(boxes.flatMap((b, i) => (b.field ? [i] : [])).map((i, k) => [i, k + 1])) // box index -> chip number
   const FIELD: Record<string, string> = { name: 'name', patient_name: 'name', id: 'ID', patient_id: 'ID', phone: 'phone', doctor: "doctor's name", doctor_name: "doctor's name", 'age/sex': 'age and sex', age: 'age', sex: 'sex', barcode: 'barcode', address: 'address', date_of_birth: 'date of birth' }
@@ -85,12 +92,14 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
   function draw() {
     const c = canvas.current, el = pic.current
     if (!c || !el) return
-    c.width = Math.min(800, c.parentElement!.clientWidth)
+    c.width = Math.min(800, c.parentElement!.clientWidth) * zoom
     c.height = (c.width * img.h) / img.w
     const g = c.getContext('2d')!
     g.drawImage(el, 0, 0, c.width, c.height)
+    g.save(); g.scale(zoom, zoom) // chips and outlines keep their on-screen size
+    const Z = (v: number) => v / zoom
     boxes.forEach((b, i) => {
-      const [x, y, w, h] = [b.x * c.width, b.y * c.height, b.w * c.width, b.h * c.height]
+      const [x, y, w, h] = [Z(b.x * c.width), Z(b.y * c.height), Z(b.w * c.width), Z(b.h * c.height)]
       if (b.field) {
         // Suggested: see-through so the user can check what is underneath; burned in solid black like the rest.
         g.fillStyle = 'rgba(224, 112, 0, 0.45)'
@@ -121,8 +130,9 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
     if (drag) {
       g.strokeStyle = '#e00'
       g.lineWidth = 2
-      g.strokeRect(drag.x0 * c.width, drag.y0 * c.height, (drag.x1 - drag.x0) * c.width, (drag.y1 - drag.y0) * c.height)
+      g.strokeRect(Z(drag.x0 * c.width), Z(drag.y0 * c.height), Z((drag.x1 - drag.x0) * c.width), Z((drag.y1 - drag.y0) * c.height))
     }
+    g.restore()
   }
   const at = (e: React.PointerEvent) => {
     const r = canvas.current!.getBoundingClientRect()
@@ -149,11 +159,16 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
         </p>
       )}
       {aiNote && <p className="muted" style={{ marginTop: 8 }} data-testid="mask-note">{aiNote}</p>}
-      <div className="canvas-wrap">
+      <div className="actions zoom-bar" role="group" aria-label="Zoom">
+        <button className="quiet" disabled={zoom >= 4} onClick={() => zoomTo(zoom * 1.5)}>Zoom in</button>
+        <button className="quiet" disabled={zoom <= 1} onClick={() => zoomTo(zoom / 1.5)}>Zoom out</button>
+        <span className="muted small" role="status">{zoom > 1 ? `${Math.round(zoom * 100)}%. Pinch or use two fingers to move around.` : 'On a phone, pinch with two fingers to zoom.'}</span>
+      </div>
+      <div className={`canvas-wrap${zoom > 1 ? ' zoomed' : ''}`} ref={wrap}>
         <canvas
           ref={canvas}
           aria-label="Your report. Press and drag to draw a black box; drag a box to move it. Keyboard: Tab tabs to the next box, arrow keys move it, Shift with arrow keys resizes it, Delete removes it."
-          style={{ cursor: 'crosshair', touchAction: 'none' }}
+          style={{ cursor: 'crosshair', touchAction: 'none', width: `${zoom * 100}%` }}
           tabIndex={0}
           // Keyboard path: select a box with Tab (or add one with the button below), then move, resize or remove it.
           onKeyDown={(e) => {
@@ -172,6 +187,14 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
           }}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId)
+            if (e.pointerType === 'touch') touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+            if (touches.current.size === 2) { // second finger: this is a pinch, not a box
+              setDrag(null); setMove(null)
+              const s = spread(), w = wrap.current!
+              pinch.current = { d: s.d, z: zoom, mx: s.mx, my: s.my, sl: w.scrollLeft, st: w.scrollTop }
+              return
+            }
+            if (touches.current.size > 2) return
             const p = at(e)
             const hit = boxes.findLastIndex((b) => p.x >= b.x && p.x <= b.x + b.w && p.y >= b.y && p.y <= b.y + b.h)
             setSel(hit < 0 ? null : hit)
@@ -179,11 +202,26 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
             else setDrag({ x0: p.x, y0: p.y, x1: p.x, y1: p.y })
           }}
           onPointerMove={(e) => {
+            if (touches.current.has(e.pointerId)) touches.current.set(e.pointerId, { x: e.clientX, y: e.clientY })
+            if (pinch.current && touches.current.size === 2) {
+              const s = spread(), k = pinch.current, w = wrap.current!
+              const z = Math.min(4, Math.max(1, (k.z * s.d) / k.d))
+              setZoom(z)
+              // keep the point between the fingers under the fingers, and follow a two-finger pan
+              const r = w.getBoundingClientRect()
+              w.scrollLeft = ((k.sl + k.mx - r.left) * z) / k.z - (s.mx - r.left)
+              w.scrollTop = ((k.st + k.my - r.top) * z) / k.z - (s.my - r.top)
+              return
+            }
+            if (pinch.current) return
             const p = at(e)
             if (move) setBoxes(boxes.map((b, i) => (i === move.i ? { ...b, x: Math.min(1 - b.w, Math.max(0, p.x - move.dx)), y: Math.min(1 - b.h, Math.max(0, p.y - move.dy)) } : b)))
             else if (drag) setDrag({ ...drag, x1: p.x, y1: p.y })
           }}
-          onPointerUp={() => {
+          onPointerCancel={(e) => { touches.current.delete(e.pointerId); if (!touches.current.size) pinch.current = null; setDrag(null); setMove(null) }}
+          onPointerUp={(e) => {
+            touches.current.delete(e.pointerId)
+            if (pinch.current) { if (!touches.current.size) pinch.current = null; return }
             if (drag && Math.abs(drag.x1 - drag.x0) > 0.005 && Math.abs(drag.y1 - drag.y0) > 0.005)
               setBoxes([...boxes, { x: Math.min(drag.x0, drag.x1), y: Math.min(drag.y0, drag.y1), w: Math.abs(drag.x1 - drag.x0), h: Math.abs(drag.y1 - drag.y0) }])
             setDrag(null)
@@ -526,6 +564,28 @@ export default function Flow() {
                 <p className="accepts">Accepts: a photo, screenshot or PDF. Works on a phone.</p>
                 <button className={recommended === 2 ? 'primary' : ''} onClick={() => choose(2)}>Mask my details</button>
               </div>
+              {/* Not offered here, but shown greyed so people know it exists and what it needs. */}
+              {!showPath1 && !noText && avail !== 'checking' && (
+                <div className="path unavailable" data-testid="path1-unavailable" role="group" aria-labelledby="p1-off">
+                  <span className="tag off">Not available on this device</span>
+                  <h3 id="p1-off">Private</h3>
+                  <p>Needs Chrome on a laptop with 16 GB RAM or a graphics card with more than 4 GB memory.</p>
+                  <details className="mini how">
+                    <summary>See how private reading works</summary>
+                    <ol className="how-steps">
+                      <li>Chrome's built-in AI reads your lab PDF on the device itself.</li>
+                      <li>Your name, ID and phone are removed on the device, before anything is sent.</li>
+                      <li>Only the anonymous numbers go to Gemini, after you approve them.</li>
+                    </ol>
+                    <div className="how-map" role="img" aria-label="Diagram: your PDF is read and cleaned on this device; only anonymous numbers go to Gemini in the cloud.">
+                      <span className="box device">PDF</span><span aria-hidden="true">→</span>
+                      <span className="box device">Read + remove details<small>on this device</small></span><span aria-hidden="true">→</span>
+                      <span className="box cloud">Numbers only<small>to Gemini</small></span>
+                    </div>
+                  </details>
+                  <button disabled>Read it privately</button>
+                </div>
+              )}
               {config().path3 && (
                 <div className="path">
                   <h3>Send the full report</h3>
