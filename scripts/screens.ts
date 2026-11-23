@@ -12,7 +12,7 @@ const OUT = 'docs/screenshots'
 const ID = process.argv[2] ?? 'r2'
 const FILE = { r2: 'test-data/reports/r2.png', r6: 'test-data/reports/r6-photo.jpg' }[ID as 'r2']
 const KEEP: Record<string, string[]> = ID === 'r2'
-  ? { desktop: ['02-paths', '07-review', '08-explanation'], mobile: ['02-paths-no-ai', '05-mask', '08-explanation'] }
+  ? { desktop: ['02-paths', '05-mask', '07-review', '08-explanation', '09-hindi'], mobile: ['02-paths-no-ai', '05-mask', '07-review', '08-explanation', '09-hindi'] }
   : { desktop: ['08-explanation'], mobile: ['08-explanation'] }
 mkdirSync(OUT, { recursive: true })
 
@@ -32,7 +32,8 @@ if (ID === 'landing') {
   process.exit(0)
 }
 
-const sizes = [{ tag: 'desktop', width: 1280, height: 860, mobile: false }, { tag: 'mobile', width: 390, height: 844, mobile: true }]
+// An optional third argument (desktop or mobile) takes only that size, to redo one after a busy cloud model.
+const sizes = [{ tag: 'desktop', width: 1280, height: 860, mobile: false }, { tag: 'mobile', width: 390, height: 844, mobile: true }].filter((s) => !process.argv[3] || s.tag === process.argv[3])
 const hosts = new Set<string>() // every non-local host the app contacts during the run
 const browser = await chromium.launch({ channel: 'chrome' }) // installed Chrome, fresh temporary profile
 for (const s of sizes) {
@@ -79,6 +80,12 @@ for (const s of sizes) {
   await click('Approve and send these numbers')
   await page.getByRole('heading', { name: 'Summary' }).waitFor({ timeout: 120_000 })
   await shot('08-explanation')
+  // The Hindi view: switch the language and wait until the summary is in Devanagari.
+  if (KEEP[s.tag].includes('09-hindi')) {
+    await page.getByRole('button', { name: 'हिन्दी' }).first().click({ timeout: 180_000 }) // enabled once the translation is ready
+    await page.waitForFunction(() => /[ऀ-ॿ]{3}/.test(document.querySelector('main')?.innerText ?? ''), null, { timeout: 180_000 })
+    await shot('09-hindi')
+  }
   // The landing hero (public/landing/hero.jpg, hero.webp, og.jpg) is captured by hand from a Path 1 run of the sample in Chrome
   // with on-device AI, so its data trail shows the on-device steps. Playwright's Chrome has no on-device model.
   await ctx.close()

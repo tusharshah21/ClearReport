@@ -114,7 +114,7 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
         g.fillStyle = tok('mask-chip') // darker than the box outline: white digits on it pass 4.5:1
         g.beginPath(); g.arc(Math.max(r, x - r - 2), y + h / 2, r, 0, 2 * Math.PI); g.fill()
         g.fillStyle = tok('card')
-        g.font = `700 13px 'Noto Sans', system-ui, sans-serif`
+        g.font = `600 13px 'IBM Plex Sans', system-ui, sans-serif`
         g.textAlign = 'center'; g.textBaseline = 'middle'
         g.fillText(n, Math.max(r, x - r - 2), y + h / 2 + 1)
         g.textAlign = 'start'
@@ -146,7 +146,7 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
       <div className="legend" aria-hidden="true"><span><i style={{ background: 'var(--mask-fill)', border: '2px solid var(--mask-outline)' }} />Suggested, please check</span><span><i style={{ background: 'var(--mask-black)' }} />Your box</span></div>
       {nSuggested > 0 && (
         <p className="notice" data-testid="suggested-note">
-          <b>{nSuggested} suggested box{nSuggested === 1 ? '' : 'es'}</b> (amber outline, found on this device). They can miss things or cover the wrong spot, so please check each one: drag a box to move it, or click it and press <i>Remove selected box</i>. Add any boxes they missed.
+          <b>{nSuggested} suggested box{nSuggested === 1 ? '' : 'es'}</b> (violet outline, found on this device). They can miss things or cover the wrong spot, so please check each one: drag a box to move it, or click it and press <i>Remove selected box</i>. Add any boxes they missed.
         </p>
       )}
       {onFindMore && (
@@ -600,7 +600,7 @@ export default function Flow() {
             {error && <p className="notice" role="alert">{error}</p>}
             <div className="paths">
               {showPath1 && (
-                <div className={`path ${recommended === 1 ? 'recommended' : ''}`}>
+                <div className={`path private ${recommended === 1 ? 'recommended' : ''}`}>
                   <span className="tag">Recommended</span>
                   <h3>Private</h3>
                   <p>Your PDF is read on this device. Only anonymous results are sent for the explanation, and you approve them first.</p>
@@ -638,7 +638,7 @@ export default function Flow() {
                 </div>
               )}
               {config().path3 && (
-                <div className="path">
+                <div className="path full">
                   <h3>Send the full report</h3>
                   <p>The whole report, including your name, is sent to Google's Gemini to be read. Only choose this if you are comfortable with that.</p>
                   <p className="accepts">Accepts: a photo, screenshot or PDF. Asks for your consent first.</p>
@@ -708,7 +708,7 @@ export default function Flow() {
           <section className="card" aria-labelledby="confirm-title">
             <h2 id="confirm-title">{toSend.length > 1 ? `These exact ${toSend.length} images will be sent` : 'This exact image will be sent'}</h2>
             <p>Check that your name, ID, phone and doctor's name are fully covered{toSend.length > 1 ? ' on every page' : ''}. {toSend.length > 1 ? 'These images' : 'This image'} (and nothing else from your device) {toSend.length > 1 ? 'go' : 'goes'} to Google's Gemini to be read.</p>
-            {toSend.map((p, i) => <img key={i} src={p.url} alt={`Masked page ${i + 1} that will be sent`} style={{ border: '2px solid var(--foreground)', borderRadius: 8, marginBottom: 8 }} />)}
+            {toSend.map((p, i) => <img key={i} src={p.url} alt={`Masked page ${i + 1} that will be sent`} style={{ border: '2px solid var(--ink)', borderRadius: 8, marginBottom: 8 }} />)}
             <div className="actions">
               <button className="quiet" onClick={() => { setMasks([]); setStep('mask') }}>Fix the boxes</button>
               <button className="primary" onClick={() => run(toSend)}>Send {toSend.length > 1 ? 'these images' : 'this image'}</button>

@@ -92,7 +92,7 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
         <p style={{ margin: 0 }} lang={inEn(`test:${i}`) ? 'en' : undefined}>{e.tests[i]?.explanation}{inEn(`test:${i}`) && enTag}</p>
         {callout && (
           <div className="range-note" data-testid="range-note" lang="en">
-            {Icon.ruler}
+            {Icon.pen}
             <div><b lang={hi ? 'hi' : 'en'}>{t.note}</b>{c.callout}{hi && enTag}</div>
           </div>
         )}

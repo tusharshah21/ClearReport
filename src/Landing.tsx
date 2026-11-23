@@ -2,7 +2,7 @@ import Beam from './Beam'
 import { checkTest, DISCLAIMER } from './guidelines'
 import { Badge, Icon } from './ui'
 // The landing page at "/". Static: no Firebase, no AI, no report. The tool lives at /app.
-// Hero layout inspired by "Hero Section Dark" by kinfe123 / FarmUI (MIT), rebuilt in plain CSS with the Sage tokens.
+// Hero layout inspired by "Hero Section Dark" by kinfe123 / FarmUI (MIT), rebuilt in plain CSS with the Specimen tokens.
 
 const REPO = 'https://github.com/tusharshah21/ClearReport'
 
@@ -25,7 +25,7 @@ function GlucoseCard() {
       <p className="hero-card-value"><span className="value">{GLUCOSE.value} {GLUCOSE.unit}</span><span className="range"> · Lab range {GLUCOSE.ref_text}</span></p>
       {glucose.callout && (
         <div className="range-note">
-          {Icon.ruler}
+          {Icon.pen}
           <div><b>Your lab and a common guideline use different ranges</b>{glucose.callout}</div>
         </div>
       )}
@@ -44,13 +44,15 @@ const FAQ: [string, React.ReactNode][] = [
 export default function Landing() {
   return (
     <div className="landing">
-      <header className="land-top">
-        <p className="brand">ClearReport</p>
-        <a className="btn quiet small-btn" href="/app">Open the app</a>
-      </header>
+      <div className="land-dark land-head">
+        <header className="land-top">
+          <p className="brand">ClearReport</p>
+          <a className="btn quiet small-btn" href="/app">Open the app</a>
+        </header>
+      </div>
 
       <main id="main">
-        <section className="land-hero" aria-labelledby="land-title">
+        <section className="land-hero land-dark" aria-labelledby="land-title">
           <div className="hero-grid" aria-hidden="true"><div className="hero-grid-plane"><div className="hero-grid-lines" /></div></div>
           <div className="land-hero-inner">
             <p className="eyebrow">Free, no account. English and हिन्दी.</p>
@@ -68,6 +70,7 @@ export default function Landing() {
           </div>
         </section>
 
+        <div className="land-light">
         <section className="land-section" aria-labelledby="journey-title">
           <h2 id="journey-title">What leaves your device</h2>
           <p className="muted">Choose a path to see where your report goes.</p>
@@ -156,9 +159,10 @@ export default function Landing() {
             ))}
           </div>
         </section>
+        </div>
       </main>
 
-      <footer className="land-footer">
+      <footer className="land-footer land-dark">
         <p>{DISCLAIMER}</p>
         <p>
           <a href={REPO}>Source code on GitHub</a> · Built with Firebase AI Logic · <a href={`${REPO}/blob/main/LICENSE`}>Apache-2.0 license</a> · <a href={`${REPO}#design-credits`}>Design credits</a>

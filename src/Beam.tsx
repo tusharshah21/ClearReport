@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react'
 // "What leaves your device": the three paths as a data journey. Layout idea from Magic UI "Animated Beam" (MIT),
-// rebuilt in plain CSS and SVG. The pulse is sage while the data is on this device and apricot once it heads to the
+// rebuilt in plain CSS and SVG. The pulse is violet while the data is on this device and rose once it heads to the
 // cloud. With prefers-reduced-motion the connectors are drawn in those colours and nothing moves.
 
 const ico = (d: string) => (

@@ -12,6 +12,7 @@ export const Icon = {
   down: svg('M10 4v12M5.5 11.5L10 16l4.5-4.5'), // below the range
   up: svg('M10 16V4M5.5 8.5L10 4l4.5 4.5'), // above the range
   ruler: svg('M3 13.5L13.5 3l3.5 3.5L6.5 17zM6.5 10l1.5 1.5M9 7.5l1.5 1.5M11.5 5l1.5 1.5'),
+  pen: svg('M12.5 4.5l3 3L8 15H5v-3zM10.5 6.5l3 3M4 18h12'), // highlighter pen, for the "lab and guideline disagree" callout
 }
 
 export function Badge({ kind, icon, children }: { kind: 'ok' | 'out' | 'check' | 'plain' | 'note'; icon?: React.ReactNode; children: React.ReactNode }) {

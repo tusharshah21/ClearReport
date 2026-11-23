@@ -1,14 +1,15 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-// Fonts are self-hosted (no request to Google Fonts): Latin and Devanagari subsets, the four weights in use.
-import '@fontsource/noto-sans/latin-400.css'
-import '@fontsource/noto-sans/latin-500.css'
-import '@fontsource/noto-sans/latin-600.css'
-import '@fontsource/noto-sans/latin-700.css'
-import '@fontsource/noto-sans-devanagari/devanagari-400.css'
-import '@fontsource/noto-sans-devanagari/devanagari-500.css'
-import '@fontsource/noto-sans-devanagari/devanagari-600.css'
-import '@fontsource/noto-sans-devanagari/devanagari-700.css'
+// Fonts are self-hosted (no request to Google Fonts): IBM Plex Sans (Latin), Plex Mono for values, ranges and units,
+// and Plex Sans Devanagari for Hindi. Only the subsets and weights in use.
+import '@fontsource/ibm-plex-sans/latin-400.css'
+import '@fontsource/ibm-plex-sans/latin-500.css'
+import '@fontsource/ibm-plex-sans/latin-600.css'
+import '@fontsource/ibm-plex-sans/latin-700.css'
+import '@fontsource/ibm-plex-mono/latin-400.css'
+import '@fontsource/ibm-plex-mono/latin-500.css'
+import '@fontsource/ibm-plex-sans-devanagari/devanagari-400.css'
+import '@fontsource/ibm-plex-sans-devanagari/devanagari-600.css'
 import './index.css'
 // Routes: "/" is the landing page (no Firebase, no AI, nothing about a report); "/app" is the tool.
 // ?spike opens the dev evaluation page (synthetic reports only). It is not part of the production build.

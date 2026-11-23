@@ -203,7 +203,7 @@ All of it, from scratch, starting 21 November 2026: the three paths, the on-devi
 
 No UI library is installed. These MIT-licensed designs were used as visual references only and rebuilt in plain CSS and SVG:
 
-- Theme colours based on "Sage Garden" from 21st.dev, adjusted so every pair passes WCAG AA (`npx tsx scripts/contrast.ts --table`).
+- Visual identity "Specimen" (our own; see [the spec](docs/superpowers/specs/2026-11-23-ui-theme-design.md)): stain violet for on this device, eosin rose for the cloud, highlighter yellow only where your lab and a guideline disagree. Every colour pair passes WCAG AA (`npx tsx scripts/contrast.ts --table`). Type is IBM Plex Sans, Plex Mono and Plex Sans Devanagari (SIL Open Font License), self-hosted with Fontsource.
 - The "What leaves your device" beam: Magic UI "Animated Beam" by dillionverma, MIT, https://21st.dev/@dillionverma/components/animated-beam
 - The Data trail timeline: Dice UI "Timeline", MIT, https://21st.dev/@diceui/components/timeline
 - The upload drop zone: "File Upload" by Edu Calvo (educlopez), MIT, https://21st.dev/@educlopez/components/file-upload

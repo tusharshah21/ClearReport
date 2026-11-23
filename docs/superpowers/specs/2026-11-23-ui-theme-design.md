@@ -65,7 +65,7 @@ Buttons on dark keep `--primary` with white text (6.83:1). The outlined secondar
 ## Textures
 
 - Landing hero: a faint microscope-slide grid in `--night-grid`, in the same 65-degree perspective as before, fading out towards the bottom, with one soft violet radial glow behind the headline. Static.
-- App: a very faint graph-paper grid in `--grid-line` on `--paper`. It sits behind content only; text is always on a solid card or the plain paper colour between grid lines is never needed to read it.
+- App: a very faint graph-paper grid in `--grid-line` on `--paper`. It sits behind content only: long text is on solid cards, and the lines are faint enough (1.05:1 on paper) that short text on the paper itself stays clear.
 - Print: no textures, no glow.
 
 ## Component treatments
