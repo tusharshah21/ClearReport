@@ -4,6 +4,7 @@
 import { getGenerativeModel, InferenceMode, InferenceSource } from 'firebase/ai'
 import { RETRYABLE, RETRY_DELAYS_MS } from './extract'
 import { ai } from './firebase'
+import { completeHindi } from './hindi'
 import { BANNED, disagrees, type Check } from './guidelines'
 import type { Payload } from './privacy'
 import { fixQuestionGrammar, fixUnitsIn, questionsFor, questionsSpecific } from './questions'
@@ -11,7 +12,7 @@ import { config } from './remote'
 
 export type Explanation = { summary: string; tests: { name: string; explanation: string }[]; questions: string[] }
 export type ExplainPath = 'first try' | 'retry' | 'template'
-export type Explained = { en: Explanation; hi: Explanation | null; path: ExplainPath; hindi_note: string | null; hindi_busy?: boolean; prompt_version: string; model: string }
+export type Explained = { en: Explanation; hi: Explanation | null; path: ExplainPath; hindi_note: string | null; hindi_busy?: boolean; hi_english?: string[]; prompt_version: string; model: string }
 
 const SCHEMA = {
   type: 'object',
@@ -117,23 +118,51 @@ export async function explain(p: Payload, checks: Check[]): Promise<Explained> {
 
 // Hindi translation of the English explanation. A busy cloud (500 "high demand", 503, 429) is retried with backoff,
 // as extraction is; if it is still busy, hindi_busy lets the page offer "try again" (hindiAgain).
-export type Hindi = Pick<Explained, 'hi' | 'hindi_note' | 'hindi_busy'>
+export type Hindi = Pick<Explained, 'hi' | 'hindi_note' | 'hindi_busy' | 'hi_english'>
 export const HINDI_BUSY = 'Hindi is busy right now, try again.'
 export async function hindi(en: Explanation, p: Payload): Promise<Hindi> {
+  let out: Explanation
+  try {
+    out = await retrying('Hindi translation', () => ask(HINDI, JSON.stringify(en)))
+  } catch (e) {
+    return RETRYABLE.test(String(e)) ? { hi: null, hindi_note: HINDI_BUSY, hindi_busy: true } : { hi: null, hindi_note: 'The Hindi version could not be made this time.' }
+  }
+  const extra = numbersConsistent(en, out)
+  if (out.tests.length !== en.tests.length) return { hi: null, hindi_note: 'The Hindi version did not match the English one, so it is not shown.' }
+  if (extra.length) return { hi: null, hindi_note: `The Hindi version changed a number (${extra.join(', ')}), so it is not shown.` }
+  // Every field must really be Hindi: any field left in English is translated again on its own (plain-code check).
+  const done = await completeHindi(en, { ...out, tests: out.tests.map((t, i) => ({ ...t, name: en.tests[i].name })) }, translateOne)
+  if (done.english.length) console.info(`ClearReport Hindi: ${done.english.length} field(s) shown in English`)
+  return { hi: fixUnitsIn(done.hi, p), hindi_note: null, hi_english: done.english }
+}
+
+// A busy cloud (500 "high demand", 503, 429) is retried with backoff, as extraction is; other errors are thrown at once.
+async function retrying<T>(what: string, call: () => Promise<T>): Promise<T> {
   for (let attempt = 0; ; attempt++) {
     try {
-      const out = await ask(HINDI, JSON.stringify(en))
-      const extra = numbersConsistent(en, out)
-      if (out.tests.length !== en.tests.length) return { hi: null, hindi_note: 'The Hindi version did not match the English one, so it is not shown.' }
-      if (extra.length) return { hi: null, hindi_note: `The Hindi version changed a number (${extra.join(', ')}), so it is not shown.` }
-      return { hi: fixUnitsIn({ ...out, tests: out.tests.map((t, i) => ({ ...t, name: en.tests[i].name })) }, p), hindi_note: null }
+      return await call()
     } catch (e) {
-      console.info(`ClearReport Hindi translation failed (attempt ${attempt + 1}): ${String(e)}`)
-      const busy = RETRYABLE.test(String(e))
-      if (!busy || attempt >= RETRY_DELAYS_MS.length) return busy ? { hi: null, hindi_note: HINDI_BUSY, hindi_busy: true } : { hi: null, hindi_note: 'The Hindi version could not be made this time.' }
+      console.info(`ClearReport ${what} failed (attempt ${attempt + 1}): ${String(e)}`)
+      if (!RETRYABLE.test(String(e)) || attempt >= RETRY_DELAYS_MS.length) throw e
       await new Promise((ok) => setTimeout(ok, RETRY_DELAYS_MS[attempt] * (0.75 + Math.random() / 2)))
     }
   }
+}
+
+// One field at a time, for a field the full translation left in English. Same cloud model, same number rules.
+const ONE_SCHEMA = { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] }
+const HINDI_ONE = `Translate this text from English to Hindi (Devanagari script) for the person the report belongs to.
+Preserve the meaning exactly; do not add, remove or soften anything. Keep every number, unit and test name exactly as written, in the same Latin characters and Western digits (do not convert to Devanagari numerals). Return JSON {"text": "..."}.`
+async function translateOne(text: string): Promise<string> {
+  return retrying('Hindi field translation', async () => {
+    const m = getGenerativeModel(ai, {
+      mode: InferenceMode.ONLY_IN_CLOUD,
+      inCloudParams: { model: config().model, generationConfig: { responseMimeType: 'application/json', responseJsonSchema: ONE_SCHEMA, temperature: 0.2 } },
+    })
+    const res = await m.generateContent([HINDI_ONE, text])
+    if (res.response.inferenceSource && res.response.inferenceSource !== InferenceSource.IN_CLOUD) throw new Error(`served by ${res.response.inferenceSource}`)
+    return String((JSON.parse(res.response.text()) as { text?: unknown }).text ?? '')
+  })
 }
 
 // ---- "What does this test mean?": only the test's name is sent, never a value or anything personal. ----

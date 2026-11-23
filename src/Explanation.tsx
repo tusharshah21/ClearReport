@@ -54,6 +54,9 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
   const hi = lang === 'hi' && !!explained.hi
   const e = hi ? explained.hi! : explained.en
   const t = T[hi ? 'hi' : 'en']
+  // In the Hindi view, a field the translation could not put into Hindi is shown in English, and says so.
+  const inEn = (k: string) => hi && !!explained.hi_english?.includes(k)
+  const enTag = <small className="muted en-tag" lang="en"> (English)</small>
   const far = payload.tests.some(farOutOfRange)
   const [copied, setCopied] = useState(false)
   // Only the test name is sent (explain.ts meaning()); answers are cached in memory per name.
@@ -85,11 +88,11 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
     const value = <span className="value">{x.value ?? '-'} {x.unit}</span>
     const body = (
       <>
-        <p style={{ margin: 0 }}>{e.tests[i]?.explanation}</p>
+        <p style={{ margin: 0 }} lang={inEn(`test:${i}`) ? 'en' : undefined}>{e.tests[i]?.explanation}{inEn(`test:${i}`) && enTag}</p>
         {callout && (
           <div className="range-note" data-testid="range-note" lang="en">
             {Icon.ruler}
-            <div><b>{t.note}</b>{c.callout}</div>
+            <div><b lang={hi ? 'hi' : 'en'}>{t.note}</b>{c.callout}{hi && enTag}</div>
           </div>
         )}
         {c && c.outcome !== 'no guideline for this test' && (
@@ -157,7 +160,7 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
 
       <div className="card summary-card">
         <h1 id="sum-title" style={{ fontSize: '1.5rem' }}>{t.summary}</h1>
-        <p style={{ fontSize: '1.08rem' }}>{e.summary}</p>
+        <p style={{ fontSize: '1.08rem' }} lang={inEn('summary') ? 'en' : undefined}>{e.summary}{inEn('summary') && enTag}</p>
         {/* Plain code, from the lab's printed ranges: the same list whatever the AI wrote. */}
         <ul className="findings" data-testid="findings">
           {(['below', 'above'] as const).filter((s) => counts[s]).map((s) => (
@@ -187,7 +190,7 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
 
       <div className="card" style={{ marginTop: 20 }}>
         <h2>{t.questions}</h2>
-        <ul className="questions">{e.questions.map((q, i) => <li key={i}>{q}</li>)}</ul>
+        <ul className="questions">{e.questions.map((q, i) => <li key={i} lang={inEn(`q:${i}`) ? 'en' : undefined}>{q}{inEn(`q:${i}`) && enTag}</li>)}</ul>
         <div className="actions no-print">
           <button onClick={copy}>{copied ? t.copied : t.copy}</button>
           <button onClick={() => window.print()}>{t.print}</button>

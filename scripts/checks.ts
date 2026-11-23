@@ -8,6 +8,7 @@ import { apply, homography } from '../src/crop'
 import { BANNED, checkAll, checkTest, disagrees, farOutOfRange } from '../src/guidelines'
 import type { Test } from '../src/privacy'
 import { trustOf } from '../src/trust'
+import { completeHindi, sameNumbers, untranslated } from '../src/hindi'
 import { fixQuestionGrammar, fixUnits, fixUnitsIn, questionsFor, questionsSpecific } from '../src/questions'
 
 // Every ground-truth name resolves to a known key, and no report has two tests with the same key.
@@ -328,4 +329,29 @@ console.log('crop ok')
   assert.equal(g('My HDL cholesterol is 38 mg/dL.'), 'My HDL cholesterol result is 38 mg/dL.') // case-insensitive name match
   for (const q of ['My Triglycerides result is 188 mg/dL.', 'My HDL Cholesterol level is 38 mg/dL.', 'My Triglycerides are 200 mg/dL.', 'My doctor is 104 years old.', 'Why is my LDL 160?'])
     assert.equal(g(q), q, q) // already right, a level, wrong value, not a test, or not that shape: unchanged
+}
+// Hindi completeness: a field the translation left in English is translated again on its own; if that fails the
+// Devanagari or number checks, the English stays and is listed so the page can label it "(English)".
+{
+  const en = { summary: 'Your triglycerides are above the range.', tests: [{ name: 'TG', explanation: 'Triglycerides are 188 mg/dL.' }, { name: 'X', explanation: '' }], questions: ['My TG result is 188 mg/dL. Why?', 'My HDL result is 38 mg/dL. Why?', 'My LDL result is 160 mg/dL. Why?'] }
+  const hi = { summary: 'आपके ट्राइग्लिसराइड्स सीमा से ऊपर हैं।', tests: [{ name: 'TG', explanation: 'Triglycerides are 188 mg/dL.' }, { name: 'X', explanation: '' }], questions: ['My TG result is 188 mg/dL. Why?', 'मेरा HDL नतीजा 38 mg/dL है। क्यों?', 'My LDL result is 160 mg/dL. Why?'] }
+  assert.deepEqual(untranslated(en, hi), ['test:0', 'q:0', 'q:2']) // the empty explanation needs nothing
+  assert.deepEqual(untranslated(en, { ...hi, questions: hi.questions.slice(0, 2) }), ['test:0', 'q:0', 'q:2']) // a missing question counts too
+  const asked: string[] = []
+  const fake = async (s: string) => {
+    asked.push(s)
+    if (s.startsWith('Triglycerides')) return 'ट्राइग्लिसराइड्स 188 mg/dL हैं।' // good
+    if (s.startsWith('My TG')) return 'मेरा TG नतीजा 189 mg/dL है।' // changed a number: rejected
+    throw new Error('[500 ] high demand') // still failing after its retries
+  }
+  const r = await completeHindi(en, hi, fake)
+  assert.deepEqual(asked, ['Triglycerides are 188 mg/dL.', 'My TG result is 188 mg/dL. Why?', 'My LDL result is 160 mg/dL. Why?'])
+  assert.equal(r.hi.tests[0].explanation, 'ट्राइग्लिसराइड्स 188 mg/dL हैं।')
+  assert.deepEqual(r.english, ['q:0', 'q:2'])
+  assert.deepEqual(r.hi.questions, ['My TG result is 188 mg/dL. Why?', 'मेरा HDL नतीजा 38 mg/dL है। क्यों?', 'My LDL result is 160 mg/dL. Why?'])
+  assert.equal(r.hi.summary, hi.summary) // already Hindi: untouched, not sent again
+  assert.ok(sameNumbers('a 1.5 b 20', 'क 20 ख 1.5') && !sameNumbers('a 20', 'क 200'))
+  const all = await completeHindi(en, { ...hi, tests: [{ name: 'TG', explanation: 'ट्राइग्लिसराइड्स 188 mg/dL.' }, hi.tests[1]], questions: ['क 188', 'ख 38', 'ग 160'] }, fake)
+  assert.deepEqual(all.english, []) // nothing to fix: no call
+  console.log('hindi completeness ok')
 }
