@@ -5,6 +5,11 @@
       "description": "Gemini model for cloud extraction and the explanation",
       "valueType": "STRING"
     },
+    "cloud_model_fallback": {
+      "defaultValue": { "value": "gemini-3.8-flash" },
+      "description": "Tried once when cloud_model is still busy (500/503/429) after its retries. Empty turns the fallback off",
+      "valueType": "STRING"
+    },
     "prompt_version": {
       "defaultValue": { "value": "v7" },
       "description": "Explanation prompt version, shown under each explanation",

@@ -5,11 +5,12 @@ import { app } from './firebase'
 
 export const DEFAULTS = {
   cloud_model: 'gemini-3.5-flash-lite', // documented default, pinned so results are reproducible
+  cloud_model_fallback: 'gemini-3.8-flash', // tried once when cloud_model is still busy after its retries; '' turns it off
   prompt_version: 'v7',
   hindi_enabled: true,
   path3_enabled: true, // "send the full report" option
 }
-export type Config = { model: string; promptVersion: string; hindi: boolean; path3: boolean }
+export type Config = { model: string; fallback: string | null; promptVersion: string; hindi: boolean; path3: boolean }
 
 const rc = getRemoteConfig(app)
 rc.defaultConfig = DEFAULTS
@@ -19,6 +20,7 @@ let current: Config = read()
 function read(): Config {
   return {
     model: getValue(rc, 'cloud_model').asString() || DEFAULTS.cloud_model,
+    fallback: getValue(rc, 'cloud_model_fallback').asString() || null,
     promptVersion: getValue(rc, 'prompt_version').asString() || DEFAULTS.prompt_version,
     hindi: getValue(rc, 'hindi_enabled').asBoolean(),
     path3: getValue(rc, 'path3_enabled').asBoolean(),

@@ -46,7 +46,8 @@ const PANEL: Record<string, Panel> = Object.fromEntries([
 ])
 
 // badges[i]: the trust badge from the review screen; a value the user confirmed there shows "checked by you".
-export default function Explanation({ payload, checks, badges, confirmed, explained: first, onDone }: { payload: Payload; checks: Check[]; badges: TrustBadge[]; confirmed: boolean[]; explained: Explained; onDone: () => void }) {
+// readBy: the cloud model(s) that read the report (Paths 2 and 3), empty when it was read on the device.
+export default function Explanation({ payload, checks, badges, confirmed, explained: first, readBy = [], onDone }: { payload: Payload; checks: Check[]; badges: TrustBadge[]; confirmed: boolean[]; explained: Explained; readBy?: string[]; onDone: () => void }) {
   const [lang, setLang] = useState<'en' | 'hi'>('en')
   const [h, setH] = useState<Hindi | 'trying' | null>(null) // a Hindi retry from this page, if any
   const explained: Explained = h && h !== 'trying' ? { ...first, hindi_busy: false, ...h } : first
@@ -107,7 +108,7 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
         </div>
         {typeof m === 'object' && (
           <p className="meaning" lang="en" data-testid="meaning">
-            {m.text} <span className="source-tag">{SOURCE_LABEL[m.source]}</span>
+            {m.text} <span className="source-tag">{SOURCE_LABEL[m.source]}{m.model && m.model !== explained.main_model && ` (${m.model}, because ${explained.main_model} was busy)`}</span>
           </p>
         )}
       </>
@@ -202,7 +203,9 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
         {explained.path === 'template'
           ? 'This explanation is a plain summary from the range check (no AI): Gemini could not be reached, or its wording did not pass our safety checks.'
           : `Explanation by Gemini in the cloud (${explained.path}), from the anonymous summary you approved.`}{' '}
-        Prompt {explained.prompt_version}, model {explained.model}. {DISCLAIMER}
+        Prompt {explained.prompt_version}{explained.model && <>, model {explained.model}{explained.model !== explained.main_model && ` (used because ${explained.main_model} was busy)`}</>}.
+        {explained.hi_model && explained.hi_model !== explained.model && ` Hindi by ${explained.hi_model}${explained.hi_model !== explained.main_model ? ` (used because ${explained.main_model} was busy)` : ''}.`}
+        {readBy.length > 0 && ` Report read by ${readBy.join(' and ')}${readBy.some((m) => m !== explained.main_model) ? ` (${explained.main_model} was busy)` : ''}.`} {DISCLAIMER}
       </p>
       <div className="actions no-print"><button className="primary" onClick={onDone}>{t.again}</button></div>
     </section>

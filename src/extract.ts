@@ -1,6 +1,7 @@
 import { getGenerativeModel, InferenceMode, InferenceSource, type GenerativeModel } from 'firebase/ai'
 import { ai } from './firebase'
 import { config } from './remote'
+import { withFallback } from './retry'
 import { contextBlocks, fixFromRow, parseRow, rowFor, skippedRows, type TextLine } from './textrows'
 
 const num = { type: ['number', 'null'] }
@@ -62,8 +63,8 @@ export const toB64 = (b: Blob) =>
     r.readAsDataURL(b)
   })
 const cache = new Map<string, GenerativeModel>()
-export function model(mode: Mode, part: Part): GenerativeModel {
-  const key = `${mode}:${part}`
+export function model(mode: Mode, part: Part, name = config().model): GenerativeModel {
+  const key = mode === 'device' ? `device:${part}` : `cloud:${part}:${name}`
   if (!cache.has(key)) {
     cache.set(
       key,
@@ -78,7 +79,7 @@ export function model(mode: Mode, part: Part): GenerativeModel {
         : getGenerativeModel(ai, {
             mode: InferenceMode.ONLY_IN_CLOUD,
             inCloudParams: {
-              model: config().model, // Remote Config, default pinned in remote.ts so results are reproducible
+              model: name, // Remote Config (cloud_model, or cloud_model_fallback when it is busy), defaults pinned in remote.ts
               generationConfig: { responseMimeType: 'application/json', responseJsonSchema: SCHEMAS[part], temperature: 0 },
             },
           }),
@@ -87,7 +88,7 @@ export function model(mode: Mode, part: Part): GenerativeModel {
   return cache.get(key)!
 }
 
-export type Call = { part: Part; source: string | null; latency_ms: number; output_chars: number; ok: boolean; error?: string; raw?: string; retries?: number }
+export type Call = { part: Part; source: string | null; latency_ms: number; output_chars: number; ok: boolean; error?: string; raw?: string; retries?: number; model?: string }
 export type Run = { report: string; mode: Mode; strategy: 'single' | 'split' | 'pages' | 'rows'; at: string; latency_ms: number; output_chars: number; ok: boolean; calls: Call[]; output: unknown; page_strategies?: (string | null)[]; skipped_pages?: number[]; trust?: unknown[]; sent?: string[] }
 type Image = { mimeType: string; data: string }
 type Out = { lab_name?: unknown; pii?: Record<string, unknown>; tests?: unknown[] }
@@ -132,24 +133,32 @@ export async function extractDoc(report: string, mode: Mode, pages: Image[], onP
   }
 }
 
-// Busy or rate-limited cloud ("[500 ] This model is currently experiencing high demand", 503, 429): worth waiting and retrying
-// before the two-call split, which would only add load. Never retried on device (no cloud involved, and errors there are not load).
-export const RETRYABLE = /\[(429|500|503)\b|high demand|overloaded|resource.?exhausted/i
-export const RETRY_DELAYS_MS = [1500, 4000, 10000]
+// Busy or rate-limited cloud ("[500 ] This model is currently experiencing high demand", 503, 429): retried with backoff,
+// then the fallback model once (retry.ts), before the two-call split, which would only add load. Never retried on device
+// (no cloud involved, and errors there are not load).
 async function call(mode: Mode, part: Part, image: Image): Promise<{ c: Call; json?: Record<string, unknown> }> {
-  for (let attempt = 0; ; attempt++) {
-    const r = await callOnce(mode, part, image)
-    if (r.c.ok || mode !== 'cloud' || attempt >= RETRY_DELAYS_MS.length || !RETRYABLE.test(r.c.error ?? '')) return { ...r, c: { ...r.c, retries: attempt } }
-    await new Promise((ok) => setTimeout(ok, RETRY_DELAYS_MS[attempt] * (0.75 + Math.random() / 2))) // jitter so parallel pages don't retry in lockstep
+  if (mode !== 'cloud') { const r = await callOnce(mode, part, image); return { ...r, c: { ...r.c, retries: 0 } } }
+  let attempts = 0, last: { c: Call; json?: Record<string, unknown> } | null = null
+  try {
+    const { value } = await withFallback(`cloud extraction (${part})`, { main: config().model, fallback: config().fallback }, async (m) => {
+      attempts++
+      const r = await callOnce(mode, part, image, m)
+      if (!r.c.ok) { last = r; throw new Error(r.c.error) }
+      return r
+    })
+    return { ...value, c: { ...value.c, retries: attempts - 1 } }
+  } catch {
+    const r = last as unknown as { c: Call; json?: Record<string, unknown> }
+    return { ...r, c: { ...r.c, retries: attempts - 1 } }
   }
 }
 
-async function callOnce(mode: Mode, part: Part, image: Image): Promise<{ c: Call; json?: Record<string, unknown> }> {
+async function callOnce(mode: Mode, part: Part, image: Image, name?: string): Promise<{ c: Call; json?: Record<string, unknown> }> {
   const t0 = performance.now()
   try {
-    const res = await model(mode, part).generateContent([PROMPTS[part], { type: 'inlineData', inlineData: { mimeType: image.mimeType, data: image.data } }])
+    const res = await model(mode, part, name).generateContent([PROMPTS[part], { type: 'inlineData', inlineData: { mimeType: image.mimeType, data: image.data } }])
     const raw = res.response.text()
-    const c: Call = { part, source: res.response.inferenceSource ?? null, latency_ms: Math.round(performance.now() - t0), output_chars: raw.length, ok: true, raw }
+    const c: Call = { part, source: res.response.inferenceSource ?? null, latency_ms: Math.round(performance.now() - t0), output_chars: raw.length, ok: true, raw, ...(mode === 'cloud' ? { model: name ?? config().model } : {}) }
     // ONLY_ON_DEVICE already makes the SDK throw instead of falling back; this catches it if that ever changes.
     const expected = mode === 'device' ? InferenceSource.ON_DEVICE : InferenceSource.IN_CLOUD
     if (c.source !== expected) return { c: { ...c, ok: false, error: `served by ${c.source}, expected ${expected}` } }

@@ -9,6 +9,7 @@ import { BANNED, checkAll, checkTest, disagrees, farOutOfRange } from '../src/gu
 import type { Test } from '../src/privacy'
 import { trustOf } from '../src/trust'
 import { completeHindi, sameNumbers, untranslated } from '../src/hindi'
+import { isBusy, withFallback } from '../src/retry'
 import { fixQuestionGrammar, fixUnits, fixUnitsIn, questionsFor, questionsSpecific } from '../src/questions'
 
 // Every ground-truth name resolves to a known key, and no report has two tests with the same key.
@@ -354,4 +355,39 @@ console.log('crop ok')
   const all = await completeHindi(en, { ...hi, tests: [{ name: 'TG', explanation: 'ट्राइग्लिसराइड्स 188 mg/dL.' }, hi.tests[1]], questions: ['क 188', 'ख 38', 'ग 160'] }, fake)
   assert.deepEqual(all.english, []) // nothing to fix: no call
   console.log('hindi completeness ok')
+}
+// Cloud resilience: busy errors are retried on the main model, then the fallback model is tried once; other errors
+// are not retried and never reach the fallback.
+{
+  const models = { main: 'main-model', fallback: 'fallback-model' }
+  const busy = new Error('AI: Error fetching ... [500 ] This model is currently experiencing high demand.')
+  const script = (answers: (string | Error)[]) => {
+    const seen: string[] = []
+    return { seen, call: async (m: string) => { seen.push(m); const a = answers.shift()!; if (a instanceof Error) throw a; return a } }
+  }
+  const quiet = console.info; console.info = () => {}
+  try {
+    let s = script([busy, 'ok'])
+    assert.deepEqual(await withFallback('t', models, s.call, [0, 0, 0]), { value: 'ok', model: 'main-model' })
+    assert.deepEqual(s.seen, ['main-model', 'main-model']) // one retry on the main model was enough
+
+    s = script([busy, busy, busy, busy, 'ok'])
+    assert.deepEqual(await withFallback('t', models, s.call, [0, 0, 0]), { value: 'ok', model: 'fallback-model' })
+    assert.deepEqual(s.seen, ['main-model', 'main-model', 'main-model', 'main-model', 'fallback-model']) // 1 + 3 retries, then the fallback once
+
+    s = script([busy, busy, busy, busy, busy])
+    await assert.rejects(withFallback('t', models, s.call, [0, 0, 0]), /high demand/)
+    assert.equal(s.seen.length, 5) // the fallback is tried once only
+
+    s = script([new Error('[400 ] invalid argument'), 'ok'])
+    await assert.rejects(withFallback('t', models, s.call, [0, 0, 0]), /400/)
+    assert.deepEqual(s.seen, ['main-model']) // not busy: no retry, no fallback
+
+    s = script([busy, busy])
+    await assert.rejects(withFallback('t', { main: 'm', fallback: 'm' }, s.call, [0]), /high demand/) // fallback = main: not tried twice
+    assert.equal(s.seen.length, 2)
+    for (const e of ['[503 ] unavailable', '[429 ] resource exhausted', 'The model is overloaded']) assert.ok(isBusy(new Error(e)), e)
+    assert.ok(!isBusy(new Error('[400 ] bad request')))
+  } finally { console.info = quiet }
+  console.log('cloud fallback ok')
 }

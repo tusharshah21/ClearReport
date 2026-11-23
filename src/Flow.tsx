@@ -765,7 +765,7 @@ export default function Flow() {
         )}
 
         {step === 'explained' && approved && explained && result && (
-          <Explanation payload={approved.payload} checks={approved.checks} badges={result.trust.map((t) => t.badge)} confirmed={approved.confirmed} explained={explained} onDone={reset} />
+          <Explanation payload={approved.payload} checks={approved.checks} badges={result.trust.map((t) => t.badge)} confirmed={approved.confirmed} explained={explained} readBy={[...new Set(result.run.calls.flatMap((c) => (c.ok && c.model ? [c.model] : [])))]} onDone={reset} />
         )}
       </main>
       <DataTrail path={path} step={step} hasFile={!!original} />
