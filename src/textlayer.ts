@@ -1,6 +1,6 @@
 // Plain code, runs locally: positioned words from a PDF text layer (or OCR), grouped into lines.
 // Used to cross-check extracted values (verify) and to suggest mask boxes (see masks.ts).
-import { displayName } from './canonical'
+import { canonical, displayName } from './canonical'
 
 // Coordinates are fractions of the page (0..1), y from the top.
 export type Word = { text: string; x0: number; y0: number; x1: number; y1: number }
@@ -59,18 +59,31 @@ const has = (nums: number[], v: number) => nums.some((n) => Math.abs(n - v) < 1e
 // Finds the test's row on the page and the numbers printed to the right of its name, on the same row
 // or within one row-height (values often sit a few points off the name's baseline).
 // nth: which occurrence of a repeated name (WM15 prints "Neutrophils" as % and as an absolute count).
-function rowNumbers(name: string, lines: Line[], nth = 0): { nums: number[]; bare: number[]; text: string } | null {
+type RowText = { nums: number[]; bare: number[]; text: string; lines: string[][] }
+function rowNumbers(name: string, lines: Line[], nth = 0, others: string[] = []): RowText | null {
   const full = norm(displayName(name).replace(/\([^)]*\)/g, ' ')).split(' ').filter(Boolean).slice(0, 4) // "Creatinine (Modified Jaffe)" -> "creatinine"
   // A name wrapped over two lines ("Glycosylated" / "Haemoglobin (HbA1c)") is found by its leading words; one word
   // alone only if it is distinctive (6+ letters, not "Total" or "Serum").
   for (let k = full.length; k >= 1; k--) {
     if (k === 1 && full.length > 1 && (full[0].length < 6 || GENERIC.has(full[0]))) break
-    const r = rowWithName(full.slice(0, k).join(' '), lines, nth)
+    const r = rowWithName(full.slice(0, k).join(' '), lines, nth, namesOf(name, others))
     if (r) return r
   }
   return null
 }
-function rowWithName(want: string, lines: Line[], nth: number): { nums: number[]; bare: number[]; text: string } | null {
+// Another test's name starting at word j of ws: how many words it takes (0 if none). A name counts if it is one of the
+// report's other rows, or any name in the alias table that is not this test's own (so "PCV (Haematocrit)" is one name).
+type Names = { own: string; others: string[] }
+const namesOf = (name: string, others: string[]): Names => ({ own: canonical(displayName(name)), others: others.map((o) => norm(displayName(o).replace(/\([^)]*\)/g, ' '))).filter(Boolean) })
+function nameAt(ws: string[], j: number, names: Names): number {
+  for (let L = Math.min(4, ws.length - j); L >= 1; L--) {
+    const text = ws.slice(j, j + L).join(' '), key = canonical(text)
+    if (/^\d|^[<>≤≥]/.test(ws[j]) || key === names.own) continue
+    if (!key.startsWith('?') || names.others.includes(norm(text))) return L
+  }
+  return 0
+}
+function rowWithName(want: string, lines: Line[], nth: number, names: Names): RowText | null {
   const at = (l: Line) => ` ${norm(l.text)} `.indexOf(` ${want} `) // word-bounded: "ldl" must not match "vldl"
   const numbersBeside = (line: Line) => {
     // x where the name ends: the word that completes the name's leading words
@@ -80,16 +93,64 @@ function rowWithName(want: string, lines: Line[], nth: number): { nums: number[]
     for (const w of line.words.slice(Math.max(0, first))) { if (seen >= n) break; seen += norm(w.text).split(' ').filter(Boolean).length; end = w.x1 }
     const start = line.words[Math.max(0, first)].x0
     const h = line.y1 - line.y0 // values often sit a little above or below the name's baseline
-    const row = lines.filter((l) => l.y1 > line.y0 - h * 0.5 && l.y0 < line.y1 + h * 0.5).flatMap((l) => l.words)
-    // Right of the name first; then left of it, for labs that print the result before the test name.
-    const words = [...row.filter((w) => w.x0 > end), ...row.filter((w) => w.x1 < start)]
+    const mid = (l: Line) => (l.y0 + l.y1) / 2 // centres, so the next line of a card (its value line) is not this row
+    const row = lines.filter((l) => Math.abs(mid(l) - mid(line)) < h * 0.75).flatMap((l) => l.words)
+    // Right of the name first; then left of it, for labs that print the result before the test name. Each side ends
+    // at another test's name: in a table printed two to a line, the other half of the line is that test's row.
+    const right = row.filter((w) => w.x0 > end).sort((a, b) => a.x0 - b.x0), leftOf = row.filter((w) => w.x1 < start).sort((a, b) => a.x0 - b.x0)
+    const rt = right.map((w) => w.text), lt = leftOf.map((w) => w.text)
+    const stop = rt.findIndex((_, j) => nameAt(rt, j, names) > 0)
+    let from = 0
+    for (let j = 0; j < lt.length; j++) { const L = nameAt(lt, j, names); if (L) { from = j + L; j += L - 1 } }
+    // Left of the name: all of it when no other name is there (a lab that prints the result first). With another name
+    // there and numbers right of this one, the left half of the line is the row of the test printed before this one.
+    const mine = stop < 0 ? right : right.slice(0, stop)
+    const words = from > 0 && mine.some((w) => /^[<>≤≥(↑↓]*\d/.test(w.text)) ? mine : [...mine, ...leftOf.slice(from)]
     const bare = words.filter((w) => /^(\d{1,3}(?:,\d{2,3})+|\d+)(?:\.\d+)?$/.test(w.text)).map((w) => Number(w.text.replace(/,/g, '')))
-    return { nums: words.flatMap((w) => numbersIn(w.text)), bare, text: words.map((w) => w.text).join(' ') }
+    return { nums: words.flatMap((w) => numbersIn(w.text)), bare, text: words.map((w) => w.text).join(' '), lines: [words.map((w) => w.text)] }
   }
   // Rows that start with the name first; a name later in a line (e.g. inside "Non-HDL") is a fallback.
   // Headings such as "GLUCOSE, FASTING (F), PLASMA" have no numbers beside them and are skipped.
-  const rows = [...lines.filter((l) => at(l) === 0), ...lines.filter((l) => at(l) > 0)].map(numbersBeside).filter((r) => r.nums.length)
-  return rows[nth] ?? rows[0] ?? null
+  const named = [...lines.filter((l) => at(l) === 0), ...lines.filter((l) => at(l) > 0)]
+  // A number word, not a digit inside a name such as "HbA1c" printed beside this one.
+  const numeric = (r: RowText) => /(^|\s)[<>≤≥(↑↓]*\d/.test(r.text)
+  const rows = named.map(numbersBeside).filter(numeric)
+  if (rows.length) return rows[nth] ?? rows[0]
+  // No number on any line with the name: a card layout prints the value and range on the lines below it.
+  const below = named.map((l) => windowBelow(want, l, lines, names)).filter(numeric)
+  return below[nth] ?? below[0] ?? null
+}
+
+// The lines under a test's name, in the name's own column, while they stay in the same layout block: stops at a
+// blank gap (a vertical gap taller than the name's line, or nothing in the column), at a line that holds another
+// test's name (one of the report's other rows, or any name in the alias table), and after MAX_BELOW lines.
+// The column runs from the name's left edge to the next word to its right on the name's line (the next card).
+// So a value is never taken from the card beside it, from the card below it, or from the next test in a list.
+const MAX_BELOW = 4
+function windowBelow(want: string, line: Line, lines: Line[], names: Names) {
+  const n = want.split(' ').length
+  const first = Math.max(0, line.words.findIndex((w) => want.startsWith(norm(w.text).split(' ')[0] || '\0')))
+  let seen = 0, k = first
+  while (k < line.words.length && seen < n) seen += norm(line.words[k++].text).split(' ').filter(Boolean).length
+  const left = line.words[first].x0 - 0.01, right = (line.words[k]?.x0 ?? 1.01) - 0.005
+  const inColumn = (w: Word) => (w.x0 + w.x1) / 2 >= left && (w.x0 + w.x1) / 2 < right
+  const otherNames = names.others.filter((o) => o !== want && !want.startsWith(o))
+  const isName = (text: string) => {
+    const t = norm(text), ws = t.split(' ')
+    return otherNames.some((o) => ` ${t} `.includes(` ${o} `)) || [4, 3, 2, 1].some((j) => ws.length >= j && !canonical(ws.slice(0, j).join(' ')).startsWith('?'))
+  }
+  const taken: Word[][] = []
+  let prev = line
+  for (const next of lines.filter((l) => l.y0 > line.y0).slice(0, MAX_BELOW)) {
+    if (next.y0 - prev.y1 > (line.y1 - line.y0) * 1.2) break
+    const ws = next.words.filter(inColumn)
+    if (!ws.length || isName(ws.map((w) => w.text).join(' '))) break
+    taken.push(ws)
+    prev = next
+  }
+  const words = taken.flat()
+  const bare = words.filter((w) => /^(\d{1,3}(?:,\d{2,3})+|\d+)(?:\.\d+)?$/.test(w.text)).map((w) => Number(w.text.replace(/,/g, '')))
+  return { nums: words.flatMap((w) => numbersIn(w.text)), bare, text: words.map((w) => w.text).join(' '), lines: taken.map((ws) => ws.map((w) => w.text)) }
 }
 const GENERIC = new Set(['total', 'serum', 'plasma', 'blood', 'random', 'fasting', 'absolute', 'estimated', 'calculated'])
 
@@ -116,17 +177,37 @@ export function pagesWithResults(pages: { words: Word[]; images: string[] }[]): 
 }
 
 // pdf_value: the first number printed beside the test name, offered to the user as a suggestion (never auto-accepted).
-export type ValueCheck = { value: Check; range: Check; unit: Check; pdf_value: number | null }
-export function verify(t: { name: string; value: number | null; unit?: string | null; ref_low: number | null; ref_high: number | null }, lines: Line[] | null, nth = 0): ValueCheck {
+// pdf_flag: H or L when the PDF prints a flag beside this value (H/L/High/Low or an arrow, joined to the number or
+// on the same row); null when no flag is printed there; undefined when the row was not found.
+export type ValueCheck = { value: Check; range: Check; unit: Check; pdf_value: number | null; pdf_flag?: 'H' | 'L' | null }
+const FLAG_WORD = /^(h|l|high|low|↑|↓)$/i
+const flagOf = (w: string) => (/^(h|high|↑)$/i.test(w) ? 'H' : 'L')
+export function flagBeside(value: number | null, lines: string[][]): 'H' | 'L' | null {
+  if (value === null) return null
+  for (const ws of lines)
+    for (const w of ws) {
+      const m = w.match(/^([↑↓])?(\d{1,3}(?:,\d{2,3})+(?:\.\d+)?|\d+(?:\.\d+)?)[*#†]*(H|L|[↑↓])?$/)
+      if (!m || Number(m[2].replace(/,/g, '')) !== value) continue
+      if (m[1] || m[3]) return flagOf(m[1] ?? m[3])
+      // Otherwise a flag word on the value's own row: these words are the row beside the name, or one line of the
+      // name's column in a card, so a flag printed for the test next to it is never in them.
+      const f = ws.find((x) => FLAG_WORD.test(x))
+      if (f) return flagOf(f)
+    }
+  return null
+}
+// others: the names of the report's other rows, so a card's search below its name stops at the next test.
+export function verify(t: { name: string; value: number | null; unit?: string | null; ref_low: number | null; ref_high: number | null }, lines: Line[] | null, nth = 0, others: string[] = []): ValueCheck {
   const none: ValueCheck = { value: 'unverified', range: 'unverified', unit: 'unverified', pdf_value: null }
   if (!lines?.length) return none
-  const row = rowNumbers(t.name, lines, nth)
+  const row = rowNumbers(t.name, lines, nth, others)
   if (!row) return none
   const { nums, bare, text } = row
   const bounds = [t.ref_low, t.ref_high].filter((b): b is number => b !== null)
   const printed = unitsIn(text)
   return {
     pdf_value: bare[0] ?? null, // a number standing alone, not a digit inside a method name like "P5P"
+    pdf_flag: flagBeside(t.value, row.lines),
     value: t.value === null ? 'unverified' : has(nums, t.value) ? 'verified' : 'mismatch',
     range: !bounds.length ? 'unverified' : bounds.every((b) => has(nums, b)) ? 'verified' : 'mismatch',
     // A missing unit is a mismatch only when the PDF prints one on that row.

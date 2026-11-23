@@ -6,7 +6,7 @@ import { aiBoxes, nonResultLines, ocrWords, resultLine, suggestMasks, type Sugge
 import { isPdf, pdfPages } from './pdf'
 import { toLines, type Word } from './textlayer'
 import { contextBlocks, rowsForModel } from './textrows'
-import { trustOf } from './trust'
+import { keepPrintedFlags, trustOf } from './trust'
 
 setLogLevel('debug') // SDK logs why on-device was or wasn't used
 
@@ -141,7 +141,10 @@ export default function Spike() {
       const s = await loadSynthetic(id)
       const rows = rowsForModel(s.pages.map((p) => p.words ?? []))
       const r = await extractRows(id, rows.batches, rows, (d, n) => say(`${id}, parser off: ${d} of ${n} blocks`), undefined, false)
-      out[id] = { ok: r.ok, calls: r.calls.length, ms: r.latency_ms, tests: (r.output as { tests?: unknown[] } | null)?.tests ?? [], sent: contextBlocks(rows.lines, () => true).map((b) => b.lines.join('\n')) }
+      // The same badges and flag rule as the review screen (trustOf, then keepPrintedFlags).
+      const got = ((r.output as { tests?: [] } | null)?.tests ?? []) as Parameters<typeof trustOf>[0]
+      const trust = trustOf(got, s.pages.map((p) => p.words))
+      out[id] = { ok: r.ok, calls: r.calls.length, ms: r.latency_ms, tests: keepPrintedFlags(got, trust), model_flags: got.map((t) => t.printed_flag ?? null), badges: trust.map((t) => t.badge), sent: contextBlocks(rows.lines, () => true).map((b) => b.lines.join('\n')) }
       say(`${id}, parser off: ${r.ok ? 'ok' : 'FAILED'}, ${r.calls.length} calls, ${(r.latency_ms / 1000).toFixed(1)} s, ${(out[id] as { tests: unknown[] }).tests.length} rows`)
     }
     ;(window as unknown as { __noParser: unknown }).__noParser = out

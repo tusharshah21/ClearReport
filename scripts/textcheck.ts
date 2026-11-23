@@ -107,6 +107,15 @@ assert.deepEqual(pagesWithResults([{ words: prose, images: [] }, { words: [], im
     assert.deepEqual(tests.map((t) => [canonical(t.name), t.value, mu(t.unit), t.ref_low, t.ref_high, t.printed_flag]), gt.tests.map((t: Record<string, unknown>) => [canonical(t.name as string), t.value, mu(t.unit), t.ref_low, t.ref_high, t.printed_flag]), `${id} parsed rows`)
     assert.deepEqual(trustOf(tests, pages).map((t) => t.badge), tests.map(() => 'verified'), `${id} cross-check`)
     assert.notEqual(trustOf([{ ...tests[0], value: tests[0].value + 10 }], pages)[0].badge, 'verified', `${id} altered value must not verify`)
+    // Negative: another test's value never verifies (p2 prints two tests on each line).
+    for (const [i, t] of tests.entries())
+      for (const u of tests) if (u.value !== t.value) assert.notEqual(trustOf(tests.map((x, k) => (k === i ? { ...t, value: u.value } : x)), pages)[i].badge, 'verified', `${id}: ${t.name} with ${u.name}'s value`)
+    // With the parser off, the model's correct flags must survive the Path 1 flag rule; invented ones are dropped and missed ones restored.
+    const { keepPrintedFlags } = await import('../src/trust')
+    const asModel = tests.map((t) => ({ ...t, method: 'model' }))
+    assert.deepEqual(keepPrintedFlags(asModel, trustOf(asModel, pages)).map((t) => t.printed_flag), tests.map((t) => t.printed_flag), `${id} printed flags kept`)
+    const invented = asModel.map((t) => ({ ...t, printed_flag: t.printed_flag ? null : 'H' })) // every flag wrong: invented or missed
+    assert.deepEqual(keepPrintedFlags(invented, trustOf(invented, pages)).map((t) => t.printed_flag), tests.map((t) => t.printed_flag), `${id} invented flags dropped`)
     console.log(`textcheck: ${id} parser reads ${tests.length} of ${tests.length} rows, all verified; lab_name "${rows.lab_name}"`)
   }
 }
@@ -150,9 +159,59 @@ assert.deepEqual(pagesWithResults([{ words: prose, images: [] }, { words: [], im
     // the wrong tests) and even the correct rows (the value is not on the name's line here) all ask to be checked.
     const bad = [{ name: 'legible', value: 12.6, unit: 'g/dL', ref_low: null, ref_high: null }, { name: 'Total WBC Count', value: 2.4, unit: 'lakhs/cumm', ref_low: null, ref_high: null }, { name: 'Fasting Glucose', value: 7600, unit: '/cumm', ref_low: null, ref_high: null }]
     assert.deepEqual(trustOf(bad, pages).map((t) => t.badge), ['check', 'check', 'check'], 'demo-unfamiliar: wrong reads ask to be checked')
-    assert.ok(trustOf(gt.tests, pages).every((t) => t.badge === 'check'), 'demo-unfamiliar: no row is neutral or verified on this layout')
+    // Prompt 19: the cross-check also looks under the name, in its own card. Every correct row verifies, with the
+    // printed flags (Total Cholesterol and Triglycerides "High") and no others.
+    const right = trustOf(gt.tests, pages)
+    assert.deepEqual(right.map((t) => t.badge), gt.tests.map(() => 'verified'), 'demo-unfamiliar: correct reads verify')
+    assert.deepEqual(right.map((t) => t.pdf_flag), gt.tests.map((t: { printed_flag: string | null }) => t.printed_flag), 'demo-unfamiliar: flags printed beside each value')
+    // Negative: a value, range or unit taken from any other card (beside, above or below) never verifies.
+    for (const [i, t] of gt.tests.entries())
+      for (const [j, u] of gt.tests.entries()) {
+        if (i === j) continue
+        const rows = gt.tests.map((x: object, k: number) => (k === i ? { ...t, value: u.value } : x))
+        if (u.value !== t.value) assert.notEqual(trustOf(rows, pages)[i].badge, 'verified', `demo-unfamiliar: ${t.name} with ${u.name}'s value`)
+        const ranged = gt.tests.map((x: object, k: number) => (k === i ? { ...t, ref_low: u.ref_low, ref_high: u.ref_high } : x))
+        if (u.ref_low !== t.ref_low || u.ref_high !== t.ref_high) assert.notEqual(trustOf(ranged, pages)[i].badge, 'verified', `demo-unfamiliar: ${t.name} with ${u.name}'s range`)
+      }
+    // Also when the other tests are not known to the check (a single row): the column and the gap still hold.
+    for (const [i, t] of gt.tests.entries()) for (const u of gt.tests) if (u.value !== t.value) assert.notEqual(trustOf([{ ...t, value: u.value }], pages)[0].badge, 'verified', `demo-unfamiliar alone: ${t.name} with ${u.name}'s value (${i})`)
+    // The HbA1c case: the model once marked it "High" (the flag printed in the card beside it). Only the PDF's flags stay.
+    const { keepPrintedFlags } = await import('../src/trust')
+    const modelRows = gt.tests.map((t: object) => ({ ...t, method: 'model', printed_flag: (t as { name: string }).name === 'HbA1c' ? 'H' : (t as { printed_flag: string | null }).printed_flag }))
+    assert.deepEqual(keepPrintedFlags(modelRows, trustOf(modelRows, pages)).map((t: { printed_flag: unknown }) => t.printed_flag), gt.tests.map((t: { printed_flag: unknown }) => t.printed_flag), 'demo-unfamiliar: HbA1c "High" dropped, the printed flags kept')
+    // A flag the model left out (Triglycerides, warm run of Prompt 19) comes back from the PDF on a verified row.
+    const missed = gt.tests.map((t: object) => ({ ...t, method: 'model', printed_flag: null }))
+    assert.deepEqual(keepPrintedFlags(missed, trustOf(missed, pages)).map((t: { printed_flag: unknown }) => t.printed_flag), gt.tests.map((t: { printed_flag: unknown }) => t.printed_flag), 'demo-unfamiliar: missed flags restored from the PDF')
+    // A wrong value is not verified, so its flag is not taken from the PDF either.
+    const wrong = [{ ...gt.tests[7], value: 999, method: 'model', printed_flag: null }]
+    assert.equal(keepPrintedFlags(wrong, trustOf(wrong, pages))[0].printed_flag, null, 'no flag added to an unverified value')
+    const parserRow = [{ ...gt.tests[4], method: 'parser', printed_flag: 'H' }]
+    assert.equal(keepPrintedFlags(parserRow, trustOf(parserRow, pages))[0].printed_flag, 'H', 'a parser row keeps its own flag')
     assert.deepEqual(trustOf([{ name: 'legible', value: 12.6, ref_low: null, ref_high: null }], [null]).map((t) => t.badge), ['image'], 'a page with no text layer stays "Read from image"')
-    console.log(`textcheck: demo-unfamiliar fallback sends ${blocks.length} block(s) of ${blocks.map((b) => b.lines.length).join(', ')} lines, with every name, value and range; no row is neutral`)
+    console.log(`textcheck: demo-unfamiliar fallback sends ${blocks.length} block(s) of ${blocks.map((b) => b.lines.length).join(', ')} lines, with every name, value and range; ${right.length} correct rows verified, every swapped value or range caught`)
   }
+}
+// Card search, synthetic layouts (general, not tied to one file). Words are placed by hand: x and y as page fractions.
+{
+  const { trustOf } = await import('../src/trust')
+  const line = (y: number, ...cells: [number, string][]) => cells.flatMap(([x, s]) => s.split(' ').map((t, k) => ({ text: t, x0: x + k * 0.06, x1: x + k * 0.06 + 0.05, y0: y, y1: y + 0.012 })))
+  const row = (name: string, value: number, unit: string, low: number | null, high: number | null) => ({ name, value, unit, ref_low: low, ref_high: high })
+  // A list with no gaps, where one test has no value printed: the next test's value must not be taken.
+  const list = [line(0.1, [0.1, 'Haemoglobin']), line(0.116, [0.1, 'Platelet Count']), line(0.132, [0.1, '2.4 lakhs/cumm']), line(0.148, [0.1, 'Expected: 1.5 - 4.1'])].flat()
+  assert.notEqual(trustOf([row('Haemoglobin', 2.4, 'lakhs/cumm', 1.5, 4.1)], [list])[0].badge, 'verified', 'list: the next test (an alias-table name) stops the search')
+  assert.equal(trustOf([row('Platelet Count', 2.4, 'lakhs/cumm', 1.5, 4.1)], [list])[0].badge, 'verified', 'list: its own value verifies')
+  // An unknown name below stops it too when it is one of the report's rows.
+  const odd = [line(0.1, [0.1, 'Zeta Marker']), line(0.116, [0.1, 'Omega Index']), line(0.132, [0.1, '7.5 U/L'])].flat()
+  assert.notEqual(trustOf([row('Zeta Marker', 7.5, 'U/L', null, null), row('Omega Index', 7.5, 'U/L', null, null)], [odd])[0].badge, 'verified', "list: another row's name stops the search")
+  // A blank gap ends the card: the value of the card under it is not taken.
+  const gap = [line(0.1, [0.1, 'TSH']), line(0.16, [0.1, '2.8 μIU/mL'])].flat()
+  assert.notEqual(trustOf([row('TSH', 2.8, 'µIU/mL', null, null)], [gap])[0].badge, 'verified', 'a blank gap ends the card')
+  // Side by side: the card on the right is a different column, even with a name the alias table does not know.
+  const side = [line(0.1, [0.1, 'Zeta Marker'], [0.5, 'Omega Index']), line(0.116, [0.1, '3.1 U/L'], [0.5, '9.9 U/L High'])].flat()
+  const sideT = trustOf([row('Zeta Marker', 9.9, 'U/L', null, null)], [side])[0]
+  assert.notEqual(sideT.badge, 'verified', 'side by side: the right card is not this test')
+  assert.equal(trustOf([row('Zeta Marker', 3.1, 'U/L', null, null)], [side])[0].pdf_flag, null, "side by side: the right card's High is not this test's flag")
+  assert.equal(trustOf([row('Omega Index', 9.9, 'U/L', null, null)], [side])[0].pdf_flag, 'H', "side by side: the right card's own flag")
+  console.log('textcheck: card search stops at other names, blank gaps and the next column')
 }
 console.log('textcheck ok')

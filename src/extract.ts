@@ -292,7 +292,8 @@ export async function extractRows(report: string, batches: { page: number; text:
     for (const [i, b] of blocks.entries()) {
       const got = await ask(b.lines.join('\n'), BLOCK_PROMPT)
       if (!got) { ok = false; break } // a failed private read is reported, never retried in the cloud
-      // The flag comes from the model here: the line rowFor finds may be the name line, which has no flag on it.
+      // The flag comes from the model here (the line rowFor finds may be the name line, which has no flag on it).
+      // Flow then keeps it only if the PDF prints that flag beside the value (keepPrintedFlags in trust.ts).
       tests.push(...got.map((t) => ({ ...fixFromRow(t, rowFor(t.name, b.lines), local.sex), printed_flag: t.printed_flag === 'H' || t.printed_flag === 'L' ? t.printed_flag : null, page: b.page, method: 'model' })))
       onProgress?.(i + 1, blocks.length)
     }

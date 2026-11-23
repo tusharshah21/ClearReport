@@ -12,7 +12,7 @@ import { config } from './remote'
 import Review, { type Result } from './Review'
 import type { Line, Word } from './textlayer'
 import { rowsForModel } from './textrows'
-import { trustOf } from './trust'
+import { keepPrintedFlags, trustOf } from './trust'
 
 // Images (one per page; a PDF is rendered to one PNG per page) live only in memory (Blob + object URL) for the life of one report. Nothing is written
 // to storage, logged, or sent anywhere except the single extraction request of the chosen path.
@@ -531,7 +531,10 @@ export default function Flow() {
       setProgress('')
       if (!r.ok) throw new Error(r.calls.find((c) => !c.ok)?.error ?? 'unknown error')
       const rows = ((r.output as { tests?: [] })?.tests ?? []) as Parameters<typeof trustOf>[0]
-      setResult({ ...toPayload(r.output), run: r, trust: trustOf(rows, words) })
+      const trust = trustOf(rows, words)
+      // Path 1: drop any flag the on-device model gave that the PDF does not print beside the value.
+      const output = r.strategy === 'rows' && r.output ? { ...r.output, tests: keepPrintedFlags(rows, trust) } : r.output
+      setResult({ ...toPayload(output), run: r, trust })
       setStep('review')
     } catch (e) {
       setError(String(e))
