@@ -51,7 +51,7 @@ Only values with a printed limit count, and only values the user has confirmed (
 - Every hemoglobin message ends with: "Different ranges apply during pregnancy."
 - WHO is described as "uses below 13.0 g/dL as its cutoff for anaemia", never "the anaemia range".
 - LDL: the range note names the ATP III bands (below 100 optimal, 100-129 near or above optimal, 130-159 borderline high, 160-189 high, 190 or higher very high). The guideline is never described as "below 130" (checked in `scripts/checks.ts`).
-- The "Your lab and a common guideline use different ranges" callout shows only when the two verdicts disagree (lab normal and guideline borderline, high or low; lab outside its range and guideline normal; or opposite directions). When both agree, any difference in the printed range is shown only inside the "Range check" details.
+- The "Your lab and a common guideline use different ranges" callout shows only when the two verdicts disagree (lab normal and guideline borderline, high or low; lab outside its range and guideline normal; or opposite directions). When both agree, any difference in the printed range is shown only inside the "Range check" details. The callout text is built in plain code from the value, the lab range and the guideline band, and says what the guideline would make of this result (for example "so by that guideline this result would be borderline"); the card also gets a short "Guideline: ..." label. Sources are named with their edition year where they have one (ADA 2026, WHO 2024).
 - A difference between ranges is judged at the guideline's printed precision, so a lab's 13.5 g/dL differs from WHO's 13.0 g/dL.
 
 To print every range-check message for sample values of each test: `npx tsx scripts/audit-wording.ts`.
