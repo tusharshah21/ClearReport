@@ -2,13 +2,18 @@
 // Runs against the dev server (npm run dev) with a synthetic report (r2: fake identity, a fasting glucose range that differs from a guideline), through Path 2.
 // Desktop: installed Chrome with a fresh profile, so its built-in AI shows as a one-time download.
 // Phone: the built-in AI is hidden, as on a phone, so the paths screen shows Private greyed out.
-// Usage: npx tsx scripts/screens.ts
+// Usage: npx tsx scripts/screens.ts [r2|r6], then python scripts/compress-shots.py.
 import { chromium } from 'playwright'
 import { mkdirSync, statSync } from 'node:fs'
 
 const URL = 'http://localhost:5173/'
 const OUT = 'docs/screenshots'
-const KEEP: Record<string, string[]> = { desktop: ['02-paths', '07-review', '08-explanation'], mobile: ['02-paths-no-ai', '05-mask', '08-explanation'] }
+// npx tsx scripts/screens.ts [r2|r6]: r2 takes every key screen; r6 only its explanation (08-explanation-r6-*).
+const ID = process.argv[2] ?? 'r2'
+const FILE = { r2: 'test-data/reports/r2.png', r6: 'test-data/reports/r6-photo.jpg' }[ID]!
+const KEEP: Record<string, string[]> = ID === 'r2'
+  ? { desktop: ['02-paths', '07-review', '08-explanation'], mobile: ['02-paths-no-ai', '05-mask', '08-explanation'] }
+  : { desktop: ['08-explanation'], mobile: ['08-explanation'] }
 mkdirSync(OUT, { recursive: true })
 
 const sizes = [{ tag: 'desktop', width: 1280, height: 860, mobile: false }, { tag: 'mobile', width: 390, height: 844, mobile: true }]
@@ -22,7 +27,7 @@ for (const s of sizes) {
   const shot = async (name: string) => {
     if (!KEEP[s.tag].includes(name)) return
     await page.waitForTimeout(300)
-    const path = `${OUT}/${name}-${s.tag}.jpg`
+    const path = `${OUT}/${name}${ID === 'r2' ? '' : `-${ID}`}-${s.tag}.jpg`
     await page.screenshot({ path, fullPage: true, type: 'jpeg', quality: 55 })
     console.log(`${path} ${Math.round(statSync(path).size / 1024)} KB`)
   }
@@ -36,7 +41,7 @@ for (const s of sizes) {
   if (s.mobile) await page.getByText('See how private reading works').click()
   await shot(s.mobile ? '02-paths-no-ai' : '02-paths')
   await click('Mask my details')
-  await page.setInputFiles('input[type=file]', 'test-data/reports/r2.png')
+  await page.setInputFiles('input[type=file]', FILE)
   const crop = page.getByRole('heading', { name: 'Straighten the photo' })
   const mask = page.getByRole('heading', { name: 'Cover your personal details' })
   await Promise.race([crop.waitFor(), mask.waitFor({ timeout: 120_000 })])
