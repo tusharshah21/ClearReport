@@ -110,9 +110,31 @@ function r7() {
   ${R7.tests.map((g) => `<tr><td>${g.name}</td><td>${fmt(g.value)}</td><td>${g.unit}</td><td>${g.ref_text}</td></tr>`).join('')}</table>${SYNTH}`
 }
 
+// demo: TEXT PDF with the r2 values (same lab, layout B photo in generate.ts), for the demo video on Path 1.
+const DEMO = {
+  id: 'demo', lab_name: 'Specimen Path Labs', note: 'Text PDF of the r2 values (lipid profile and fasting glucose 104, range 70-110). For the demo video.',
+  pii: { patient_name: 'Mrs. Meera Fictitious', age: '54', sex: 'Female', patient_id: 'SPL-DEMO-20419', phone: '+91 90000 00015', doctor_name: 'Dr. Example Iyer' },
+  tests: [
+    t('Total Cholesterol', 236, 'mg/dL', '< 200', null, 200), t('Triglycerides', 188, 'mg/dL', '< 150', null, 150),
+    t('HDL Cholesterol', 38, 'mg/dL', '> 40', 40, null), t('LDL Cholesterol', 160, 'mg/dL', '< 100', null, 100),
+    t('VLDL Cholesterol', 38, 'mg/dL', '< 30', null, 30), t('Total Cholesterol / HDL Ratio', 6.2, 'Ratio', '3.0 - 5.0', 3, 5),
+    t('Glucose Fasting (FBS)', 104, 'mg/dL', '70 - 110', 70, 110),
+  ],
+}
+function demo() {
+  const p = DEMO.pii
+  return `<style>body{font-family:Arial,sans-serif;font-size:13px;margin:30px;color:#111}h1{margin:0;font-size:21px;color:#123}
+  table{width:100%;border-collapse:collapse;margin-top:12px}th,td{border-bottom:1px solid #bbb;padding:6px;text-align:left}</style>
+  <h1>${DEMO.lab_name}</h1><div>12 Sample Street, Demopur, Pune 411000</div><hr>
+  <div>Patient Name: ${p.patient_name} &nbsp;&nbsp; Lab No: ${p.patient_id} &nbsp;&nbsp; Age/Sex: ${p.age} Y / ${p.sex}</div>
+  <div>Mobile: ${p.phone} &nbsp;&nbsp; Ref. By: ${p.doctor_name} &nbsp;&nbsp; Reported: 21/11/2026</div><hr>
+  <table><tr><th>Test</th><th>Result</th><th>Unit</th><th>Reference Interval</th><th>Flag</th></tr>
+  ${DEMO.tests.map((g) => `<tr><td>${g.name}</td><td>${fmt(g.value)}</td><td>${g.unit}</td><td>${g.ref_text}</td><td>${g.printed_flag ?? ''}</td></tr>`).join('')}</table>${SYNTH}`
+}
+
 const browser = await chromium.launch({ channel: 'chrome' })
 const page = await browser.newPage()
-for (const [r, html] of [[P1, p1()], [P2, p2()], [P3, p3()]] as const) {
+for (const [r, html] of [[P1, p1()], [P2, p2()], [P3, p3()], [DEMO, demo()]] as const) {
   await page.setContent(`<!doctype html><meta charset="utf-8"><body>${html}</body>`)
   await page.pdf({ path: join(OUT, 'reports', `${r.id}.pdf`), format: 'A4', printBackground: true })
   writeFileSync(join(OUT, 'ground-truth', `${r.id}.json`), JSON.stringify({ id: r.id, layout: r.id, note: r.note, lab_name: r.lab_name, tests: r.tests, pii: r.pii }, null, 2) + '\n', 'utf-8')

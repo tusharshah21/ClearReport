@@ -1,0 +1,79 @@
+{
+  "id": "demo",
+  "layout": "demo",
+  "note": "Text PDF of the r2 values (lipid profile and fasting glucose 104, range 70-110). For the demo video.",
+  "lab_name": "Specimen Path Labs",
+  "tests": [
+    {
+      "name": "Total Cholesterol",
+      "value": 236,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 200,
+      "ref_text": "< 200",
+      "printed_flag": "H"
+    },
+    {
+      "name": "Triglycerides",
+      "value": 188,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 150,
+      "ref_text": "< 150",
+      "printed_flag": "H"
+    },
+    {
+      "name": "HDL Cholesterol",
+      "value": 38,
+      "unit": "mg/dL",
+      "ref_low": 40,
+      "ref_high": null,
+      "ref_text": "> 40",
+      "printed_flag": "L"
+    },
+    {
+      "name": "LDL Cholesterol",
+      "value": 160,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 100,
+      "ref_text": "< 100",
+      "printed_flag": "H"
+    },
+    {
+      "name": "VLDL Cholesterol",
+      "value": 38,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 30,
+      "ref_text": "< 30",
+      "printed_flag": "H"
+    },
+    {
+      "name": "Total Cholesterol / HDL Ratio",
+      "value": 6.2,
+      "unit": "Ratio",
+      "ref_low": 3,
+      "ref_high": 5,
+      "ref_text": "3.0 - 5.0",
+      "printed_flag": "H"
+    },
+    {
+      "name": "Glucose Fasting (FBS)",
+      "value": 104,
+      "unit": "mg/dL",
+      "ref_low": 70,
+      "ref_high": 110,
+      "ref_text": "70 - 110",
+      "printed_flag": null
+    }
+  ],
+  "pii": {
+    "patient_name": "Mrs. Meera Fictitious",
+    "age": "54",
+    "sex": "Female",
+    "patient_id": "SPL-DEMO-20419",
+    "phone": "+91 90000 00015",
+    "doctor_name": "Dr. Example Iyer"
+  }
+}

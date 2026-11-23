@@ -88,7 +88,7 @@ assert.deepEqual(pagesWithResults([{ words: prose, images: [] }, { words: [], im
 // truth, every row verifies against the PDF text, local age/sex are right, and no identity word is sent.
 {
   const { trustOf } = await import('../src/trust')
-  for (const id of ['p1', 'p2', 'p3']) {
+  for (const id of ['p1', 'p2', 'p3', 'demo']) {
     const doc = await getDocument({ data: new Uint8Array(readFileSync(`test-data/reports/${id}.pdf`)), verbosity: 0 }).promise
     const pages: Word[][] = []
     for (let p = 1; p <= doc.numPages; p++) pages.push(await pageWords(await doc.getPage(p)))
