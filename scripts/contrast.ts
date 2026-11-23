@@ -37,4 +37,9 @@ if (process.argv.includes('--table')) {
   for (const x of rows) console.log(`| \`--${x.f}\` ${T[x.f]} | \`--${x.b}\` ${T[x.b]} | ${x.r.toFixed(2)}:1 | ${x.min}:1 | ${x.use} |`)
 }
 for (const x of rows) assert.ok(x.r >= x.min, `contrast --${x.f} on --${x.b}: ${x.r.toFixed(2)} < ${x.min}`)
-console.log(`contrast ok: ${rows.length} pairs`)
+// The landing headline's gradient text (sage to apricot): every point along it must pass 4.5:1 on the background.
+const mix = (a: string, b: string, t: number) => '#' + [1, 3, 5].map((i) => Math.round(parseInt(a.slice(i, i + 2), 16) * (1 - t) + parseInt(b.slice(i, i + 2), 16) * t).toString(16).padStart(2, '0')).join('')
+const grad = Array.from({ length: 11 }, (_, k) => ratio(mix(T.primary, T['cloud-fg'], k / 10), T.background))
+assert.ok(Math.min(...grad) >= 4.5, `hero gradient: lightest point ${Math.min(...grad).toFixed(2)} < 4.5`)
+if (process.argv.includes('--table')) console.log(`| gradient \`--primary\` to \`--cloud-fg\` (lightest point) | \`--background\` ${T.background} | ${Math.min(...grad).toFixed(2)}:1 | 4.5:1 | landing headline "Keep your identity." |`)
+console.log(`contrast ok: ${rows.length} pairs and the hero gradient`)

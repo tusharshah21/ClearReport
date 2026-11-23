@@ -2,19 +2,35 @@
 // Runs against the dev server (npm run dev) with a synthetic report (r2: fake identity, a fasting glucose range that differs from a guideline), through Path 2.
 // Desktop: installed Chrome with a fresh profile, so its built-in AI shows as a one-time download.
 // Phone: the built-in AI is hidden, as on a phone, so the paths screen shows Private greyed out.
-// Usage: npx tsx scripts/screens.ts [r2|r6], then python scripts/compress-shots.py.
+// Usage: npx tsx scripts/screens.ts [r2|r6|landing], then python scripts/compress-shots.py.
 import { chromium } from 'playwright'
 import { mkdirSync, statSync } from 'node:fs'
 
-const URL = 'http://localhost:5173/'
+const URL = 'http://localhost:5173/app'
 const OUT = 'docs/screenshots'
 // npx tsx scripts/screens.ts [r2|r6]: r2 takes every key screen; r6 only its explanation (08-explanation-r6-*).
 const ID = process.argv[2] ?? 'r2'
-const FILE = { r2: 'test-data/reports/r2.png', r6: 'test-data/reports/r6-photo.jpg' }[ID]!
+const FILE = { r2: 'test-data/reports/r2.png', r6: 'test-data/reports/r6-photo.jpg' }[ID as 'r2']
 const KEEP: Record<string, string[]> = ID === 'r2'
   ? { desktop: ['02-paths', '07-review', '08-explanation'], mobile: ['02-paths-no-ai', '05-mask', '08-explanation'] }
   : { desktop: ['08-explanation'], mobile: ['08-explanation'] }
 mkdirSync(OUT, { recursive: true })
+
+// npx tsx scripts/screens.ts landing: the landing page ("/") at both sizes, full page.
+if (ID === 'landing') {
+  const b = await chromium.launch({ channel: 'chrome' })
+  for (const [tag, width, height] of [['desktop', 1280, 860], ['mobile', 390, 844]] as const) {
+    const page = await b.newPage({ viewport: { width, height }, deviceScaleFactor: 1 })
+    await page.goto(URL.replace('/app', '/'))
+    await page.locator('.browser-frame img').evaluate((img: HTMLImageElement) => img.decode())
+    const path = `${OUT}/01-landing-${tag}.jpg`
+    await page.screenshot({ path, fullPage: true, type: 'jpeg', quality: 70 })
+    console.log(`${path} ${Math.round(statSync(path).size / 1024)} KB`)
+    await page.close()
+  }
+  await b.close()
+  process.exit(0)
+}
 
 const sizes = [{ tag: 'desktop', width: 1280, height: 860, mobile: false }, { tag: 'mobile', width: 390, height: 844, mobile: true }]
 const hosts = new Set<string>() // every non-local host the app contacts during the run
@@ -63,6 +79,14 @@ for (const s of sizes) {
   await click('Approve and send these numbers')
   await page.getByRole('heading', { name: 'Summary' }).waitFor({ timeout: 120_000 })
   await shot('08-explanation')
+  if (ID === 'r2' && s.tag === 'desktop') {
+    // Landing page hero (public/landing/hero.jpg): the glucose card with its callout, beside the data trail.
+    await page.locator('.panel', { hasText: 'Blood sugar' }).evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 28))
+    await page.waitForTimeout(400)
+    mkdirSync('public/landing', { recursive: true })
+    await page.screenshot({ path: 'public/landing/hero.jpg', type: 'jpeg', quality: 82, clip: { x: 80, y: 0, width: 1120, height: 700 } })
+    console.log(`public/landing/hero.jpg ${Math.round(statSync('public/landing/hero.jpg').size / 1024)} KB`)
+  }
   await ctx.close()
 }
 await browser.close()
