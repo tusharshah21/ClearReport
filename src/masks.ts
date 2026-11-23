@@ -1,8 +1,9 @@
 // Plain code, runs locally: suggests mask boxes over identity fields from positioned words
 // (PDF text layer, or Tesseract OCR for photos). Suggestions only; the user checks every box.
-import { toLines, type Line, type Word } from './textlayer'
+import { looksLikeResult, toLines, type Line, type Word } from './textlayer'
 
-export type Suggestion = { x: number; y: number; w: number; h: number; field: string } // fractions of the page
+// method: which local method suggested the box (label rules, or the on-device model in Path 2). Fractions of the page.
+export type Suggestion = { x: number; y: number; w: number; h: number; field: string; method?: 'rule' | 'ai' }
 
 // Longest first. "agesex" covers "AGE/SEX" read as one word.
 const LABELS: [string, string[]][] = [
@@ -38,15 +39,49 @@ const endsLabel = (w: Word) => /:$/.test(w.text)
 // Barcode text: Code 39 "*WM15SPF*" / "181277574*", or long runs in a barcode font ("AHEEEHAPMK...").
 const BARCODE = /\*[A-Z0-9]{5,}\*|^\d{6,}\*$|^[A-Z]{25,}$/
 
+const boxOf = (ws: Word[], field: string, method: 'rule' | 'ai'): Suggestion => {
+  const x0 = Math.min(...ws.map((w) => w.x0)), x1 = Math.max(...ws.map((w) => w.x1))
+  const y0 = Math.min(...ws.map((w) => w.y0)), y1 = Math.max(...ws.map((w) => w.y1))
+  const p = 0.003 // small fixed margin: barcode text is tall, and a padding relative to it would cover the row above
+  return { x: Math.max(0, x0 - p), y: Math.max(0, y0 - p), w: x1 - x0 + 2 * p, h: y1 - y0 + 2 * p, field, method }
+}
+
+// Lines that are not result rows (header, footer, signature): the only text the on-device model sees in Path 2.
+// OCR noise from a photo ("EER", "0h wae") is dropped: a line needs a 4+ letter word or a long digit run.
+const readable = (s: string) => /[a-z]{4,}/i.test(s) || (s.match(/\d/g)?.length ?? 0) >= 6
+export const nonResultLines = (words: Word[]): Line[] => toLines(words).filter((l) => readable(l.text) && !looksLikeResult(l.words.map((w) => w.text).join(' ')))
+
+// A finding must look like its kind; the model sometimes labels noise ("212 89/4 200" as a birth date).
+const digits = (s: string) => s.match(/\d/g)?.length ?? 0
+const FITS: Record<string, (s: string) => boolean> = {
+  patient_name: (s) => /[a-z]{3,}/i.test(s), doctor_name: (s) => /[a-z]{3,}/i.test(s), address: (s) => /[a-z]{3,}/i.test(s),
+  phone: (s) => digits(s) >= 8, patient_id: (s) => digits(s) >= 3,
+  date_of_birth: (s) => /\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b/.test(s),
+}
+
+// Boxes for what the on-device model pointed out: the words of that line that match its text, one box per run of
+// neighbouring words. A box whose centre is already inside a rule box is dropped (the rule found it first).
+export function aiBoxes(lines: Line[], found: { line: number; text: string; kind: string }[], rules: Suggestion[]): Suggestion[] {
+  const out: Suggestion[] = []
+  const inBox = (b: Suggestion) => [...rules, ...out].some((r) => b.x + b.w / 2 >= r.x && b.x + b.w / 2 <= r.x + r.w && b.y + b.h / 2 >= r.y && b.y + b.h / 2 <= r.y + r.h)
+  for (const f of found) {
+    if (!(FITS[f.kind]?.(String(f.text)) ?? false)) continue
+    const ws = lines[f.line - 1]?.words ?? []
+    const want = new Set(String(f.text).split(/\s+/).map(tok).filter((t) => t.length >= 2))
+    let run: Word[] = []
+    const flush = () => { if (run.length) { const b = boxOf(run, f.kind, 'ai'); if (!inBox(b)) out.push(b) } run = [] }
+    for (const w of ws) (want.has(tok(w.text)) ? run.push(w) : flush())
+    flush()
+  }
+  return out
+}
+
 export function suggestMasks(words: Word[]): Suggestion[] {
   const lines = toLines(words)
   const out: Suggestion[] = []
   const add = (ws: Word[], field: string) => {
     if (!ws.length) return
-    const x0 = Math.min(...ws.map((w) => w.x0)), x1 = Math.max(...ws.map((w) => w.x1))
-    const y0 = Math.min(...ws.map((w) => w.y0)), y1 = Math.max(...ws.map((w) => w.y1))
-    const p = 0.003 // small fixed margin: barcode text is tall, and a padding relative to it would cover the row above
-    out.push({ x: Math.max(0, x0 - p), y: Math.max(0, y0 - p), w: x1 - x0 + 2 * p, h: y1 - y0 + 2 * p, field })
+    out.push(boxOf(ws, field, 'rule'))
   }
   lines.forEach((line: Line, li) => {
     const ws = line.words

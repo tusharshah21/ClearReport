@@ -1,6 +1,8 @@
 import { useState } from 'react'
 import { setLogLevel } from 'firebase/app'
-import { extract, extractDoc, extractRows, model, textModel, toB64, warmText, type Mode, type Run } from './extract'
+import { guessCorners, straighten } from './crop'
+import { extract, extractDoc, extractRows, findPersonal, model, textModel, toB64, warmText, type Mode, type Run } from './extract'
+import { aiBoxes, nonResultLines, ocrWords, suggestMasks, type Suggestion } from './masks'
 import { isPdf, pdfPages } from './pdf'
 import type { Word } from './textlayer'
 import { rowsForModel } from './textrows'
@@ -27,6 +29,19 @@ async function toPages(f: Blob): Promise<Pick<Img, 'pages' | 'skipped'>> {
   const pages = await Promise.all(kept.map(async ({ png: p, words }) => { const png = p!; return { mimeType: png.type, data: await toB64(png), url: URL.createObjectURL(png), words } }))
   return { pages, skipped: all.flatMap((p, i) => (kept.includes(p) ? [] : [i + 1])) }
 }
+// Mask coverage for one identity field: every word of the true value that OCR read must sit inside a box.
+// 'not read' = OCR never read that word, so no method could box it.
+const tk = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+function coverage(value: string, words: Word[], boxes: Suggestion[]): 'covered' | 'partial' | 'missed' | 'not read' {
+  const want = value.split(/\s+/).map(tk).filter((t) => t.length >= 2 && !['mr', 'mrs', 'ms', 'dr'].includes(t))
+  const like = (w: Word, t: string) => { const x = tk(w.text); return x === t || (t.length >= 5 && x.length >= 4 && (x.includes(t) || t.includes(x))) }
+  const inBox = (w: Word) => boxes.some((b) => (w.x0 + w.x1) / 2 >= b.x && (w.x0 + w.x1) / 2 <= b.x + b.w && (w.y0 + w.y1) / 2 >= b.y && (w.y0 + w.y1) / 2 <= b.y + b.h)
+  const seen = want.filter((t) => words.some((w) => like(w, t)))
+  if (!seen.length) return 'not read'
+  const hit = seen.filter((t) => words.some((w) => like(w, t) && inBox(w)))
+  return hit.length === want.length ? 'covered' : hit.length ? 'partial' : 'missed'
+}
+
 async function loadSynthetic(id: string): Promise<Img> {
   const isText = SAMPLES.includes(id) || TEXT_PDFS.includes(id)
   const path = SAMPLES.includes(id) ? `/test-data/real-samples/${id}.pdf` : `/test-data/reports/${id}.${TEXT_PDFS.includes(id) ? 'pdf' : id.endsWith('-photo') ? 'jpg' : 'png'}`
@@ -128,6 +143,31 @@ export default function Spike() {
     setBusy(false)
   }
 
+  // Path 2 masking: label rules alone vs rules + the on-device model, on OCR words (photos straightened with the
+  // suggested corners, as when the user accepts them). Counts only; nothing is saved.
+  async function runMasks() {
+    setBusy(true)
+    for (const id of ['r1', 'r6', 'r6-photo', 'r7-photo']) {
+      let blob = await (await fetch(`/test-data/reports/${id}.${id.endsWith('-photo') ? 'jpg' : 'png'}`)).blob()
+      if (id.endsWith('-photo')) { const bmp = await createImageBitmap(blob); blob = await straighten(blob, guessCorners(bmp)); bmp.close() }
+      const pii = (await (await fetch(`/test-data/ground-truth/${id}.json`)).json()).pii as Record<string, string>
+      const t0 = performance.now()
+      let words = await ocrWords(blob)
+      let rules = suggestMasks(words)
+      if (rules.length < 2) { const w2 = await ocrWords(blob, true); const again = suggestMasks(w2); if (again.length > rules.length) { rules = again; words = w2 } }
+      const ocrMs = performance.now() - t0
+      const lines = nonResultLines(words)
+      let extra: Suggestion[] = [], aiMs = 0, calls = 0, err = ''
+      try { const r = await findPersonal(lines.map((l) => l.text)); extra = aiBoxes(lines, r.found, rules); aiMs = r.ms; calls = r.calls } catch (e) { err = String(e) }
+      const fields: [string, string][] = [['name', pii.patient_name], ['id', pii.patient_id], ['phone', pii.phone], ['doctor', pii.doctor_name], ['age', pii.age]]
+      const cov = (b: Suggestion[]) => fields.map(([k, v]) => `${k}=${coverage(v, words, b)}`).join(' ')
+      const stray = extra.filter((b) => !fields.some(([, v]) => coverage(v, words, [b]) !== 'missed' && coverage(v, words, [b]) !== 'not read')).length
+      say(`${id}: OCR ${(ocrMs / 1000).toFixed(1)} s, ${lines.length} non-result lines | rules: ${cov(rules)} | rules+AI: ${cov([...rules, ...extra])} | AI +${extra.length} boxes (${stray} on non-identity text), ${calls} calls, ${(aiMs / 1000).toFixed(1)} s${err ? ` | AI error: ${err}` : ''}`)
+    }
+    say('Mask coverage: done.')
+    setBusy(false)
+  }
+
   async function runOne(mode: Mode) {
     if (!img) return
     setBusy(true)
@@ -145,7 +185,8 @@ export default function Spike() {
         <button disabled={busy} onClick={() => runAll(['device'])}>2. Run all 8 ONLY_ON_DEVICE</button>{' '}
         <button disabled={busy} onClick={() => runText()}>3. Run WM14 + WM15 as text ONLY_ON_DEVICE (Path 1)</button>{' '}
         <button disabled={busy} onClick={runMonocytes}>4. WM15 blood count, model only (Monocytes check)</button>{' '}
-        <button disabled={busy} onClick={() => runText(TEXT_PDFS)}>5. Run p1-p3 as text (Path 1, other layouts)</button>
+        <button disabled={busy} onClick={() => runText(TEXT_PDFS)}>5. Run p1-p3 as text (Path 1, other layouts)</button>{' '}
+        <button disabled={busy} onClick={runMasks}>6. Mask coverage: rules vs rules + on-device AI</button>
       </p>
       <p>
         Synthetic:{' '}

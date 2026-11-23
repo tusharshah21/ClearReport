@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { guessCorners, straighten, type Quad } from './crop'
-import { extractDoc, extractRows, TEXT_CREATE_OPTIONS, toB64, warmText, type Run } from './extract'
+import { extractDoc, extractRows, findPersonal, TEXT_CREATE_OPTIONS, toB64, warmText, type Run } from './extract'
 import { explain, type Explained } from './explain'
 import Explanation from './Explanation'
 import { checkAll, DISCLAIMER, type Check } from './guidelines'
-import { ocrWords, suggestMasks } from './masks'
+import { aiBoxes, nonResultLines, ocrWords, suggestMasks } from './masks'
 import { isPdf, pdfPages } from './pdf'
 import { toPayload, type Payload } from './privacy'
 import { config } from './remote'
@@ -56,7 +56,7 @@ async function reencode(src: Blob, boxes: Box[] = []): Promise<Img> {
 }
 
 // Fractions of image size. field is set on boxes suggested by masks.ts until the user moves or keeps them; all boxes are burned in the same way.
-type Box = { x: number; y: number; w: number; h: number; field?: string }
+type Box = { x: number; y: number; w: number; h: number; field?: string; method?: 'rule' | 'ai' }
 const SUGGESTED = '#e07000'
 function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial: Box[]; label: string; onDone: (boxes: Box[]) => void; onCancel: () => void }) {
   const canvas = useRef<HTMLCanvasElement>(null)
@@ -93,7 +93,7 @@ function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial
         g.font = '11px system-ui, sans-serif'
         g.fillStyle = SUGGESTED
         g.textBaseline = 'middle'
-        g.fillText('Suggested, please check', x + w + 4, y + h / 2) // beside the box: stacked rows would overlap labels above
+        g.fillText(b.method === 'ai' ? 'Suggested by on-device AI, please check' : 'Suggested by a label rule, please check', x + w + 4, y + h / 2) // beside the box: stacked rows would overlap labels above
       } else {
         g.fillStyle = '#000'
         g.fillRect(x, y, w, h)
@@ -227,6 +227,7 @@ export default function Flow() {
   const [result, setResult] = useState<Result | null>(null)
   const [pageWords, setPageWords] = useState<(Word[] | null)[]>([]) // PDF text layer per page; null for photos. Local only.
   const [suggest, setSuggest] = useState<Box[][]>([]) // suggested mask boxes per page (Path 2)
+  const [maskNote, setMaskNote] = useState('') // which methods suggested the boxes (Path 2)
   const [skipped, setSkipped] = useState<number[]>([]) // 1-based PDF pages with no results, never sent
   const [approved, setApproved] = useState<{ payload: Payload; checks: Check[]; confirmed: boolean[] } | null>(null)
   const [explained, setExplained] = useState<Explained | null>(null)
@@ -251,7 +252,7 @@ export default function Flow() {
 
   function reset() {
     for (const i of [...(original ?? []), ...(toSend ?? [])]) URL.revokeObjectURL(i.url)
-    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setSkipped([]); setConsent(false); setError(''); setResult(null); setApproved(null); setExplained(null); setProgress(''); setPath(null); setCropped(false); setStep('choose')
+    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setMaskNote(''); setSkipped([]); setConsent(false); setError(''); setResult(null); setApproved(null); setExplained(null); setProgress(''); setPath(null); setCropped(false); setStep('choose')
   }
 
   function choose(p: Path) {
@@ -306,6 +307,7 @@ export default function Flow() {
   // Suggested boxes from the PDF text layer, or from local OCR for photos and scanned pages. Never sent anywhere.
   async function prepareMasks(pages: Img[], words: (Word[] | null)[]) {
     const out: Box[][] = []
+    const ai = { boxes: 0, ms: 0, error: '' }
     try {
       for (const [i, img] of pages.entries()) {
         let w = words[i]
@@ -320,11 +322,30 @@ export default function Flow() {
           const again = suggestMasks(await ocrWords(img.blob, true)) // dim photo: retry with strong contrast, keep the better one
           if (again.length > found.length) found = again
         }
+        // Photos and scanned pages: the on-device model also points out personal details that have no label
+        // (a name printed alone, an address), in the OCR lines that are not results. ONLY_ON_DEVICE, never the cloud.
+        if (!words[i]?.length && avail === 'available') {
+          try {
+            setProgress(`Checking page ${i + 1} for unlabelled personal details, on this device...`)
+            const lines = nonResultLines(w)
+            const r = await findPersonal(lines.map((l) => l.text))
+            const extra = aiBoxes(lines, r.found, found)
+            console.info(`ClearReport mask suggestions page ${i + 1}: ${found.length} by rules, ${extra.length} more by the on-device model, ${r.calls} calls, ${r.ms} ms`) // counts only
+            ai.boxes += extra.length; ai.ms += r.ms
+            found = [...found, ...extra]
+          } catch (e) {
+            ai.error = String(e)
+          }
+        }
         out.push(found)
       }
     } catch (e) {
       console.warn('Mask suggestions unavailable:', String(e)) // the user can still mask by hand
     }
+    const ocr = words.some((x) => !x?.length)
+    setMaskNote(!ocr ? '' : avail !== 'available' ? 'The on-device AI is not available on this device, so these suggestions come from label rules only.'
+      : ai.error ? 'The on-device AI could not check this report, so these suggestions come from label rules only.'
+      : `The on-device AI also checked the text around the results (${(ai.ms / 1000).toFixed(1)} s) and suggested ${ai.boxes} more box${ai.boxes === 1 ? '' : 'es'}. Nothing left this device.`)
     setProgress('')
     setSuggest(out)
     setStep('mask')
@@ -462,6 +483,7 @@ export default function Flow() {
       {step === 'mask' && original && (
         <section style={box}>
           <h2>Cover your personal details</h2>
+          {maskNote && <p style={{ fontSize: 13, color: '#555' }} data-testid="mask-note">{maskNote}</p>}
           <MaskTool
             key={masks.length}
             img={original[masks.length]}

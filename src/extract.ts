@@ -179,6 +179,39 @@ export async function extract(report: string, mode: Mode, strategy: Run['strateg
   }
 }
 
+// ---- Path 2 helper: the on-device model points out personal details in OCR lines that are not result rows ----
+// ONLY_ON_DEVICE; the OCR text never goes to the cloud (a cloud answer is treated as a failure). Suggestions only.
+const PII_KINDS = ['patient_name', 'patient_id', 'phone', 'address', 'doctor_name', 'date_of_birth']
+const PII_SCHEMA = {
+  type: 'object', required: ['found'],
+  properties: { found: { type: 'array', items: { type: 'object', required: ['line', 'text', 'kind'], properties: { line: { type: 'integer' }, text: { type: 'string' }, kind: { type: 'string', enum: PII_KINDS } } } } },
+}
+const PII_PROMPT = `Below are numbered lines from the header, footer and signature areas of a blood test report, read by OCR (expect typos).
+List every piece of personal information about the patient, and the referring doctor's name, even when it has no label:
+patient name, patient ID / registration / sample / UHID number, phone number, the patient's home address, doctor's name, date of birth.
+Do not list the lab's own name, address, phone or website, report or collection dates, test names, results, or label words like "Name:".
+For each item give the line number and the exact words as printed on that line.`
+let piiModelInstance: GenerativeModel | null = null
+const piiModel = () => (piiModelInstance ??= getGenerativeModel(ai, { mode: InferenceMode.ONLY_ON_DEVICE, onDeviceParams: { createOptions: TEXT_CREATE_OPTIONS, promptOptions: { responseConstraint: PII_SCHEMA } } }))
+export type PiiFind = { line: number; text: string; kind: string }
+export async function findPersonal(lines: string[]): Promise<{ found: PiiFind[]; calls: number; ms: number }> {
+  const t0 = performance.now()
+  // ponytail: at most 60 lines in two calls; a page with more header/footer text than that is cut, rules still cover it.
+  const take = lines.slice(0, 60), size = take.length > 30 ? Math.ceil(take.length / 2) : take.length
+  const found: PiiFind[] = []
+  let calls = 0
+  for (let i = 0; i < take.length; i += size) {
+    calls++
+    const res = await Promise.race([
+      piiModel().generateContent([PII_PROMPT, take.slice(i, i + size).map((l, k) => `${i + k + 1}. ${l}`).join('\n')]),
+      new Promise<never>((_, no) => setTimeout(() => no(new Error('on-device call took over 120 s')), 120_000)),
+    ])
+    if (res.response.inferenceSource !== InferenceSource.ON_DEVICE) throw new Error(`served by ${res.response.inferenceSource}, expected on_device`)
+    found.push(...((JSON.parse(res.response.text()) as { found?: PiiFind[] }).found ?? []))
+  }
+  return { found, calls, ms: Math.round(performance.now() - t0) }
+}
+
 // ---- Path 1: on-device model on TEXT rows (textrows.ts removes identity text before this is called) ----
 export const TEXT_CREATE_OPTIONS = {
   expectedInputs: [{ type: 'text' as const, languages: ['en'] }],

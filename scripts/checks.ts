@@ -249,3 +249,22 @@ console.log('crop ok')
   assert.equal(parseRow('Haemoglobin | 12.4 L | g/dL | Low'), null)
   console.log('row parser layouts ok')
 }
+{
+  const { aiBoxes, nonResultLines, suggestMasks } = await import('../src/masks')
+  const w = (text: string, x0: number, y0: number) => ({ text, x0, x1: x0 + 0.01 * text.length, y0, y1: y0 + 0.02 })
+  const words = [
+    w('ROHAN', 0.1, 0.1), w('UNLABELLEDNAME', 0.17, 0.1),                       // name with no label
+    w('Reg', 0.1, 0.15), w('No:', 0.14, 0.15), w('LVP-TEST-40721', 0.18, 0.15),  // labelled ID: a rule finds it
+    w('Haemoglobin', 0.1, 0.3), w('13.9', 0.4, 0.3), w('g/dL', 0.5, 0.3), w('13.0', 0.6, 0.3), w('-', 0.65, 0.3), w('17.0', 0.67, 0.3),
+  ]
+  const lines = nonResultLines(words)
+  assert.deepEqual(lines.map((l) => l.text), ['ROHAN UNLABELLEDNAME', 'Reg No: LVP-TEST-40721'], 'result rows never reach the model')
+  const rules = suggestMasks(words)
+  assert.deepEqual(rules.map((b) => [b.field, b.method]), [['id', 'rule']])
+  const ai = aiBoxes(lines, [{ line: 1, text: 'Rohan Unlabelledname', kind: 'patient_name' }, { line: 2, text: 'LVP-TEST-40721', kind: 'patient_id' }, { line: 9, text: 'x', kind: 'phone' }], rules)
+  assert.deepEqual(ai.map((b) => [b.field, b.method]), [['patient_name', 'ai']], 'one box for the name; the ID is already covered by a rule; a bad line number is ignored')
+  assert.ok(ai[0].x <= 0.1 && ai[0].x + ai[0].w >= 0.31, 'the name box spans both words')
+  assert.deepEqual(nonResultLines([w('EER', 0.1, 0.5), w('0h', 0.1, 0.6), w('wae', 0.14, 0.6)]), [], 'OCR noise never reaches the model')
+  assert.deepEqual(aiBoxes(lines, [{ line: 1, text: 'ROHAN', kind: 'date_of_birth' }], []), [], 'a finding that does not fit its kind is dropped')
+  console.log('ai mask boxes ok')
+}
