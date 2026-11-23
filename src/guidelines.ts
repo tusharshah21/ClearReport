@@ -191,7 +191,7 @@ const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 export const checkAll = (p: Payload) => p.tests.map((t) => checkTest(t, p))
 
 // Wording rules for every user-facing sentence (engine messages and the AI explanation): describe, never diagnose or blame.
-export const BANNED = /you have|you should|wrong|diagnos|treat(ment)? with|take |diabetes range|prediabetes range|anaemia range|below 130/i
+export const BANNED = /you have\b|you should|wrong|diagnos|treat(ment)? with|take |diabetes range|prediabetes range|anaemia range|below 130/i
 
 // Far-out-of-range rule (product rule, pending review by a doctor; see docs/guidelines.md):
 // hemoglobin, platelets and WBC only, below half the lab's lower limit or above twice its upper limit.
