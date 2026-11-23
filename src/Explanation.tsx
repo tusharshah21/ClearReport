@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { canonical } from './canonical'
-import { meaning, type Explained, type Meaning } from './explain'
+import { hindi, meaning, type Explained, type Hindi, type Meaning } from './explain'
 import { DISCLAIMER, FAR_OUT_BANNER, disagrees, farOutOfRange, type Check } from './guidelines'
 import type { Payload } from './privacy'
 import type { Badge as TrustBadge } from './trust'
@@ -46,8 +46,11 @@ const PANEL: Record<string, Panel> = Object.fromEntries([
 ])
 
 // badges[i]: the trust badge from the review screen; a value the user confirmed there shows "checked by you".
-export default function Explanation({ payload, checks, badges, confirmed, explained, onDone }: { payload: Payload; checks: Check[]; badges: TrustBadge[]; confirmed: boolean[]; explained: Explained; onDone: () => void }) {
+export default function Explanation({ payload, checks, badges, confirmed, explained: first, onDone }: { payload: Payload; checks: Check[]; badges: TrustBadge[]; confirmed: boolean[]; explained: Explained; onDone: () => void }) {
   const [lang, setLang] = useState<'en' | 'hi'>('en')
+  const [h, setH] = useState<Hindi | 'trying' | null>(null) // a Hindi retry from this page, if any
+  const explained: Explained = h && h !== 'trying' ? { ...first, hindi_busy: false, ...h } : first
+  const retryHindi = async () => { setH('trying'); setH(await hindi(first.en, payload)) }
   const hi = lang === 'hi' && !!explained.hi
   const e = hi ? explained.hi! : explained.en
   const t = T[hi ? 'hi' : 'en']
@@ -146,7 +149,9 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
       <div className="actions no-print" role="group" aria-label="Language" style={{ marginTop: 0 }}>
         <button aria-pressed={lang === 'en'} onClick={() => setLang('en')} lang="en">English</button>
         <button aria-pressed={lang === 'hi'} disabled={!explained.hi} onClick={() => setLang('hi')} lang="hi">हिन्दी</button>
-        {explained.hindi_note && <small className="muted" lang="en">{explained.hindi_note}</small>}
+        {h === 'trying' ? <small className="muted" lang="en" role="status">Making the Hindi version...</small>
+          : explained.hindi_note && <small className="muted" lang="en" role="status">{explained.hindi_note}</small>}
+        {explained.hindi_busy && h !== 'trying' && <button className="link" onClick={retryHindi} lang="en" data-testid="hindi-retry">Try again</button>}
       </div>
       <p className="print-only small" lang="en">ClearReport: an explanation of a blood test report. {DISCLAIMER}</p>
 

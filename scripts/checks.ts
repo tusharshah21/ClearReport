@@ -8,7 +8,7 @@ import { apply, homography } from '../src/crop'
 import { BANNED, checkAll, checkTest, disagrees, farOutOfRange } from '../src/guidelines'
 import type { Test } from '../src/privacy'
 import { trustOf } from '../src/trust'
-import { fixUnits, fixUnitsIn, questionsFor, questionsSpecific } from '../src/questions'
+import { fixQuestionGrammar, fixUnits, fixUnitsIn, questionsFor, questionsSpecific } from '../src/questions'
 
 // Every ground-truth name resolves to a known key, and no report has two tests with the same key.
 for (const f of readdirSync('test-data/ground-truth')) {
@@ -317,4 +317,15 @@ console.log('crop ok')
   assert.equal(fixUnits('13.1 EIU/mL and 3.1 times', p1), '13.1 EIU/mL and 3.1 times') // other numbers and non-units untouched
   const e = fixUnitsIn({ summary: 'TSH 3.1 EIU/mL.', tests: [{ name: 'TSH', explanation: '3.1 ΕIU/mL' }], questions: ['My TSH is 3.1 ΕIU/mL. Why?'] }, p1)
   assert.deepEqual([e.summary, e.tests[0].explanation, e.questions[0]], ['TSH 3.1 µIU/mL.', '3.1 µIU/mL', 'My TSH is 3.1 µIU/mL. Why?'])
+}
+// AI-written questions get the same "result is" grammar as the built ones, only for a test name followed by its value.
+{
+  const r2p = toPayload(gtOf('r2')).payload
+  const g = (q: string) => fixQuestionGrammar(q, r2p)
+  assert.equal(g("My Triglycerides are 188 mg/dL, above my lab's range. What might explain this?"), "My Triglycerides result is 188 mg/dL, above my lab's range. What might explain this?")
+  assert.equal(g('My Total Cholesterol is 236 mg/dL.'), 'My Total Cholesterol result is 236 mg/dL.')
+  assert.equal(g("My Glucose Fasting (FBS) is 104 mg/dL, and my lab's range differs."), "My Glucose Fasting (FBS) result is 104 mg/dL, and my lab's range differs.")
+  assert.equal(g('My HDL cholesterol is 38 mg/dL.'), 'My HDL cholesterol result is 38 mg/dL.') // case-insensitive name match
+  for (const q of ['My Triglycerides result is 188 mg/dL.', 'My HDL Cholesterol level is 38 mg/dL.', 'My Triglycerides are 200 mg/dL.', 'My doctor is 104 years old.', 'Why is my LDL 160?'])
+    assert.equal(g(q), q, q) // already right, a level, wrong value, not a test, or not that shape: unchanged
 }

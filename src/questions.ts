@@ -58,3 +58,13 @@ export function fixUnits(s: string, p: Payload): string {
 export const fixUnitsIn = <E extends { summary: string; tests: { name: string; explanation: string }[]; questions: string[] }>(e: E, p: Payload): E => ({
   ...e, summary: fixUnits(e.summary, p), tests: e.tests.map((t) => ({ ...t, explanation: fixUnits(t.explanation, p) })), questions: e.questions.map((q) => fixUnits(q, p)),
 })
+
+// ---- Grammar of AI-written questions: "My Triglycerides are 188 mg/dL" becomes "My Triglycerides result is 188 mg/dL",
+// as in the questions built above. Only when the words before "is/are" name a test from this report whose value follows. ----
+export function fixQuestionGrammar(q: string, p: Payload): string {
+  const m = q.match(/^My (.+?) (?:is|are|was|were) (\d[\d,]*(?:\.\d+)?)/)
+  if (!m || /\b(result|level|value|reading|count)s?$/i.test(m[1])) return q
+  const name = ` ${low(m[1]).trim()} `, num = Number(m[2].replace(/,/g, ''))
+  const t = p.tests.find((t) => t.value === num && namesOf(t).some((n) => name === ` ${n} `))
+  return t ? q.replace(m[0], `My ${m[1]} result is ${m[2]}`) : q
+}

@@ -134,8 +134,8 @@ export async function extractDoc(report: string, mode: Mode, pages: Image[], onP
 
 // Busy or rate-limited cloud ("[500 ] This model is currently experiencing high demand", 503, 429): worth waiting and retrying
 // before the two-call split, which would only add load. Never retried on device (no cloud involved, and errors there are not load).
-const RETRYABLE = /\[(429|500|503)\b|high demand|overloaded|resource.?exhausted/i
-const RETRY_DELAYS_MS = [1500, 4000, 10000]
+export const RETRYABLE = /\[(429|500|503)\b|high demand|overloaded|resource.?exhausted/i
+export const RETRY_DELAYS_MS = [1500, 4000, 10000]
 async function call(mode: Mode, part: Part, image: Image): Promise<{ c: Call; json?: Record<string, unknown> }> {
   for (let attempt = 0; ; attempt++) {
     const r = await callOnce(mode, part, image)

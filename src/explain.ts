@@ -2,15 +2,16 @@
 // Input is only { lab_name, age_band, sex, tests } plus the range-check results computed by plain code.
 // The range-check notes are never rewritten by the model: the UI shows the engine's own text next to each test.
 import { getGenerativeModel, InferenceMode, InferenceSource } from 'firebase/ai'
+import { RETRYABLE, RETRY_DELAYS_MS } from './extract'
 import { ai } from './firebase'
 import { BANNED, disagrees, type Check } from './guidelines'
 import type { Payload } from './privacy'
-import { fixUnitsIn, questionsFor, questionsSpecific } from './questions'
+import { fixQuestionGrammar, fixUnitsIn, questionsFor, questionsSpecific } from './questions'
 import { config } from './remote'
 
 export type Explanation = { summary: string; tests: { name: string; explanation: string }[]; questions: string[] }
 export type ExplainPath = 'first try' | 'retry' | 'template'
-export type Explained = { en: Explanation; hi: Explanation | null; path: ExplainPath; hindi_note: string | null; prompt_version: string; model: string }
+export type Explained = { en: Explanation; hi: Explanation | null; path: ExplainPath; hindi_note: string | null; hindi_busy?: boolean; prompt_version: string; model: string }
 
 const SCHEMA = {
   type: 'object',
@@ -83,7 +84,7 @@ async function english(p: Payload, checks: Check[]): Promise<{ en: Explanation; 
     try {
       const en = await ask(prompt, data)
       if (wordingOk(en) && en.tests.length === p.tests.length) {
-        if (questionsSpecific(en.questions, p, checks)) return { en, path }
+        if (questionsSpecific(en.questions, p, checks)) return { en: { ...en, questions: en.questions.map((q) => fixQuestionGrammar(q, p)) }, path }
         console.info('ClearReport explanation: the questions named no specific result, so they are built from the findings')
         return { en: { ...en, questions: questionsFor(p, checks) }, path }
       }
@@ -110,20 +111,29 @@ export async function explain(p: Payload, checks: Check[]): Promise<Explained> {
   const { en: raw, path } = await english(p, checks)
   const en = fixUnitsIn(raw, p) // units exactly as in the approved payload (plain code)
   console.info(`ClearReport explanation path: ${path}`) // logged path only, never the content
-  let hi: Explanation | null = null, hindi_note: string | null = null
-  if (cfg.hindi) {
+  const h = cfg.hindi ? await hindi(en, p) : { hi: null, hindi_note: null }
+  return { en, ...h, path, prompt_version: cfg.promptVersion, model: cfg.model }
+}
+
+// Hindi translation of the English explanation. A busy cloud (500 "high demand", 503, 429) is retried with backoff,
+// as extraction is; if it is still busy, hindi_busy lets the page offer "try again" (hindiAgain).
+export type Hindi = Pick<Explained, 'hi' | 'hindi_note' | 'hindi_busy'>
+export const HINDI_BUSY = 'Hindi is busy right now, try again.'
+export async function hindi(en: Explanation, p: Payload): Promise<Hindi> {
+  for (let attempt = 0; ; attempt++) {
     try {
       const out = await ask(HINDI, JSON.stringify(en))
       const extra = numbersConsistent(en, out)
-      if (out.tests.length !== en.tests.length) hindi_note = 'The Hindi version did not match the English one, so it is not shown.'
-      else if (extra.length) hindi_note = `The Hindi version changed a number (${extra.join(', ')}), so it is not shown.`
-      else hi = fixUnitsIn({ ...out, tests: out.tests.map((t, i) => ({ ...t, name: en.tests[i].name })) }, p)
+      if (out.tests.length !== en.tests.length) return { hi: null, hindi_note: 'The Hindi version did not match the English one, so it is not shown.' }
+      if (extra.length) return { hi: null, hindi_note: `The Hindi version changed a number (${extra.join(', ')}), so it is not shown.` }
+      return { hi: fixUnitsIn({ ...out, tests: out.tests.map((t, i) => ({ ...t, name: en.tests[i].name })) }, p), hindi_note: null }
     } catch (e) {
-      hindi_note = 'The Hindi version could not be made this time.'
-      console.info(`ClearReport Hindi translation failed: ${String(e)}`)
+      console.info(`ClearReport Hindi translation failed (attempt ${attempt + 1}): ${String(e)}`)
+      const busy = RETRYABLE.test(String(e))
+      if (!busy || attempt >= RETRY_DELAYS_MS.length) return busy ? { hi: null, hindi_note: HINDI_BUSY, hindi_busy: true } : { hi: null, hindi_note: 'The Hindi version could not be made this time.' }
+      await new Promise((ok) => setTimeout(ok, RETRY_DELAYS_MS[attempt] * (0.75 + Math.random() / 2)))
     }
   }
-  return { en, hi, path, hindi_note, prompt_version: cfg.promptVersion, model: cfg.model }
 }
 
 // ---- "What does this test mean?": only the test's name is sent, never a value or anything personal. ----
