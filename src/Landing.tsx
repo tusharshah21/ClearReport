@@ -106,7 +106,7 @@ export default function Landing() {
               <h3>On this device</h3>
               <p className="small muted">Chrome's built-in Gemini Nano, through Firebase AI Logic</p>
               <ul>
-                <li><code>ONLY_ON_DEVICE</code> Reads result rows from a PDF layout the parser does not know, with the lines around them. On our test of a new card layout it got all 10 tests right in two runs; you still confirm each value, because it cannot be matched to the PDF text automatically.</li>
+                <li><code>ONLY_ON_DEVICE</code> Reads result rows from a PDF layout the parser does not know, with the lines around them. On our test of a new card layout it read all 10 values right in three runs, and plain code verified each one against the PDF text.</li>
                 <li><code>ONLY_ON_DEVICE</code> Finds names, ID numbers and phone numbers in a photo's text, so you can cover them.</li>
                 <li><code>PREFER_ON_DEVICE</code> "What does this test mean?", sending only the test's name. Gemini in the cloud answers when this device cannot.</li>
               </ul>

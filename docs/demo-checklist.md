@@ -47,13 +47,12 @@ File: `test-data/reports/r6-photo.jpg`
 
 File: `test-data/reports/demo-unfamiliar.pdf`
 
-Read this before recording it. Since 2026-11-23 (Prompt 18) the on-device model gets each unread row with the lines around it. In two runs in Chrome it read all 10 tests of this file right (names, values, units and ranges), in one on-device call taking 96 s (first read after loading the page) and 78 s (second read). The plain-code parser reads 0 rows of this layout, which is expected. All 10 rows show "Please check this value": the cross-check looks for the value on the same line as the test's name, and here it is on the next line, so the values cannot be confirmed automatically. Approve stays blocked until you confirm each one. In one run the model also marked HbA1c as "High", which the PDF does not print. So the honest story for this scene is "the on-device model reads a layout the parser does not know, and you confirm each value against your PDF".
+Read this before recording it. The on-device model gets each unread row with the lines around it (since Prompt 18), and since Prompt 19 the plain-code cross-check also looks under a test's name, in its own card. In three runs in Chrome (2026-11-23) the model read all 10 values, units and ranges of this file right, in one on-device call taking 112 s (first read after loading the page), 77 s and 79 s (warm). All 10 rows show "Verified against your PDF" and Approve is enabled at once. Flags: only Total Cholesterol and Triglycerides are printed "High"; a flag the model adds is dropped unless the PDF prints it beside the value, and on a verified value the PDF's flag is used. The plain-code parser reads 0 rows of this layout, which is expected. So the story for this scene is "the on-device model reads a layout the parser does not know, and plain code checks every value against the PDF".
 
 1. Click **Start over**, then **Read it privately**.
-2. Choose `demo-unfamiliar.pdf`. Reading takes about 80 to 100 seconds; the screen says "Reading your report on this device...". Cut this wait in the edit.
-3. On "Check your results", show that the names, values and ranges match the PDF, and the reason under a "Please check" badge ("Your PDF's text has no number on the same line as this test's name...").
-4. Click **Confirm** on each of the 10 rows (compare with the PDF as you go). Approve is enabled only after the last one.
-5. Click **Approve and send these numbers** if you want to continue to the explanation, or **Cancel**.
+2. Choose `demo-unfamiliar.pdf`. Reading takes about 80 seconds warm (nearly 2 minutes as the first read after loading the page); the screen says "Reading your report on this device...". Cut this wait in the edit.
+3. On "Check your results", point at the 10 rows, all "Verified against your PDF", and the line "Read on this device in ... s (0 rows by the plain-code parser, 1 on-device model calls)".
+4. Click **Approve and send these numbers** to continue to the explanation, or **Cancel**.
 
 ## After recording
 
