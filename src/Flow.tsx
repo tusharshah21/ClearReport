@@ -3,13 +3,14 @@ import { guessCorners, straighten, type Quad } from './crop'
 import { extractDoc, extractRows, findPersonal, TEXT_CREATE_OPTIONS, toB64, warmText, type Run } from './extract'
 import { explain, type Explained } from './explain'
 import Explanation from './Explanation'
+import { Busy, DataTrail } from './ui'
 import { checkAll, DISCLAIMER, type Check } from './guidelines'
-import { aiBoxes, nonResultLines, ocrWords, suggestMasks } from './masks'
+import { aiBoxes, nonResultLines, ocrWords, suggestMasks, type Suggestion } from './masks'
 import { isPdf, pdfPages } from './pdf'
 import { toPayload, type Payload } from './privacy'
 import { config } from './remote'
 import Review, { type Result } from './Review'
-import type { Word } from './textlayer'
+import type { Line, Word } from './textlayer'
 import { rowsForModel } from './textrows'
 import { trustOf } from './trust'
 
@@ -24,12 +25,12 @@ type Step = 'choose' | 'upload' | 'crop' | 'mask' | 'confirm-masked' | 'consent'
 
 const AVAIL_TEXT: Record<Avail, string> = {
   checking: 'Checking whether this device can read reports privately...',
-  available: 'Good news: this device can read your report privately. The on-device model is ready, so a PDF from your lab can be read without leaving your computer.',
-  downloadable: 'This device can read your report privately, but Chrome first needs a one-time download of its built-in AI model (a few GB). It starts when you choose Private.',
-  downloading: 'This device can read your report privately. Chrome is still downloading its built-in AI model; Private will wait for it to finish.',
-  unavailable: 'This device cannot run Chrome\'s built-in AI model (Chrome reports it as unavailable, usually not enough memory or graphics power). You can still mask your details yourself.',
-  'no-api': 'This browser does not have Chrome\'s built-in AI. Private on-device reading needs desktop Chrome 139 or newer. You can still mask your details yourself.',
-  error: 'Could not check for on-device AI. You can still mask your details yourself.',
+  available: 'This device can read your lab PDF privately: the on-device AI is ready.',
+  downloadable: 'This device can read your lab PDF privately. Chrome first needs a one-time download of its built-in AI (a few GB), which starts when you choose Private.',
+  downloading: 'This device can read your lab PDF privately. Chrome is still downloading its built-in AI; Private will wait for it.',
+  unavailable: "This device can't run Chrome's built-in AI (usually not enough memory or graphics power), so private reading is not offered. You can still cover your details yourself.",
+  'no-api': "This browser doesn't have Chrome's built-in AI, so private reading is not offered here (it needs desktop Chrome 139 or newer). You can still cover your details yourself.",
+  error: "We couldn't check for on-device AI, so private reading is not offered. You can still cover your details yourself.",
 }
 const ADULT_KEY = 'clearreport.adult-notice-seen'
 const canDevice = (a: Avail) => a === 'available' || a === 'downloadable' || a === 'downloading'
@@ -58,14 +59,21 @@ async function reencode(src: Blob, boxes: Box[] = []): Promise<Img> {
 // Fractions of image size. field is set on boxes suggested by masks.ts until the user moves or keeps them; all boxes are burned in the same way.
 type Box = { x: number; y: number; w: number; h: number; field?: string; method?: 'rule' | 'ai' }
 const SUGGESTED = '#e07000'
-function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial: Box[]; label: string; onDone: (boxes: Box[]) => void; onCancel: () => void }) {
+function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }: { img: Img; initial: Box[]; label: string; onDone: (boxes: Box[]) => void; onCancel: () => void; onFindMore?: (current: Box[]) => Promise<Box[]>; aiNote?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [boxes, setBoxes] = useState<Box[]>(initial)
+  const [more, setMore] = useState<'idle' | 'busy' | number | 'failed'>('idle') // the optional on-device check
+  async function findMore() {
+    setMore('busy')
+    try { const extra = await onFindMore!(boxes); setBoxes((b) => [...b, ...extra]); setMore(extra.length) } catch { setMore('failed') }
+  }
   const [drag, setDrag] = useState<{ x0: number; y0: number; x1: number; y1: number } | null>(null)
   const [move, setMove] = useState<{ i: number; dx: number; dy: number } | null>(null)
   const [sel, setSel] = useState<number | null>(null)
   const pic = useRef<HTMLImageElement | null>(null)
   const nSuggested = boxes.filter((b) => b.field).length
+  const numbers = new Map(boxes.flatMap((b, i) => (b.field ? [i] : [])).map((i, k) => [i, k + 1])) // box index -> chip number
+  const FIELD: Record<string, string> = { name: 'name', patient_name: 'name', id: 'ID', patient_id: 'ID', phone: 'phone', doctor: "doctor's name", doctor_name: "doctor's name", 'age/sex': 'age and sex', age: 'age', sex: 'sex', barcode: 'barcode', address: 'address', date_of_birth: 'date of birth' }
 
   useEffect(() => {
     const el = new Image()
@@ -90,10 +98,16 @@ function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial
         g.strokeStyle = SUGGESTED
         g.lineWidth = 2
         g.strokeRect(x, y, w, h)
-        g.font = '11px system-ui, sans-serif'
-        g.fillStyle = SUGGESTED
-        g.textBaseline = 'middle'
-        g.fillText(b.method === 'ai' ? 'Suggested by on-device AI, please check' : 'Suggested by a label rule, please check', x + w + 4, y + h / 2) // beside the box: stacked rows would overlap labels above
+        // A numbered chip at the box's left edge; the list under the image says who suggested each one.
+        // (Text beside each box collided on phone-width images.)
+        const n = String(numbers.get(i)), r = 11
+        g.fillStyle = '#9a4a00' // darker than the box outline: white digits on it pass 4.5:1
+        g.beginPath(); g.arc(Math.max(r, x - r - 2), y + h / 2, r, 0, 2 * Math.PI); g.fill()
+        g.fillStyle = '#fff'
+        g.font = `700 13px 'Noto Sans', system-ui, sans-serif`
+        g.textAlign = 'center'; g.textBaseline = 'middle'
+        g.fillText(n, Math.max(r, x - r - 2), y + h / 2 + 1)
+        g.textAlign = 'start'
       } else {
         g.fillStyle = '#000'
         g.fillRect(x, y, w, h)
@@ -117,16 +131,45 @@ function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial
   return (
     <div>
       {label && <p><b>{label}</b>{initial.some((b) => !b.field) && ' (your boxes from the previous page are copied here; move or redraw them if this page is laid out differently)'}</p>}
-      <p>Drag to draw black boxes over <b>your name, patient ID / UHID, phone number and the doctor's name</b>, plus any QR code or barcode. Leave the test results visible.</p>
+      <p>Draw a box over <b>your name, patient ID or UHID, phone number and the doctor's name</b>, plus any QR code or barcode: press and drag with your mouse or finger. Leave the test results visible.</p>
+      <div className="legend" aria-hidden="true"><span><i style={{ background: 'rgba(224, 112, 0, 0.45)', border: '2px solid #e07000' }} />Suggested, please check</span><span><i style={{ background: '#000' }} />Your box</span></div>
       {nSuggested > 0 && (
-        <p style={{ background: '#fff4e0', padding: 8 }} data-testid="suggested-note">
-          <b style={{ color: SUGGESTED }}>{nSuggested} suggested box{nSuggested === 1 ? '' : 'es'}</b> (orange, found on this device). They can miss things or cover the wrong spot, so please check each one: drag a box to move it, or click it and press <i>Remove selected box</i>. Add any boxes they missed.
+        <p className="notice" data-testid="suggested-note">
+          <b>{nSuggested} suggested box{nSuggested === 1 ? '' : 'es'}</b> (orange, found on this device). They can miss things or cover the wrong spot, so please check each one: drag a box to move it, or click it and press <i>Remove selected box</i>. Add any boxes they missed.
         </p>
       )}
-      <div style={{ maxWidth: 800 }}>
+      {onFindMore && (
+        <p data-testid="find-more">
+          <button disabled={more === 'busy'} onClick={findMore}>Look for more personal details (on-device AI)</button>{' '}<br />
+          <span role="status">
+            {more === 'busy' && 'Checking the text around your results, on this device. This can take up to a minute...'}
+            {typeof more === 'number' && `Found ${more} more box${more === 1 ? '' : 'es'}. Nothing left this device.`}
+            {more === 'failed' && 'The on-device AI could not check this page. The label suggestions are still here.'}
+          </span>
+        </p>
+      )}
+      {aiNote && <p className="muted" style={{ marginTop: 8 }} data-testid="mask-note">{aiNote}</p>}
+      <div className="canvas-wrap">
         <canvas
           ref={canvas}
-          style={{ width: '100%', cursor: 'crosshair', touchAction: 'none', border: '1px solid #999' }}
+          aria-label="Your report. Press and drag to draw a black box; drag a box to move it. Keyboard: Tab tabs to the next box, arrow keys move it, Shift with arrow keys resizes it, Delete removes it."
+          style={{ cursor: 'crosshair', touchAction: 'none' }}
+          tabIndex={0}
+          // Keyboard path: select a box with Tab (or add one with the button below), then move, resize or remove it.
+          onKeyDown={(e) => {
+            if (e.key === 'Tab' && !e.shiftKey && boxes.length && (sel === null || sel < boxes.length - 1)) { e.preventDefault(); return setSel(sel === null ? 0 : sel + 1) }
+            if (sel === null) return
+            if (e.key === 'Delete' || e.key === 'Backspace') { e.preventDefault(); setBoxes(boxes.filter((_, i) => i !== sel)); return setSel(null) }
+            const d = { ArrowLeft: [-1, 0], ArrowRight: [1, 0], ArrowUp: [0, -1], ArrowDown: [0, 1] }[e.key]
+            if (!d) return
+            e.preventDefault()
+            const s = 0.01
+            setBoxes(boxes.map((b, i) => {
+              if (i !== sel) return b
+              if (e.shiftKey) return { ...b, w: Math.min(1 - b.x, Math.max(0.01, b.w + d[0] * s)), h: Math.min(1 - b.y, Math.max(0.01, b.h + d[1] * s)) }
+              return { ...b, x: Math.min(1 - b.w, Math.max(0, b.x + d[0] * s)), y: Math.min(1 - b.h, Math.max(0, b.y + d[1] * s)) }
+            }))
+          }}
           onPointerDown={(e) => {
             e.currentTarget.setPointerCapture(e.pointerId)
             const p = at(e)
@@ -148,15 +191,25 @@ function MaskTool({ img, initial, label, onDone, onCancel }: { img: Img; initial
           }}
         />
       </div>
-      <p>
-        {boxes.length} box{boxes.length === 1 ? '' : 'es'}.{' '}
-        <button disabled={sel === null} onClick={() => { setBoxes(boxes.filter((_, i) => i !== sel)); setSel(null) }}>Remove selected box</button>{' '}
-        <button disabled={!boxes.length} onClick={() => { setBoxes(boxes.slice(0, -1)); setSel(null) }}>Undo</button>{' '}
-        <button disabled={!boxes.length} onClick={() => { setBoxes([]); setSel(null) }}>Clear</button>{' '}
-        <button onClick={onCancel}>Cancel</button>{' '}
-        <button disabled={!boxes.length} onClick={() => onDone(boxes)}><b>Done masking</b></button>{' '}
+      {nSuggested > 0 && (
+        <ol className="small" data-testid="suggested-list" style={{ paddingLeft: 22, margin: '4px 0 8px' }}>
+          {boxes.map((b, i) => b.field && (
+            <li key={i} value={numbers.get(i)}>Possibly your {FIELD[b.field] ?? b.field}: suggested by {b.method === 'ai' ? 'the on-device AI' : 'a label rule'}, please check</li>
+          ))}
+        </ol>
+      )}
+      <p className="muted" role="status">{boxes.length} box{boxes.length === 1 ? '' : 'es'} on this page.</p>
+      <div className="actions">
+        <button className="quiet" onClick={() => { setBoxes([...boxes, { x: 0.3, y: 0.08, w: 0.35, h: 0.04 }]); setSel(boxes.length); canvas.current?.focus() }}>Add a box</button>
+        <button className="quiet" disabled={sel === null} onClick={() => { setBoxes(boxes.filter((_, i) => i !== sel)); setSel(null) }}>Remove selected box</button>
+        <button className="quiet" disabled={!boxes.length} onClick={() => { setBoxes(boxes.slice(0, -1)); setSel(null) }}>Undo</button>
+        <button className="quiet" disabled={!boxes.length} onClick={() => { setBoxes([]); setSel(null) }}>Clear</button>
+      </div>
+      <div className="actions">
+        <button className="quiet" onClick={onCancel}>Cancel</button>
         {label && !boxes.length && <button onClick={() => onDone([])}>Nothing personal on this page</button>}
-      </p>
+        <button className="primary" disabled={!boxes.length} onClick={() => onDone(boxes)}>Done masking</button>
+      </div>
     </div>
   )
 }
@@ -181,7 +234,8 @@ function CropTool({ img, onDone }: { img: Img; onDone: (q: Quad | null) => void 
     g.drawImage(el, 0, 0, c.width, c.height)
     g.strokeStyle = '#06c'; g.lineWidth = 2; g.fillStyle = 'rgba(0, 102, 204, 0.35)'
     g.beginPath(); q.forEach((p, i) => (i ? g.lineTo : g.moveTo).call(g, p.x * c.width, p.y * c.height)); g.closePath(); g.stroke()
-    for (const p of q) { g.beginPath(); g.arc(p.x * c.width, p.y * c.height, 10, 0, 2 * Math.PI); g.fill(); g.stroke() }
+    const r = Math.max(12, c.width / 40) // big enough to grab with a finger
+    for (const p of q) { g.beginPath(); g.arc(p.x * c.width, p.y * c.height, r, 0, 2 * Math.PI); g.fill(); g.stroke() }
   })
   const at = (e: React.PointerEvent) => {
     const r = canvas.current!.getBoundingClientRect()
@@ -189,27 +243,27 @@ function CropTool({ img, onDone }: { img: Img; onDone: (q: Quad | null) => void 
   }
   return (
     <div>
-      <p>Drag the four blue dots onto the corners of the report page. The page is then straightened on this device, so the text is easier to read.</p>
-      <div style={{ maxWidth: 800 }}>
+      <p>Drag the four blue dots onto the four corners of the report page. We then straighten the page on this device, which makes the text easier to read. If the photo is already straight, you can skip this.</p>
+      <div className="canvas-wrap">
         <canvas
           ref={canvas}
           aria-label="Report photo with four corner handles"
-          style={{ width: '100%', touchAction: 'none', border: '1px solid #999', cursor: 'move' }}
+          style={{ touchAction: 'none', cursor: 'move' }}
           onPointerDown={(e) => {
             if (!q) return
             const p = at(e), r = canvas.current!.getBoundingClientRect()
             const d = q.map((c) => Math.hypot((c.x - p.x) * r.width, (c.y - p.y) * r.height))
             const i = d.indexOf(Math.min(...d))
-            if (d[i] < 30) { e.currentTarget.setPointerCapture(e.pointerId); setDrag(i) }
+            if (d[i] < 44) { e.currentTarget.setPointerCapture(e.pointerId); setDrag(i) }
           }}
           onPointerMove={(e) => drag !== null && q && setQ(q.map((c, i) => (i === drag ? at(e) : c)) as Quad)}
           onPointerUp={() => setDrag(null)}
         />
       </div>
-      <p>
-        <button onClick={() => onDone(null)}>Use the photo as it is</button>{' '}
-        <button disabled={!q} onClick={() => onDone(q)}><b>Straighten</b></button>
-      </p>
+      <div className="actions">
+        <button className="quiet" onClick={() => onDone(null)}>Use the photo as it is</button>
+        <button className="primary" disabled={!q} onClick={() => onDone(q)}>Straighten</button>
+      </div>
     </div>
   )
 }
@@ -227,7 +281,7 @@ export default function Flow() {
   const [result, setResult] = useState<Result | null>(null)
   const [pageWords, setPageWords] = useState<(Word[] | null)[]>([]) // PDF text layer per page; null for photos. Local only.
   const [suggest, setSuggest] = useState<Box[][]>([]) // suggested mask boxes per page (Path 2)
-  const [maskNote, setMaskNote] = useState('') // which methods suggested the boxes (Path 2)
+  const [ocrLines, setOcrLines] = useState<(Line[] | null)[]>([]) // OCR lines that are not results, per page (Path 2, local only)
   const [skipped, setSkipped] = useState<number[]>([]) // 1-based PDF pages with no results, never sent
   const [approved, setApproved] = useState<{ payload: Payload; checks: Check[]; confirmed: boolean[] } | null>(null)
   const [explained, setExplained] = useState<Explained | null>(null)
@@ -241,6 +295,14 @@ export default function Flow() {
     LanguageModel.availability(TEXT_CREATE_OPTIONS).then((a) => setAvail(a as Avail), () => setAvail('error'))
   }, [])
 
+  // Each new screen moves keyboard and screen-reader focus to its heading (not on first load).
+  const firstStep = useRef(true)
+  useEffect(() => {
+    if (firstStep.current) { firstStep.current = false; return }
+    const h = document.querySelector<HTMLElement>('#main section h2, #main section h1')
+    if (h) { h.tabIndex = -1; h.focus({ preventScroll: false }) }
+  }, [step])
+
   // Start-up of the on-device model overlaps with what the user does next (upload, review). The status line says so honestly.
   function startWarm() {
     if (devicePrep.current) return
@@ -252,7 +314,7 @@ export default function Flow() {
 
   function reset() {
     for (const i of [...(original ?? []), ...(toSend ?? [])]) URL.revokeObjectURL(i.url)
-    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setMaskNote(''); setSkipped([]); setConsent(false); setError(''); setResult(null); setApproved(null); setExplained(null); setProgress(''); setPath(null); setCropped(false); setStep('choose')
+    setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setOcrLines([]); setSkipped([]); setConsent(false); setError(''); setResult(null); setApproved(null); setExplained(null); setProgress(''); setPath(null); setCropped(false); setStep('choose')
   }
 
   function choose(p: Path) {
@@ -307,7 +369,7 @@ export default function Flow() {
   // Suggested boxes from the PDF text layer, or from local OCR for photos and scanned pages. Never sent anywhere.
   async function prepareMasks(pages: Img[], words: (Word[] | null)[]) {
     const out: Box[][] = []
-    const ai = { boxes: 0, ms: 0, error: '' }
+    const lines: (Line[] | null)[] = []
     try {
       for (const [i, img] of pages.entries()) {
         let w = words[i]
@@ -317,38 +379,33 @@ export default function Flow() {
           w = await ocrWords(img.blob)
           console.info(`ClearReport OCR page ${i + 1}: ${Math.round(performance.now() - t0)} ms, ${w.length} words`) // timing only, no text
         }
-        let found = suggestMasks(w)
-        if (!words[i]?.length && found.length < 2) {
-          const again = suggestMasks(await ocrWords(img.blob, true)) // dim photo: retry with strong contrast, keep the better one
-          if (again.length > found.length) found = again
+        const ocr = !words[i]?.length
+        let found = suggestMasks(w, ocr)
+        if (ocr && found.length < 2) {
+          const w2 = await ocrWords(img.blob, true) // dim photo: retry with strong contrast, keep the better one
+          const again = suggestMasks(w2, true)
+          if (again.length > found.length) { found = again; w = w2 }
         }
-        // Photos and scanned pages: the on-device model also points out personal details that have no label
-        // (a name printed alone, an address), in the OCR lines that are not results. ONLY_ON_DEVICE, never the cloud.
-        if (!words[i]?.length && avail === 'available') {
-          try {
-            setProgress(`Checking page ${i + 1} for unlabelled personal details, on this device...`)
-            const lines = nonResultLines(w)
-            const r = await findPersonal(lines.map((l) => l.text))
-            const extra = aiBoxes(lines, r.found, found)
-            console.info(`ClearReport mask suggestions page ${i + 1}: ${found.length} by rules, ${extra.length} more by the on-device model, ${r.calls} calls, ${r.ms} ms`) // counts only
-            ai.boxes += extra.length; ai.ms += r.ms
-            found = [...found, ...extra]
-          } catch (e) {
-            ai.error = String(e)
-          }
-        }
+        lines[i] = ocr ? nonResultLines(w) : null // kept in memory for the optional on-device check below
         out.push(found)
       }
     } catch (e) {
       console.warn('Mask suggestions unavailable:', String(e)) // the user can still mask by hand
     }
-    const ocr = words.some((x) => !x?.length)
-    setMaskNote(!ocr ? '' : avail !== 'available' ? 'The on-device AI is not available on this device, so these suggestions come from label rules only.'
-      : ai.error ? 'The on-device AI could not check this report, so these suggestions come from label rules only.'
-      : `The on-device AI also checked the text around the results (${(ai.ms / 1000).toFixed(1)} s) and suggested ${ai.boxes} more box${ai.boxes === 1 ? '' : 'es'}. Nothing left this device.`)
+    setOcrLines(lines)
     setProgress('')
     setSuggest(out)
     setStep('mask')
+  }
+
+  // Optional, on the user's click: the on-device model points out personal details that have no label (a name
+  // printed alone, an address) in the OCR lines that are not results. ONLY_ON_DEVICE, never the cloud.
+  async function findMore(page: number, current: Box[]): Promise<Box[]> {
+    const lines = ocrLines[page] ?? []
+    const r = await findPersonal(lines.map((l) => l.text))
+    const extra = aiBoxes(lines, r.found, current as Suggestion[])
+    console.info(`ClearReport on-device mask check page ${page + 1}: ${extra.length} more boxes, ${r.calls} calls, ${r.ms} ms`) // counts only
+    return extra
   }
 
   // Path 1: the PDF's text, identity removed locally (textrows.ts), read by the on-device model only.
@@ -403,163 +460,208 @@ export default function Flow() {
   const noText = !!original && !pageWords.some((w) => w?.length) // a photo or a scanned PDF: Path 1 cannot read it
   const isPhotoFile = pageWords.length === 1 && pageWords[0] === null
   const showPath1 = canDevice(avail) && !noText
+  const recommended: Path = showPath1 ? 1 : 2
+  const pages = (n: number) => `${n} page${n === 1 ? '' : 's'}`
 
-  const box = { border: '1px solid #bbb', borderRadius: 6, padding: 12, margin: '10px 0' }
   return (
-    <main style={{ fontFamily: 'system-ui, sans-serif', maxWidth: 860, margin: '0 auto', padding: 16, lineHeight: 1.45 }}>
-      <h1 style={{ marginBottom: 4 }}>ClearReport</h1>
-      <p style={{ marginTop: 0, color: '#555' }}>Understand your blood test report, privately.</p>
-      <p style={{ ...box, background: '#fffbe6' }} data-testid="disclaimer">{DISCLAIMER}</p>
-      {!adult && (
-        <section style={{ ...box, borderColor: '#b35900' }} data-testid="adult-notice">
-          <h2>Before you start</h2>
-          <p>ClearReport is for adults aged 18 and over. Results for children and teenagers use different ranges. If you are under 18, please go through your report with a parent or guardian and your doctor.</p>
-          <button onClick={() => { try { localStorage.setItem(ADULT_KEY, '1') } catch { /* private mode: ask again next time */ } setAdult(true) }}><b>I am 18 or older</b></button>
-        </section>
-      )}
-      {adult && <p style={{ ...box, background: canDevice(avail) ? '#eef8ee' : '#f6f6f6' }} data-testid="availability">{AVAIL_TEXT[avail]}</p>}
-      {adult && progress && <p>{progress}</p>}
-      {adult && skipped.length > 0 && step !== 'choose' && (
-        <p style={{ color: '#555' }} data-testid="skipped">
-          Page{skipped.length > 1 ? 's' : ''} {skipped.join(', ')} of your PDF {skipped.length > 1 ? 'have' : 'has'} no test results (checked on this device), so {skipped.length > 1 ? 'they are' : 'it is'} left out and never sent.
-        </p>
-      )}
+    <div className="app">
+      <header>
+        <p className="brand">ClearReport</p>
+        <p>Understand your blood test report, in plain words, privately.</p>
+      </header>
+      <main className="content" id="main">
+        <p className="notice no-print" data-testid="disclaimer">{DISCLAIMER}</p>
 
-      {adult && step === 'choose' && (
-        <section>
-          <h2>How should we read your report?</h2>
-          {error && <p style={{ background: '#fff4e0', padding: 8 }}>{error}</p>}
-          {showPath1 && (
-            <div style={{ ...box, borderColor: '#2a7' }}>
-              <h3>1. Private, for the PDF from your lab <small>(recommended)</small></h3>
-              <p>Your PDF is read on this device. Only anonymous test results are sent for the explanation, and you approve them first.</p>
-              <p style={{ fontSize: 13, color: '#555' }}>Works with the PDF your lab sent, not photos. If this device can't manage it, we'll tell you; we never switch to the cloud on our own.</p>
-              <button onClick={() => choose(1)}><b>Read it privately</b></button>
+        {step === 'choose' && !original && (
+          <section className="card hero" aria-labelledby="hero-title">
+            <h1 id="hero-title">Your blood test report, explained in plain words, with your personal details kept on your device.</h1>
+            <ol className="steps3">
+              <li><b>1. Read</b>Your report's numbers are read, on this device when it can.</li>
+              <li><b>2. Check</b>You see exactly what will be sent, with your name and details removed, and approve it.</li>
+              <li><b>3. Explain</b>Gemini explains the anonymous numbers in plain English or Hindi, with questions for your doctor.</li>
+            </ol>
+            <h2 style={{ fontSize: '1.1rem', marginTop: 18 }}>What leaves your device</h2>
+            <div className="flowmap" role="list">
+              <div className="flowrow" role="listitem"><span className="who">Private (PDF)</span><span className="here">Your PDF is read here; name, ID and phone removed here</span><span className="arrow" aria-hidden="true">→</span><span className="there">Only anonymous numbers, age range and sex</span></div>
+              <div className="flowrow" role="listitem"><span className="who">Mask it yourself</span><span className="here">You cover your details with black boxes here</span><span className="arrow" aria-hidden="true">→</span><span className="there">The covered image, then anonymous numbers</span></div>
+              <div className="flowrow" role="listitem"><span className="who">Full report</span><span className="here">Nothing is removed first</span><span className="arrow" aria-hidden="true">→</span><span className="there">The full report image, only with your consent</span></div>
             </div>
-          )}
-          <div style={{ ...box, borderColor: showPath1 ? '#bbb' : '#2a7' }}>
-            <h3>{showPath1 ? '2. ' : ''}Mask it yourself {!showPath1 && <small>(recommended{noText ? '' : ' for this device'})</small>}</h3>
-            <p>You cover your name, ID, phone and doctor's name with black boxes. The boxes are burned into a new copy of the photo, which is then read by Google's Gemini AI in the cloud. You see the exact image before it is sent.</p>
-            <button onClick={() => choose(2)}>Mask my details</button>
-          </div>
-          {config().path3 && <div style={box}>
-            <h3>{showPath1 ? '3. ' : ''}Send the full report <small>(needs your consent)</small></h3>
-            <p>The whole photo, including your name, is sent to Google's Gemini AI to be read. Only choose this if you are comfortable with that.</p>
-            <button onClick={() => choose(3)}>Review what this means</button>
-          </div>}
-        </section>
-      )}
+          </section>
+        )}
 
-      {step === 'upload' && (
-        <section style={box}>
-          <h2>Add a photo of your report</h2>
-          <p>The PDF from your lab, or a clear, flat photo or screenshot of each page.</p>
-          <input type="file" accept="image/*,application/pdf" onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />{' '}
-          <button onClick={reset}>Back</button>
-          {error && <p style={{ color: '#b00' }}>{error}</p>}
-        </section>
-      )}
+        {!adult && (
+          <section className="card" style={{ borderColor: 'var(--warm)' }} data-testid="adult-notice" aria-labelledby="adult-title">
+            <h2 id="adult-title">Before you start</h2>
+            <p>ClearReport is for adults aged 18 and over. Results for children and teenagers use different ranges. If you are under 18, please go through your report with a parent or guardian and your doctor.</p>
+            <button className="primary" onClick={() => { try { localStorage.setItem(ADULT_KEY, '1') } catch { /* private mode: ask again next time */ } setAdult(true) }}>I am 18 or older</button>
+          </section>
+        )}
 
-      {step === 'crop' && original && (
-        <section style={box}>
-          <h2>Straighten the photo</h2>
-          <CropTool
-            img={original[0]}
-            onDone={async (q) => {
-              let pages = original
-              if (q) {
-                const img = await reencode(await straighten(original[0].blob, q))
-                URL.revokeObjectURL(original[0].url)
-                pages = [img]
-                setOriginal(pages)
-              }
-              setCropped(true)
-              proceed(path!, pages, [null])
-            }}
-          />
-        </section>
-      )}
-
-      {step === 'mask' && original && (
-        <section style={box}>
-          <h2>Cover your personal details</h2>
-          {maskNote && <p style={{ fontSize: 13, color: '#555' }} data-testid="mask-note">{maskNote}</p>}
-          <MaskTool
-            key={masks.length}
-            img={original[masks.length]}
-            initial={[...(masks.at(-1) ?? []).filter((b) => !b.field), ...(suggest[masks.length] ?? [])]}
-            label={original.length > 1 ? `Page ${masks.length + 1} of ${original.length}` : ''}
-            onCancel={reset}
-            onDone={async (boxes) => {
-              const all = [...masks, boxes]
-              if (all.length < original.length) return setMasks(all)
-              for (const i of toSend ?? []) URL.revokeObjectURL(i.url)
-              setToSend(await Promise.all(original.map((p, i) => reencode(p.blob, all[i]))))
-              setMasks(all)
-              setStep('confirm-masked')
-            }}
-          />
-        </section>
-      )}
-
-      {step === 'confirm-masked' && toSend && (
-        <section style={box}>
-          <h2>{toSend.length > 1 ? `These exact ${toSend.length} images will be sent.` : 'This exact image will be sent.'}</h2>
-          <p>Check that your name, ID, phone and doctor's name are fully covered{toSend.length > 1 ? ' on every page' : ''}. {toSend.length > 1 ? 'These images' : 'This image'} (and nothing else from your device) {toSend.length > 1 ? 'go' : 'goes'} to Google's Gemini AI to be read, one page at a time.</p>
-          {toSend.map((p, i) => <img key={i} src={p.url} alt={`Masked page ${i + 1} that will be sent`} style={{ maxWidth: '100%', border: '2px solid #333', marginBottom: 8 }} />)}
-          <p>
-            <button onClick={() => { setMasks([]); setStep('mask') }}>Fix the boxes</button>{' '}
-            <button onClick={() => run(toSend)}><b>Send this image</b></button>
+        {adult && progress && <Busy>{progress}</Busy>}
+        {adult && skipped.length > 0 && step !== 'choose' && (
+          <p className="muted" data-testid="skipped">
+            Page{skipped.length > 1 ? 's' : ''} {skipped.join(', ')} of your PDF {skipped.length > 1 ? 'have' : 'has'} no test results (checked on this device), so {skipped.length > 1 ? 'they are' : 'it is'} left out and never sent.
           </p>
-        </section>
-      )}
+        )}
 
-      {step === 'consent' && original && (
-        <section style={box}>
-          <h2>Before you send the full report</h2>
-          <ul>
-            <li>The <b>full {original.length > 1 ? `${original.length} pages` : 'photo'} of this report, including your name and any other details on {original.length > 1 ? 'them' : 'it'}</b>, will be sent to Google's Gemini API to be read.</li>
-            <li>ClearReport does not store the photo. Google processes it under the Gemini API terms.</li>
-            <li>This applies to this one report only. We will ask again next time.</li>
-            <li>If you'd rather not, go back and mask your details yourself instead.</li>
-          </ul>
-          {original.map((p, i) => <img key={i} src={p.url} alt={`Page ${i + 1} that will be sent`} style={{ maxWidth: 200, border: '1px solid #999', marginRight: 6 }} />)}
-          <p>
-            <label><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} /> I understand and agree to send the full image of this report, including my name, to Google's Gemini API.</label>
-          </p>
-          <p>
-            <button onClick={() => { setConsent(false); setMasks([]); setStep('mask') }}>Mask my details instead</button>{' '}
-            <button disabled={!consent} onClick={() => run(original)}><b>Send full report to Gemini</b></button>
-          </p>
-        </section>
-      )}
+        {adult && step === 'choose' && (
+          <section className="card" aria-labelledby="choose-title">
+            <h2 id="choose-title">How should we read your report?</h2>
+            <p className={`notice ${canDevice(avail) ? 'calm' : ''}`} data-testid="availability" role="status">{avail === 'checking' ? <span className="status-line" style={{ margin: 0 }}><span className="spinner" aria-hidden="true" />{AVAIL_TEXT.checking}</span> : AVAIL_TEXT[avail]}</p>
+            {error && <p className="notice" role="alert">{error}</p>}
+            <div className="paths">
+              {showPath1 && (
+                <div className={`path ${recommended === 1 ? 'recommended' : ''}`}>
+                  <span className="tag">Recommended</span>
+                  <h3>Private</h3>
+                  <p>Your PDF is read on this device. Only anonymous results are sent for the explanation, and you approve them first.</p>
+                  <p className="accepts">Accepts: the PDF your lab sent (not photos). If this device can't manage it, we say so; we never switch to the cloud on our own.</p>
+                  <button className="primary" onClick={() => choose(1)}>Read it privately</button>
+                </div>
+              )}
+              <div className={`path ${recommended === 2 ? 'recommended' : ''}`}>
+                {recommended === 2 && <span className="tag">Recommended{noText ? '' : ' for this device'}</span>}
+                <h3>Mask it yourself</h3>
+                <p>You cover your name, ID, phone and doctor's name with black boxes. The covered copy is read by Google's Gemini in the cloud. You see the exact image before it is sent.</p>
+                <p className="accepts">Accepts: a photo, screenshot or PDF. Works on a phone.</p>
+                <button className={recommended === 2 ? 'primary' : ''} onClick={() => choose(2)}>Mask my details</button>
+              </div>
+              {config().path3 && (
+                <div className="path">
+                  <h3>Send the full report</h3>
+                  <p>The whole report, including your name, is sent to Google's Gemini to be read. Only choose this if you are comfortable with that.</p>
+                  <p className="accepts">Accepts: a photo, screenshot or PDF. Asks for your consent first.</p>
+                  <button onClick={() => choose(3)}>Review what this means</button>
+                </div>
+              )}
+            </div>
+          </section>
+        )}
 
-      {step === 'extracting' && <p style={box}>Reading your report{path === 1 ? ' on this device (this can take a minute)' : ''}...</p>}
+        {step === 'upload' && (
+          <section className="card" aria-labelledby="upload-title">
+            <h2 id="upload-title">{path === 1 ? 'Add the PDF from your lab' : 'Add a photo or PDF of your report'}</h2>
+            <p>{path === 1
+              ? 'Choose the PDF file your lab sent you (by email, app or website). It is read on this device.'
+              : 'Choose the PDF from your lab, or take a clear, flat photo of each page in good light. A screenshot works too.'}</p>
+            <label htmlFor="file" className="sr-only">{path === 1 ? 'PDF file' : 'Photo or PDF file'}</label>
+            <input id="file" type="file" accept={path === 1 ? 'application/pdf' : 'image/*,application/pdf'} onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+            {error && <p className="notice error" role="alert">{error}</p>}
+            <div className="actions"><button className="quiet" onClick={reset}>Back</button></div>
+          </section>
+        )}
 
-      {step === 'failed' && (
-        <section style={{ ...box, borderColor: '#b00' }}>
-          <h2>{path === 1 ? 'Private reading did not work on this device' : 'Reading failed'}</h2>
-          <p style={{ color: '#555', fontSize: 13 }}>{error}</p>
-          {path === 1 ? (
-            <>
-              <p>Nothing was sent anywhere. You can choose another option:</p>
-              <button onClick={() => choose(2)}>Mask my details yourself</button>{' '}
-              {config().path3 && <><button onClick={() => choose(3)}>Send the full report (asks for consent)</button>{' '}</>}
-            </>
-          ) : (
-            <button onClick={() => proceed(path!, original!)}>Try again</button>
-          )}{' '}
-          <button onClick={reset}>Start over</button>
-        </section>
-      )}
+        {step === 'crop' && original && (
+          <section className="card" aria-labelledby="crop-title">
+            <h2 id="crop-title">Straighten the photo</h2>
+            <CropTool
+              img={original[0]}
+              onDone={async (q) => {
+                let pages = original
+                if (q) {
+                  const img = await reencode(await straighten(original[0].blob, q))
+                  URL.revokeObjectURL(original[0].url)
+                  pages = [img]
+                  setOriginal(pages)
+                }
+                setCropped(true)
+                proceed(path!, pages, [null])
+              }}
+            />
+          </section>
+        )}
 
-      {step === 'review' && result && <Review result={result} onCancel={reset} onApprove={approve} />}
+        {step === 'mask' && original && (
+          <section className="card" aria-labelledby="mask-title">
+            <h2 id="mask-title">Cover your personal details</h2>
+            <MaskTool
+              onFindMore={ocrLines[masks.length] && avail === 'available' ? (cur) => findMore(masks.length, cur) : undefined}
+              aiNote={ocrLines[masks.length] && avail !== 'available' ? 'The on-device AI is not available on this device, so these suggestions come from label rules only.' : ''}
+              key={masks.length}
+              img={original[masks.length]}
+              initial={[...(masks.at(-1) ?? []).filter((b) => !b.field), ...(suggest[masks.length] ?? [])]}
+              label={original.length > 1 ? `Page ${masks.length + 1} of ${original.length}` : ''}
+              onCancel={reset}
+              onDone={async (boxes) => {
+                const all = [...masks, boxes]
+                if (all.length < original.length) return setMasks(all)
+                for (const i of toSend ?? []) URL.revokeObjectURL(i.url)
+                setToSend(await Promise.all(original.map((p, i) => reencode(p.blob, all[i]))))
+                setMasks(all)
+                setStep('confirm-masked')
+              }}
+            />
+          </section>
+        )}
 
-      {step === 'explaining' && <p style={box}>Writing a plain-language explanation from the anonymous summary you approved...</p>}
+        {step === 'confirm-masked' && toSend && (
+          <section className="card" aria-labelledby="confirm-title">
+            <h2 id="confirm-title">{toSend.length > 1 ? `These exact ${toSend.length} images will be sent` : 'This exact image will be sent'}</h2>
+            <p>Check that your name, ID, phone and doctor's name are fully covered{toSend.length > 1 ? ' on every page' : ''}. {toSend.length > 1 ? 'These images' : 'This image'} (and nothing else from your device) {toSend.length > 1 ? 'go' : 'goes'} to Google's Gemini to be read.</p>
+            {toSend.map((p, i) => <img key={i} src={p.url} alt={`Masked page ${i + 1} that will be sent`} style={{ border: '2px solid var(--ink)', borderRadius: 8, marginBottom: 8 }} />)}
+            <div className="actions">
+              <button className="quiet" onClick={() => { setMasks([]); setStep('mask') }}>Fix the boxes</button>
+              <button className="primary" onClick={() => run(toSend)}>Send {toSend.length > 1 ? 'these images' : 'this image'}</button>
+            </div>
+          </section>
+        )}
 
-      {step === 'explained' && approved && explained && result && (
-        <Explanation payload={approved.payload} checks={approved.checks} badges={result.trust.map((t) => t.badge)} confirmed={approved.confirmed} explained={explained} onDone={reset} />
-      )}
-    </main>
+        {step === 'consent' && original && (
+          <section className="card" aria-labelledby="consent-title">
+            <h2 id="consent-title">Before you send the full report</h2>
+            <ul>
+              <li>The <b>full {original.length > 1 ? pages(original.length) : 'photo'} of this report, including your name and any other details on {original.length > 1 ? 'them' : 'it'}</b>, will be sent to Google's Gemini to be read.</li>
+              <li>ClearReport does not store the report. Google processes it under the Gemini API terms.</li>
+              <li>This applies to this one report only. We will ask again next time.</li>
+              <li>If you'd rather not, go back and cover your details yourself instead.</li>
+            </ul>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+              {original.map((p, i) => <img key={i} src={p.url} alt={`Page ${i + 1} that will be sent`} style={{ maxWidth: 180, border: '1px solid var(--line)', borderRadius: 6 }} />)}
+            </div>
+            <p style={{ marginTop: 14 }}>
+              <label><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />I understand and agree to send the full image of this report, including my name, to Google's Gemini.</label>
+            </p>
+            <div className="actions">
+              <button className="quiet" onClick={() => { setPath(2); setConsent(false); setMasks([]); prepareMasks(original, pageWords) }}>Cover my details instead</button>
+              <button className="primary" disabled={!consent} onClick={() => run(original)}>Send the full report</button>
+            </div>
+          </section>
+        )}
+
+        {step === 'extracting' && !progress && (
+          <section className="card"><Busy>{path === 1 ? 'Reading your report on this device. This can take a minute the first time...' : 'Gemini is reading your report. This usually takes 10 to 40 seconds...'}</Busy></section>
+        )}
+
+        {step === 'failed' && (
+          <section className="card" aria-labelledby="failed-title" style={{ borderColor: '#e9b8b4' }}>
+            <h2 id="failed-title">{path === 1 ? 'Private reading did not work on this device' : 'We could not read your report this time'}</h2>
+            <p>{path === 1 ? 'Nothing was sent anywhere. You can choose another way to continue.' : 'Nothing was saved. This is usually a network problem; trying again often works.'}</p>
+            <details className="mini"><summary>Technical details</summary><p className="muted small">{error}</p></details>
+            <div className="actions">
+              {path === 1 ? (
+                <>
+                  <button className="primary" onClick={() => choose(2)}>Mask my details yourself</button>
+                  {config().path3 && <button onClick={() => choose(3)}>Send the full report (asks for consent)</button>}
+                </>
+              ) : (
+                <button className="primary" onClick={() => proceed(path!, original!)}>Try again</button>
+              )}
+              <button className="quiet" onClick={reset}>Start over</button>
+            </div>
+          </section>
+        )}
+
+        {step === 'review' && result && <Review result={result} onCancel={reset} onApprove={approve} />}
+
+        {step === 'explaining' && (
+          <section className="card"><Busy>Writing a plain-language explanation from the anonymous summary you approved. This takes about 10 to 30 seconds...</Busy></section>
+        )}
+
+        {step === 'explained' && approved && explained && result && (
+          <Explanation payload={approved.payload} checks={approved.checks} badges={result.trust.map((t) => t.badge)} confirmed={approved.confirmed} explained={explained} onDone={reset} />
+        )}
+      </main>
+      <DataTrail path={path} step={step} hasFile={!!original} />
+    </div>
   )
 }
