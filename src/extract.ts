@@ -1,7 +1,7 @@
 import { getGenerativeModel, InferenceMode, InferenceSource, type GenerativeModel } from 'firebase/ai'
 import { ai } from './firebase'
 import { config } from './remote'
-import { fixFromRow, parseRow, rowFor, skippedRows } from './textrows'
+import { contextBlocks, fixFromRow, parseRow, rowFor, skippedRows, type TextLine } from './textrows'
 
 const num = { type: ['number', 'null'] }
 const str = { type: ['string', 'null'] }
@@ -221,6 +221,11 @@ const ROWS_PROMPT = `Each line below is one row of text from a blood test report
 Extract every test result row as JSON. Skip headings, method names, notes and comments.
 ${RULES.split('\nlegible:')[0]}
 legible: always true (this is printed text, not a photo).`
+const BLOCK_PROMPT = `Below is part of a blood test report, as lines of text in reading order; "|" separates columns.
+A test's name, its value and unit, and its reference range may be on the same line or on neighbouring lines (for example the name on one line, the value under it, and "Expected: ..." under that). When tests are printed side by side, the first column of each line belongs to one test and the next column to the next test.
+Extract every test result as JSON, matching each value with its own name and range. Skip headings, method names, notes and comments.
+${RULES.split('\nlegible:')[0]}
+legible: always true (this is printed text, not a photo).`
 let rowsModel: GenerativeModel | null = null
 export const textModel = () =>
   (rowsModel ??= getGenerativeModel(ai, { mode: InferenceMode.ONLY_ON_DEVICE, onDeviceParams: { createOptions: TEXT_CREATE_OPTIONS, promptOptions: { responseConstraint: SCHEMAS.tests } } }))
@@ -236,7 +241,7 @@ export const warmText = (onDownload?: (v: number) => void) =>
 
 // Path 1. The deterministic parser (textrows.ts) reads every row it is sure about; only the rest go to the on-device
 // model, grouped per page, one call at a time, always ONLY_ON_DEVICE (never the cloud). Each test records its method.
-export async function extractRows(report: string, batches: { page: number; text: string }[], local: { age: string | null; sex: string | null; lab_name?: string | null }, onProgress?: (done: number, total: number) => void, beforeModel?: () => Promise<unknown>, parser = true): Promise<Run> {
+export async function extractRows(report: string, batches: { page: number; text: string }[], local: { age: string | null; sex: string | null; lab_name?: string | null; lines?: TextLine[] }, onProgress?: (done: number, total: number) => void, beforeModel?: () => Promise<unknown>, parser = true): Promise<Run> {
   const t0 = performance.now()
   const calls: Call[] = [], tests: { page: number; [k: string]: unknown }[] = []
   const left: { page: number; rows: string[] }[] = []
@@ -250,13 +255,13 @@ export async function extractRows(report: string, batches: { page: number; text:
         else left.push({ page: b.page, rows: [r] })
       }
     }
-  const ask = async (text: string): Promise<{ name: string; [k: string]: unknown }[] | null> => {
+  const ask = async (text: string, prompt = ROWS_PROMPT): Promise<{ name: string; [k: string]: unknown }[] | null> => {
     const t1 = performance.now()
     let c: Call, out: { name: string; [k: string]: unknown }[] | null = null
     try {
       // ponytail: a hung on-device call (seen once, 9+ min on one batch) is abandoned after 180 s, not cancelled; the first call of a session alone can take 100 s.
       const res = await Promise.race([
-        textModel().generateContent([ROWS_PROMPT, text]),
+        textModel().generateContent([prompt, text]),
         new Promise<never>((_, no) => setTimeout(() => no(new Error('on-device call took over 180 s')), 180_000)),
       ])
       const raw = res.response.text()
@@ -271,6 +276,19 @@ export async function extractRows(report: string, batches: { page: number; text:
   }
   let ok = true
   if (left.length) await beforeModel?.()
+  if (local.lines) {
+    // Each block: the rows the parser could not read with their neighbouring lines (names above, ranges below).
+    const unread = new Set(left.flatMap((b) => b.rows))
+    const blocks = contextBlocks(local.lines.filter((l) => left.some((b) => b.page === l.page)), (r) => unread.has(r))
+    for (const [i, b] of blocks.entries()) {
+      const got = await ask(b.lines.join('\n'), BLOCK_PROMPT)
+      if (!got) { ok = false; break } // a failed private read is reported, never retried in the cloud
+      // The flag comes from the model here: the line rowFor finds may be the name line, which has no flag on it.
+      tests.push(...got.map((t) => ({ ...fixFromRow(t, rowFor(t.name, b.lines), local.sex), printed_flag: t.printed_flag === 'H' || t.printed_flag === 'L' ? t.printed_flag : null, page: b.page, method: 'model' })))
+      onProgress?.(i + 1, blocks.length)
+    }
+    left.length = 0
+  }
   for (const [i, b] of left.entries()) {
     const got = await ask(b.rows.join('\n'))
     if (!got) { ok = false; break } // a failed private read is reported, never retried in the cloud

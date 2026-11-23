@@ -8,7 +8,10 @@ import { PATTERNS } from './privacy'
 import { looksLikeResult, toLines, type Word } from './textlayer'
 
 export type Batch = { page: number; text: string }
-export type Rows = { batches: Batch[]; age: string | null; sex: string | null; lab_name: string | null; dropped_lines: number }
+// Every kept line of the report in reading order, identity removed; rows = the result rows it holds (none for a heading,
+// a name-only line or a range line).
+export type TextLine = { page: number; text: string; rows: string[] }
+export type Rows = { batches: Batch[]; lines: TextLine[]; age: string | null; sex: string | null; lab_name: string | null; dropped_lines: number }
 
 const tok = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
 const inside = (w: Word, b: { x: number; y: number; w: number; h: number }) => {
@@ -45,17 +48,54 @@ export function rowsForModel(pages: Word[][], perBatch = 10): Rows {
       kept.push((prev = { page, text: rowText(line.words), words: line.words }))
     }
   })
-  const batches: Batch[] = []
+  const batches: Batch[] = [], lines: TextLine[] = []
   for (let p = 0; p < pages.length; p++) {
-    const rows = kept
+    const page = kept
       .filter((k) => k.page === p)
       .map((k) => k.text.split(' ').filter((w) => !identity.has(tok(w)) || !tok(w)).join(' '))
       .map((t) => PATTERNS.reduce((s, [, re]) => s.replace(re, '[removed]'), t))
-      .filter((t) => looksLikeResult(t) && isResultRow(t)) // headings, comments and footers never reach the model
-      .flatMap((t) => splitPair(t, sex))
+      .map((text) => ({ page: p, text, rows: looksLikeResult(text) && isResultRow(text) ? splitPair(text, sex) : [] }))
+    lines.push(...page)
+    const rows = page.flatMap((l) => l.rows) // headings, comments and footers never reach the parser
     for (let i = 0; i < rows.length; i += perBatch) batches.push({ page: p, text: rows.slice(i, i + perBatch).join('\n') })
   }
-  return { batches, age, sex, lab_name: labName(header), dropped_lines: dropped }
+  return { batches, lines, age, sex, lab_name: labName(header), dropped_lines: dropped }
+}
+
+// Context for the on-device model where the parser fails: in layouts where a test's name, value and range sit on
+// separate lines, a result row alone is not enough. Each block is a contiguous run of lines (identity already removed),
+// in reading order: every line the parser could not read, plus up to CONTEXT lines either side, without any line the
+// parser did read. Blocks are cut at MAX_BLOCK lines to stay within the on-device model's limits.
+// Before this, only result rows reached the model, so a header line such as "Consultant : Dr. X" that the identity rules
+// miss was never sent. Context lines (lines with no result row) are therefore held to a stricter rule: none with a
+// personal-details label, a title before a name, or a long digit run (an ID of 7+ digits, or a phone number).
+const PERSONAL = /\b(patient|name|age|sex|gender|phone|mobile|contact|uhid|reg(istration)?|id|consultant|doctor|physician|referred|ref|address|e-?mail|dob|birth|collected|sample)\b|\b(mr|mrs|ms|miss|dr|shri|smt)\b\.?\s+[a-z]|\d{7,}|(?:\d[ -]?){10,}/i
+export const safeContext = (l: TextLine) => l.rows.length > 0 || !PERSONAL.test(l.text)
+export const CONTEXT = 2, MAX_BLOCK = 18
+export function contextBlocks(lines: TextLine[], unread: (row: string) => boolean): { page: number; lines: string[]; rows: string[] }[] {
+  const read = lines.map((l) => l.rows.length > 0 && !l.rows.some(unread))
+  const ok = (j: number, page: number) => lines[j]?.page === page && !read[j] && safeContext(lines[j])
+  const want = new Set<number>()
+  lines.forEach((l, i) => {
+    if (!l.rows.some(unread)) return
+    for (let j = i - CONTEXT; j <= i + CONTEXT; j++) if (ok(j, l.page)) want.add(j)
+  })
+  // A short gap between two wanted lines (a value line with no name in its first column, say) is part of the region.
+  const sorted = [...want].sort((a, b) => a - b)
+  for (let k = 1; k < sorted.length; k++) {
+    const [a, b] = [sorted[k - 1], sorted[k]]
+    if (b - a - 1 <= CONTEXT && lines[a].page === lines[b].page) for (let j = a + 1; j < b; j++) if (ok(j, lines[a].page)) want.add(j)
+  }
+  const blocks: { page: number; lines: string[]; rows: string[] }[] = []
+  for (let i = 0; i < lines.length; i++) {
+    if (!want.has(i)) continue
+    const last = blocks.at(-1), l = lines[i]
+    const cur = last && want.has(i - 1) && last.page === l.page && last.lines.length < MAX_BLOCK ? last : { page: l.page, lines: [], rows: [] }
+    if (cur !== last) blocks.push(cur)
+    cur.lines.push(l.text)
+    cur.rows.push(...l.rows.filter(unread))
+  }
+  return blocks
 }
 
 // A wrapped name: the row above has a name the alias table does not know ("Glycosylated"), and this short line with no

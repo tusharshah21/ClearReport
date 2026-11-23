@@ -5,7 +5,7 @@ import { existsSync, readFileSync } from 'node:fs'
 import { getDocument, OPS } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { canonical, displayName } from '../src/canonical'
 import { suggestMasks } from '../src/masks'
-import { parseRow, rowsForModel } from '../src/textrows'
+import { contextBlocks, MAX_BLOCK, parseRow, rowsForModel } from '../src/textrows'
 import { pageWords, pagesWithResults, toLines, verify, type Line, type Word } from '../src/textlayer'
 
 const norm = (s: string) => displayName(s).toLowerCase().replace(/[^a-z0-9]/g, '')
@@ -108,6 +108,51 @@ assert.deepEqual(pagesWithResults([{ words: prose, images: [] }, { words: [], im
     assert.deepEqual(trustOf(tests, pages).map((t) => t.badge), tests.map(() => 'verified'), `${id} cross-check`)
     assert.notEqual(trustOf([{ ...tests[0], value: tests[0].value + 10 }], pages)[0].badge, 'verified', `${id} altered value must not verify`)
     console.log(`textcheck: ${id} parser reads ${tests.length} of ${tests.length} rows, all verified; lab_name "${rows.lab_name}"`)
+  }
+}
+// On-device fallback context (contextBlocks): where the parser fails, the model gets the unread rows with their
+// neighbouring lines. No identity word may be in any block; reports the parser reads fully make no blocks at all.
+{
+  const { trustOf } = await import('../src/trust')
+  const load = async (pdf: string) => {
+    const doc = await getDocument({ data: new Uint8Array(readFileSync(pdf)), verbosity: 0 }).promise
+    const pages: Word[][] = []
+    for (let p = 1; p <= doc.numPages; p++) pages.push(await pageWords(await doc.getPage(p)))
+    return pages
+  }
+  const leaks = (id: string, text: string, pii: Record<string, unknown>) => {
+    for (const v of [pii.patient_name, pii.patient_id, pii.phone, pii.doctor_name].filter(Boolean))
+      for (const w of String(v).split(/\s+/).filter((w) => /[a-z]/i.test(w) && w.replace(/\W/g, '').length >= 3)) assert.ok(!text.toLowerCase().includes(w.toLowerCase().replace(/\W+$/, '')), `${id} block leaks "${w}"`)
+    assert.ok(!/\+?91[ -]?\d{5}/.test(text), `${id} block leaks a phone number`)
+  }
+  const reports = ['p1', 'p2', 'p3', 'demo', 'demo-unfamiliar'].map((id) => [id, `test-data/reports/${id}.pdf`])
+  for (const id of ['WM14', 'WM15']) if (existsSync(`test-data/real-samples/${id}.pdf`)) reports.push([id, `test-data/real-samples/${id}.pdf`])
+  for (const [id, pdf] of reports) {
+    const pages = await load(pdf)
+    const gt = JSON.parse(readFileSync(`test-data/ground-truth/${id}.json`, 'utf-8'))
+    const rows = rowsForModel(pages)
+    for (const parser of [true, false]) {
+      const blocks = contextBlocks(rows.lines, (r) => !parser || !parseRow(r, rows.sex))
+      if (parser && id !== 'demo-unfamiliar') assert.equal(blocks.length, 0, `${id}: the parser reads every row, so no model call`)
+      assert.ok(blocks.every((b) => b.lines.length <= MAX_BLOCK), `${id}: block size`)
+      leaks(`${id}${parser ? '' : ' (parser off)'}`, blocks.map((b) => b.lines.join('\n')).join('\n'), gt.pii)
+    }
+    if (id !== 'demo-unfamiliar') continue
+    // The card layout: each test's name, value line and "Expected:" range line all reach the model.
+    const blocks = contextBlocks(rows.lines, (r) => !parseRow(r, rows.sex))
+    const sent = blocks.map((b) => b.lines.join('\n')).join('\n')
+    for (const t of gt.tests) {
+      assert.ok(sent.includes(t.name), `demo-unfamiliar block has the name ${t.name}`)
+      assert.ok(sent.includes(`Expected: ${t.ref_text}`), `demo-unfamiliar block has the range of ${t.name}`)
+      assert.ok(sent.replace(/,/g, '').includes(`${t.value} ${t.unit}`.replace('µ', 'μ')), `demo-unfamiliar block has the value of ${t.name}`)
+    }
+    // Part A: on a PDF with a text layer no row is ever neutral. The Prompt 13 reads (invented names, values under
+    // the wrong tests) and even the correct rows (the value is not on the name's line here) all ask to be checked.
+    const bad = [{ name: 'legible', value: 12.6, unit: 'g/dL', ref_low: null, ref_high: null }, { name: 'Total WBC Count', value: 2.4, unit: 'lakhs/cumm', ref_low: null, ref_high: null }, { name: 'Fasting Glucose', value: 7600, unit: '/cumm', ref_low: null, ref_high: null }]
+    assert.deepEqual(trustOf(bad, pages).map((t) => t.badge), ['check', 'check', 'check'], 'demo-unfamiliar: wrong reads ask to be checked')
+    assert.ok(trustOf(gt.tests, pages).every((t) => t.badge === 'check'), 'demo-unfamiliar: no row is neutral or verified on this layout')
+    assert.deepEqual(trustOf([{ name: 'legible', value: 12.6, ref_low: null, ref_high: null }], [null]).map((t) => t.badge), ['image'], 'a page with no text layer stays "Read from image"')
+    console.log(`textcheck: demo-unfamiliar fallback sends ${blocks.length} block(s) of ${blocks.map((b) => b.lines.length).join(', ')} lines, with every name, value and range; no row is neutral`)
   }
 }
 console.log('textcheck ok')
