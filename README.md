@@ -2,7 +2,7 @@
 
 **Your blood test report, explained in plain English or Hindi, with your personal details kept on your device.**
 
-Live demo: https://clearreport-717f3.web.app
+Live demo: https://clearreport-717f3.web.app (landing page), the app itself at https://clearreport-717f3.web.app/app. "Try a sample report" on the landing page opens the app with a synthetic report already loaded.
 
 Video: [YouTube link to be added](#)
 
@@ -134,7 +134,7 @@ WBC, platelets and TSH have no guideline check: no single named guideline thresh
 
 ## Try it
 
-1. Open https://clearreport-717f3.web.app.
+1. Open https://clearreport-717f3.web.app/app, or click "Try a sample report" on https://clearreport-717f3.web.app to start with the synthetic `demo.pdf` (fictional patient; served from `/samples/demo.pdf`).
 2. Use the synthetic reports in [test-data/reports](test-data/reports): `r2.png` shows a lab range that disagrees with a guideline, `r6-photo.jpg` is a phone photo, and `p1.pdf` to `p3.pdf` are text PDFs for Path 1.
 3. Or download Dr Lal PathLabs' public sample reports: [WM14.pdf](https://cdn1.lalpathlabs.com/live/reports/WM14.pdf) and [WM15.pdf](https://cdn1.lalpathlabs.com/live/reports/WM15.pdf).
 
@@ -188,3 +188,4 @@ No UI library is installed. These MIT-licensed designs were used as visual refer
 - The "What leaves your device" beam: Magic UI "Animated Beam" by dillionverma, MIT, https://21st.dev/@dillionverma/components/animated-beam
 - The Data trail timeline: Dice UI "Timeline", MIT, https://21st.dev/@diceui/components/timeline
 - The upload drop zone: "File Upload" by Edu Calvo (educlopez), MIT, https://21st.dev/@educlopez/components/file-upload
+- The landing page hero (perspective grid and centred layout): "Hero Section Dark" by kinfe123 / FarmUI, MIT, https://21st.dev/@kinfe123/components/hero-section-dark
