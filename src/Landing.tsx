@@ -106,7 +106,7 @@ export default function Landing() {
               <h3>On this device</h3>
               <p className="small muted">Chrome's built-in Gemini Nano, through Firebase AI Logic</p>
               <ul>
-                <li><code>ONLY_ON_DEVICE</code> Tries to read result rows from a PDF layout the parser does not know. Not reliable yet: on our test of a new layout it got the rows wrong, and the cross-check flagged most of them for you to check.</li>
+                <li><code>ONLY_ON_DEVICE</code> Reads result rows from a PDF layout the parser does not know, with the lines around them. On our test of a new card layout it got all 10 tests right in two runs; you still confirm each value, because it cannot be matched to the PDF text automatically.</li>
                 <li><code>ONLY_ON_DEVICE</code> Finds names, ID numbers and phone numbers in a photo's text, so you can cover them.</li>
                 <li><code>PREFER_ON_DEVICE</code> "What does this test mean?", sending only the test's name. Gemini in the cloud answers when this device cannot.</li>
               </ul>
@@ -118,6 +118,7 @@ export default function Landing() {
                 <li><code>ONLY_IN_CLOUD</code> Reads the image you covered (or the full report, only if you chose that and agreed).</li>
                 <li><code>ONLY_IN_CLOUD</code> Writes the plain-language explanation and the Hindi translation from the anonymous numbers.</li>
                 <li>It sees only what you approved.</li>
+                <li>If it is busy, the app waits and retries, then tries Gemini 3.8 Flash once. The page names the model that answered.</li>
               </ul>
             </div>
             <div className="card hood-col code">

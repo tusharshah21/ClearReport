@@ -58,14 +58,16 @@ Every AI call in the app, with its inference mode:
 
 | Mode | What it does | What data it sees | Code |
 | --- | --- | --- | --- |
-| `ONLY_ON_DEVICE` | Path 1: tries to read result rows the plain-code parser could not read (not reliable yet, see [Accuracy and evaluation](#accuracy-and-evaluation)) | Result rows from the PDF text, with identity lines already dropped | [src/extract.ts:226](src/extract.ts#L226) |
-| `ONLY_ON_DEVICE` | Path 2, optional "Look for more personal details": finds names, IDs and phone numbers in the OCR text so they can be boxed | The page's OCR text, which never leaves the device | [src/extract.ts:195](src/extract.ts#L195) |
-| `ONLY_ON_DEVICE` | Evaluation only (dev spike page): reads a report image on the device | Synthetic test images | [src/extract.ts:72](src/extract.ts#L72) |
-| `ONLY_IN_CLOUD` | Paths 2 and 3: reads the results from the image | Path 2: the image the user covered and approved. Path 3: the full image, with consent | [src/extract.ts:79](src/extract.ts#L79) |
-| `ONLY_IN_CLOUD` | Writes the explanation, then the Hindi translation | The approved payload: lab name, age band, sex, test names, values, units, printed ranges and flags, plus the plain-code range-check results | [src/explain.ts:50](src/explain.ts#L50) |
-| `PREFER_ON_DEVICE` | "What does this test mean?" | The test's name only, never a value | [src/explain.ts:144](src/explain.ts#L144) |
+| `ONLY_ON_DEVICE` | Path 1: reads result rows the plain-code parser could not read, with their neighbouring lines (see [Accuracy and evaluation](#accuracy-and-evaluation)) | Blocks of lines from the PDF text around those rows, with identity lines already dropped | [src/extract.ts:240](src/extract.ts#L240) |
+| `ONLY_ON_DEVICE` | Path 2, optional "Look for more personal details": finds names, IDs and phone numbers in the OCR text so they can be boxed | The page's OCR text, which never leaves the device | [src/extract.ts:204](src/extract.ts#L204) |
+| `ONLY_ON_DEVICE` | Evaluation only (dev spike page): reads a report image on the device | Synthetic test images | [src/extract.ts:73](src/extract.ts#L73) |
+| `ONLY_IN_CLOUD` | Paths 2 and 3: reads the results from the image | Path 2: the image the user covered and approved. Path 3: the full image, with consent | [src/extract.ts:80](src/extract.ts#L80) |
+| `ONLY_IN_CLOUD` | Writes the explanation, then the Hindi translation | The approved payload: lab name, age band, sex, test names, values, units, printed ranges and flags, plus the plain-code range-check results | [src/explain.ts:54](src/explain.ts#L54) |
+| `PREFER_ON_DEVICE` | "What does this test mean?" | The test's name only, never a value | [src/explain.ts:176](src/explain.ts#L176) |
 
 Path 1 never falls back to the cloud: if the device cannot run the model, the app says so and offers the other paths.
+
+When the cloud model is busy (errors 500 "high demand", 503 or 429), every cloud call (reading an image, the explanation, the Hindi translation, and the cloud side of "What does this test mean?") waits and retries three times with backoff, then tries the fallback model from Remote Config once ([src/retry.ts](src/retry.ts)). The explanation footer names the model that actually answered. If both are still busy, extraction says it could not read the report, the explanation falls back to the plain range-check summary, and Hindi offers "Try again".
 
 **Design principle:** plain code where rules are reliable (parsing, identity removal, range checks, guideline wording, doctor questions as a fallback), on-device AI where data is private (reading the PDF, finding personal details), cloud AI where data is anonymous (the explanation) or the user chose to send it (reading a covered or consented image).
 
@@ -75,7 +77,7 @@ Path 1 never falls back to the cloud: if the device cannot run the model, the ap
 | --- | --- |
 | App Check (reCAPTCHA Enterprise) | Only the ClearReport web app can call Gemini through Firebase AI Logic. A debug token is used in local development only. |
 | Anonymous Authentication | Gives each session an anonymous Firebase user, with no account, email or name. |
-| Remote Config | Holds the cloud model name, the prompt version shown under each explanation, and switches for Hindi and Path 3. In-code defaults keep the app working if it cannot be fetched. |
+| Remote Config | Holds the cloud model name (`cloud_model`, default `gemini-3.5-flash-lite`), the fallback model (`cloud_model_fallback`, default `gemini-3.8-flash`), the prompt version shown under each explanation, and switches for Hindi and Path 3. In-code defaults keep the app working if it cannot be fetched. |
 | Hosting | Serves the static app with `nosniff`, `no-referrer` and a Permissions-Policy that turns off camera, microphone and location. |
 
 ## Accuracy and evaluation
@@ -95,16 +97,20 @@ All numbers below come from `npm run eval` (`test-data/results.md`) and `npm tes
   With the parser switched off, p1 took 1 on-device call (about 70 s) with one unit error: the platelet count came back converted to 260000 /cumm, a value that does not match the PDF text, so the cross-check would mark it "Please check this value" (that run recorded the error; it did not go through the review screen).
 
   We then improved the parser with general rules, not rules for these files: it types each column instead of assuming the name comes first, splits side-by-side rows when both halves parse, joins wrapped names, and picks the patient's own bounds from "M: / F:" ranges. All three layouts now parse fully (8, 11 and 8 rows) with 0 model calls, and every value verifies against the PDF text (checked in `npm test`). Layouts the parser has not seen still fall back to the on-device model, and every value it returns is cross-checked against the PDF text. The next result shows how far that fallback can be trusted.
-- **A new unfamiliar layout read badly on the device.** `demo-unfamiliar.pdf` (synthetic, 10 tests in two-column result cards: the name, then the value and unit, then "Expected:" and the range, each on its own line) was read on Path 1 in Chrome after the parser work above, with the parser unchanged:
+- **A new unfamiliar layout, before and after giving the model context.** `demo-unfamiliar.pdf` (synthetic, 10 tests in two-column result cards: the name, then the value and unit, then "Expected:" and the range, each on its own line) was read on Path 1 in Chrome, with the parser unchanged. Run 1 is the first read after the page loaded, run 2 the next one.
 
-  | Run | Rows read by the parser | Rows from the on-device model | On-device calls | Time | Tests with the right name | Right values (under wrong names) | Right ranges | Verified | Please check | Read from image | Identity sent |
-  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-  | 1 (cold) | 0 | 5 | 5 | 54.2 s | 0 of 10 | 4 of 10 | 0 | 0 | 4 | 1 | none |
-  | 2 (warm) | 0 | 6 | 1 | 34.8 s | 0 of 10 | 6 of 10 | 0 | 0 | 5 | 1 | none |
+  | Version | Run | Rows by the parser | Rows from the on-device model | On-device calls | Time | Right names | Right values | Right ranges | Verified | Please check | Read from image | Identity sent |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | Value lines only (before) | 1 | 0 | 5 | 5 | 54.2 s | 0 of 10 | 4 of 10, under wrong names | 0 | 0 | 4 | 1 | none |
+  | Value lines only (before) | 2 | 0 | 6 | 1 | 34.8 s | 0 of 10 | 6 of 10, under wrong names | 0 | 0 | 5 | 1 | none |
+  | Context blocks (now) | 1 | 0 | 10 | 1 | 96.1 s | 10 of 10 | 10 of 10 | 10 of 10 | 0 | 10 | 0 | none |
+  | Context blocks (now) | 2 | 0 | 10 | 1 | 77.5 s | 10 of 10 | 10 of 10 | 10 of 10 | 0 | 10 | 0 | none |
 
-  There were no timeouts or errors; the reads were simply wrong. The parser's row builder sent the model only the value lines (for example "12.6 g/dL | 7,600 /cumm"), because the names and ranges sit on lines of their own, so the model invented test names and dropped rows (at least 4 of the 10 tests each run). The cross-check marked no row as verified and flagged 4 or 5 rows per run, but it did not catch everything: in each run one row whose invented name does not appear in the PDF text could not be checked at all, so it got the neutral "Read from image" badge, which does not block approval. Age band and sex were not found either.
+  Before, the row builder sent the model only the value lines (for example "12.6 g/dL | 7,600 /cumm"), because the names and ranges sit on lines of their own, so the model invented test names and dropped rows, and one row per run got the neutral "Read from image" badge, which did not block approval. Two changes followed. First, where the parser cannot read a row, the model now gets a block of lines in reading order: the unread rows plus up to two lines either side (names above, ranges below), at most 18 lines per block, with identity lines removed as before, and context lines with a personal-details label, a title before a name, a long ID or a phone number never sent. Second, a row on a PDF page that cannot be matched to the PDF text is now always "Please check this value". With both, every test came back right in both runs, in one call each. Every row still shows "Please check": the cross-check looks for the value on the same line as the test's name, and in this layout it is on the next line, so the values cannot be confirmed automatically and Approve waits until each one is confirmed. In run 2 the model also marked HbA1c as "High", which the PDF does not print (Total Cholesterol and Triglycerides were right; the flags of run 1 were not recorded). Age band and sex were not found, because they share a line with the phone number, which is removed.
+
+  The same blocks with the parser switched off on p1-p3 (one on-device call each): p1 8 of 8 tests with right names, values and units, 7 of 8 ranges (Haemoglobin's lower bound was lost), 8 of 8 flags, 58.2 s; p2 11 of 11 on every field, 99.9 s; p3 8 of 8 names, values, units and ranges, 7 of 8 flags, 71.6 s; no extra rows and no identity sent. Reports the parser reads fully are unchanged: demo.pdf, WM14 and WM15 read 7, 32 and 54 rows, all verified, with 0 model calls.
 - **On-device image reading did not hold up, so we moved on-device work to text.** Reading report images with the on-device model: on 6 clean images it got 91% of values but only 58% of printed ranges, and missed 7 of 36 personal fields; on 2 phone photos it got 66% of values and 19% of ranges, and missed 6 of 12 personal fields. That is why Path 1 accepts lab PDFs and reads their text, and photos go through Path 2.
-- **No wrong value is marked as verified.** For PDFs, each value, unit and range is cross-checked against the PDF's own text layer on the device. A test changes every WM14 and WM15 value by +10 and checks that none of them verifies, and that a missing unit never verifies. Values that do not match are shown as "Please check this value" and must be confirmed before they count. A row whose test name cannot be found in the PDF text cannot be checked; it is shown as "Read from image" and does not have to be confirmed (see the unfamiliar-layout result above).
+- **No wrong value is marked as verified.** For PDFs, each value, unit and range is cross-checked against the PDF's own text layer on the device. A test changes every WM14 and WM15 value by +10 and checks that none of them verifies, and that a missing unit never verifies. Values that do not match are shown as "Please check this value" and must be confirmed before they count. A row on a PDF page that cannot be matched to the PDF text (its name or value is not found there) is also "Please check this value". "Read from image" is used only for pages with no text layer (photos and scans).
 
 ## Privacy and safety
 
