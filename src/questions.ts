@@ -37,3 +37,24 @@ export function questionsFor(p: Payload, checks: Check[]): string[] {
     out.push(`My ${t.name} result is ${v(t)}${t.ref_text ? `, inside my lab's range (${range(t)})` : ''}. Is this worth checking again at my next test?`)
   return out.slice(0, 5)
 }
+
+// ---- Units in AI-written text: after a payload value, a unit that is a garbled copy of the payload's unit
+// (case, or the micro sign written as u, μ, E or Ε, as in "25.17 ΕIU/mL") is replaced by the exact payload unit. ----
+const unitKey = (u: string) => u.normalize('NFKC').toLowerCase().replace(/^[μuεe]/, 'μ')
+const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+export function fixUnits(s: string, p: Payload): string {
+  for (const t of p.tests) {
+    if (t.value === null || !t.unit) continue
+    const unit = t.unit, key = unitKey(unit)
+    const vals = [...new Set([String(t.value), t.value.toLocaleString('en-IN'), t.value.toLocaleString('en-US')])].map(esc).join('|')
+    s = s.replace(new RegExp(`(?<![\\d.,])(${vals})(\\s*)([^\\s,;:()]+)`, 'g'), (all, v: string, sp: string, tok: string) => {
+      const dot = tok.endsWith('.') ? '.' : ''
+      const word = dot ? tok.slice(0, -1) : tok
+      return word !== unit && unitKey(word) === key ? `${v}${sp}${unit}${dot}` : all
+    })
+  }
+  return s
+}
+export const fixUnitsIn = <E extends { summary: string; tests: { name: string; explanation: string }[]; questions: string[] }>(e: E, p: Payload): E => ({
+  ...e, summary: fixUnits(e.summary, p), tests: e.tests.map((t) => ({ ...t, explanation: fixUnits(t.explanation, p) })), questions: e.questions.map((q) => fixUnits(q, p)),
+})

@@ -8,7 +8,7 @@ import { apply, homography } from '../src/crop'
 import { BANNED, checkAll, checkTest, disagrees, farOutOfRange } from '../src/guidelines'
 import type { Test } from '../src/privacy'
 import { trustOf } from '../src/trust'
-import { questionsFor, questionsSpecific } from '../src/questions'
+import { fixUnits, fixUnitsIn, questionsFor, questionsSpecific } from '../src/questions'
 
 // Every ground-truth name resolves to a known key, and no report has two tests with the same key.
 for (const f of readdirSync('test-data/ground-truth')) {
@@ -306,4 +306,15 @@ console.log('crop ok')
   for (const [t, want] of [['91 70-100', true], ['27.9 an-n', true], ['3 4% - 50', true], ['Date: 17-11-2026', false], ['Age/Sex: 57Y/FEMALE', false], ['AGE/SEX 57Y/FEMALE PH +91 20000 00006', false], [': STY/FDMALE LL) +0 92000 ¢ 00006', false], ['212 mg/dL < 200', true], ['1.3 lakhs/cumm', true], ['Mobile: +91 80000 00014', false]] as const)
     assert.equal(resultLine(t), want, t)
   console.log('ai mask boxes ok')
+}
+// Units in AI-written text are replaced by the payload's exact unit strings (plain code), anchored to the value.
+{
+  const p1 = toPayload(gtOf('p1')).payload // TSH 3.1 µIU/mL, WBC 11200 /cumm, glucose 96 mg/dL
+  assert.equal(fixUnits('My TSH result is 3.1 ΕIU/mL, inside my lab\'s range.', p1), 'My TSH result is 3.1 µIU/mL, inside my lab\'s range.') // Greek capital epsilon
+  assert.equal(fixUnits('My TSH is 3.1 EIU/mL.', p1), 'My TSH is 3.1 µIU/mL.')
+  assert.equal(fixUnits('TSH 3.1 uiu/ml and 3.1 μIU/mL', p1), 'TSH 3.1 µIU/mL and 3.1 µIU/mL')
+  assert.equal(fixUnits('Glucose 96 MG/DL; WBC 11,200 /CUMM', p1), 'Glucose 96 mg/dL; WBC 11,200 /cumm')
+  assert.equal(fixUnits('13.1 EIU/mL and 3.1 times', p1), '13.1 EIU/mL and 3.1 times') // other numbers and non-units untouched
+  const e = fixUnitsIn({ summary: 'TSH 3.1 EIU/mL.', tests: [{ name: 'TSH', explanation: '3.1 ΕIU/mL' }], questions: ['My TSH is 3.1 ΕIU/mL. Why?'] }, p1)
+  assert.deepEqual([e.summary, e.tests[0].explanation, e.questions[0]], ['TSH 3.1 µIU/mL.', '3.1 µIU/mL', 'My TSH is 3.1 µIU/mL. Why?'])
 }

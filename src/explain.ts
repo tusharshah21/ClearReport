@@ -5,7 +5,7 @@ import { getGenerativeModel, InferenceMode, InferenceSource } from 'firebase/ai'
 import { ai } from './firebase'
 import { BANNED, disagrees, type Check } from './guidelines'
 import type { Payload } from './privacy'
-import { questionsFor, questionsSpecific } from './questions'
+import { fixUnitsIn, questionsFor, questionsSpecific } from './questions'
 import { config } from './remote'
 
 export type Explanation = { summary: string; tests: { name: string; explanation: string }[]; questions: string[] }
@@ -107,7 +107,8 @@ export function numbersConsistent(en: Explanation, hi: Explanation): string[] {
 
 export async function explain(p: Payload, checks: Check[]): Promise<Explained> {
   const cfg = config()
-  const { en, path } = await english(p, checks)
+  const { en: raw, path } = await english(p, checks)
+  const en = fixUnitsIn(raw, p) // units exactly as in the approved payload (plain code)
   console.info(`ClearReport explanation path: ${path}`) // logged path only, never the content
   let hi: Explanation | null = null, hindi_note: string | null = null
   if (cfg.hindi) {
@@ -116,7 +117,7 @@ export async function explain(p: Payload, checks: Check[]): Promise<Explained> {
       const extra = numbersConsistent(en, out)
       if (out.tests.length !== en.tests.length) hindi_note = 'The Hindi version did not match the English one, so it is not shown.'
       else if (extra.length) hindi_note = `The Hindi version changed a number (${extra.join(', ')}), so it is not shown.`
-      else hi = { ...out, tests: out.tests.map((t, i) => ({ ...t, name: en.tests[i].name })) }
+      else hi = fixUnitsIn({ ...out, tests: out.tests.map((t, i) => ({ ...t, name: en.tests[i].name })) }, p)
     } catch (e) {
       hindi_note = 'The Hindi version could not be made this time.'
       console.info(`ClearReport Hindi translation failed: ${String(e)}`)
