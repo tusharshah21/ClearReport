@@ -79,14 +79,8 @@ for (const s of sizes) {
   await click('Approve and send these numbers')
   await page.getByRole('heading', { name: 'Summary' }).waitFor({ timeout: 120_000 })
   await shot('08-explanation')
-  if (ID === 'r2' && s.tag === 'desktop') {
-    // Landing page hero (public/landing/hero.jpg): the glucose card with its callout, beside the data trail.
-    await page.locator('.panel', { hasText: 'Blood sugar' }).evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 28))
-    await page.waitForTimeout(400)
-    mkdirSync('public/landing', { recursive: true })
-    await page.screenshot({ path: 'public/landing/hero.jpg', type: 'jpeg', quality: 82, clip: { x: 80, y: 0, width: 1120, height: 700 } })
-    console.log(`public/landing/hero.jpg ${Math.round(statSync('public/landing/hero.jpg').size / 1024)} KB`)
-  }
+  // The landing hero (public/landing/hero.jpg, hero.webp, og.jpg) is captured by hand from a Path 1 run of the sample in Chrome
+  // with on-device AI, so its data trail shows the on-device steps. Playwright's Chrome has no on-device model.
   await ctx.close()
 }
 await browser.close()
