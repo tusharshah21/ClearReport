@@ -228,3 +228,24 @@ console.log('crop ok')
     assert.equal(parseRow(r), null, r)
   console.log('row parser ok')
 }
+{
+  const { parseRow, parseRange, splitPair } = await import('../src/textrows')
+  const p = (r: string, sex?: string) => { const x = parseRow(r, sex); return x && [x.name, x.value, x.unit, x.ref_low, x.ref_high, x.printed_flag] }
+  // Result first, unit inside the value cell, flag column last; Indian digit grouping.
+  assert.deepEqual(p('11,200 /cumm | Total WBC Count | 4000 - 10000 | High'), ['Total WBC Count', 11200, '/cumm', 4000, 10000, 'H'])
+  assert.deepEqual(p('1,25,000 /cumm | Platelet Count | 150000 - 410000'), ['Platelet Count', 125000, '/cumm', 150000, 410000, null])
+  // Footnote marks on the name and the value.
+  assert.deepEqual(p('TSH# | 6.8 * | µIU/mL | 0.4 - 4.0'), ['TSH', 6.8, 'µIU/mL', 0.4, 4, null])
+  // Sex-specific ranges: the patient's own bounds, or not parsed when sex is unknown.
+  assert.deepEqual(parseRange('M: 13-17 / F: 12-15', 'Male'), [13, 17])
+  assert.deepEqual(parseRange('M: 13-17 / F: 12-15', 'F'), [12, 15])
+  assert.equal(parseRange('M: 13-17 / F: 12-15'), null)
+  assert.equal(parseRow('Haemoglobin | 12.1 | g/dL | M: 13-17 / F: 12-15'), null)
+  // Two tests on one printed row are split only when both halves parse.
+  assert.deepEqual(splitPair('Haemoglobin | 12.4 | g/dL | 12.0 - 15.0 | Triglycerides | 165 H | mg/dL | < 150'), ['Haemoglobin | 12.4 | g/dL | 12.0 - 15.0', 'Triglycerides | 165 H | mg/dL | < 150'])
+  assert.deepEqual(splitPair('Haemoglobin | 12.4 | g/dL | see note | Triglycerides | 165'), ['Haemoglobin | 12.4 | g/dL | see note | Triglycerides | 165'])
+  // Two values, or a flag both in the value and in its own column: not sure, so the model reads it.
+  assert.equal(parseRow('Haemoglobin | 12.4 | 13.1 | g/dL'), null)
+  assert.equal(parseRow('Haemoglobin | 12.4 L | g/dL | Low'), null)
+  console.log('row parser layouts ok')
+}

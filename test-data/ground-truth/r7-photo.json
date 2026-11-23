@@ -1,0 +1,52 @@
+{
+  "id": "r7-photo",
+  "layout": "r7",
+  "note": "Patient name printed without a label. Photo version: r7-photo.",
+  "lab_name": "Lakeview Pathology",
+  "tests": [
+    {
+      "name": "Haemoglobin",
+      "value": 13.9,
+      "unit": "g/dL",
+      "ref_low": 13,
+      "ref_high": 17,
+      "ref_text": "13.0 - 17.0",
+      "printed_flag": null
+    },
+    {
+      "name": "Total WBC Count",
+      "value": 8100,
+      "unit": "/cumm",
+      "ref_low": 4000,
+      "ref_high": 10000,
+      "ref_text": "4000 - 10000",
+      "printed_flag": null
+    },
+    {
+      "name": "Platelet Count",
+      "value": 2.2,
+      "unit": "lakhs/cumm",
+      "ref_low": 1.5,
+      "ref_high": 4.1,
+      "ref_text": "1.5 - 4.1",
+      "printed_flag": null
+    },
+    {
+      "name": "Glucose Fasting",
+      "value": 91,
+      "unit": "mg/dL",
+      "ref_low": 70,
+      "ref_high": 100,
+      "ref_text": "70 - 100",
+      "printed_flag": null
+    }
+  ],
+  "pii": {
+    "patient_name": "Rohan Unlabelledname",
+    "age": "38",
+    "sex": "Male",
+    "patient_id": "LVP-TEST-40721",
+    "phone": "+91 90000 00014",
+    "doctor_name": "Dr. Fictional Bose"
+  }
+}

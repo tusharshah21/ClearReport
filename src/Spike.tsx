@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { setLogLevel } from 'firebase/app'
-import { extract, extractDoc, extractRows, model, textModel, toB64, type Mode, type Run } from './extract'
+import { extract, extractDoc, extractRows, model, textModel, toB64, warmText, type Mode, type Run } from './extract'
 import { isPdf, pdfPages } from './pdf'
 import type { Word } from './textlayer'
 import { rowsForModel } from './textrows'
@@ -11,7 +11,9 @@ setLogLevel('debug') // SDK logs why on-device was or wasn't used
 const SYNTHETIC = ['r1', 'r2', 'r3', 'r4', 'r5', 'r6', 'r1-photo', 'r6-photo']
 // Public sample PDFs published by Dr Lal PathLabs (dummy patients), kept locally in test-data/real-samples/.
 const SAMPLES = ['WM14', 'WM15']
-const KNOWN = [...SYNTHETIC, ...SAMPLES]
+// Synthetic text PDFs in other layouts (test-data/generate-pdf.ts).
+const TEXT_PDFS = ['p1', 'p2', 'p3']
+const KNOWN = [...SYNTHETIC, ...SAMPLES, ...TEXT_PDFS]
 type Page = { mimeType: string; data: string; url: string; words: Word[] | null }
 type Img = { name: string; synthetic: boolean; pages: Page[]; skipped: number[] } // skipped: 1-based PDF pages without results, not sent
 
@@ -26,9 +28,10 @@ async function toPages(f: Blob): Promise<Pick<Img, 'pages' | 'skipped'>> {
   return { pages, skipped: all.flatMap((p, i) => (kept.includes(p) ? [] : [i + 1])) }
 }
 async function loadSynthetic(id: string): Promise<Img> {
-  const path = SAMPLES.includes(id) ? `/test-data/real-samples/${id}.pdf` : `/test-data/reports/${id}.${id.endsWith('-photo') ? 'jpg' : 'png'}`
+  const isText = SAMPLES.includes(id) || TEXT_PDFS.includes(id)
+  const path = SAMPLES.includes(id) ? `/test-data/real-samples/${id}.pdf` : `/test-data/reports/${id}.${TEXT_PDFS.includes(id) ? 'pdf' : id.endsWith('-photo') ? 'jpg' : 'png'}`
   const res = await fetch(path)
-  const blob = new Blob([await res.arrayBuffer()], { type: SAMPLES.includes(id) ? 'application/pdf' : res.headers.get('content-type') ?? '' })
+  const blob = new Blob([await res.arrayBuffer()], { type: isText ? 'application/pdf' : res.headers.get('content-type') ?? '' })
   return { name: id, synthetic: true, ...(await toPages(blob)) }
 }
 
@@ -96,9 +99,12 @@ export default function Spike() {
   }
 
   // New Path 1: text rows (identity removed locally) to the on-device model. The sent text is saved with the run for the leak check.
-  async function runText() {
+  async function runText(ids = SAMPLES) {
     setBusy(true)
-    for (const id of SAMPLES) {
+    const w0 = performance.now()
+    await warmText() // the real flow warms up while the user uploads; timings below start warm
+    say(`On-device model warm-up: ${((performance.now() - w0) / 1000).toFixed(1)} s`)
+    for (const id of ids) {
       const s = await loadSynthetic(id)
       setImg(s)
       const rows = rowsForModel(s.pages.map((p) => p.words ?? []))
@@ -137,8 +143,9 @@ export default function Spike() {
         <button disabled={busy} onClick={checkStatus}>Check status</button>{' '}
         <button disabled={busy} onClick={() => runAll()}>Run all 8 synthetic reports (device + cloud)</button>{' '}
         <button disabled={busy} onClick={() => runAll(['device'])}>2. Run all 8 ONLY_ON_DEVICE</button>{' '}
-        <button disabled={busy} onClick={runText}>3. Run WM14 + WM15 as text ONLY_ON_DEVICE (Path 1)</button>{' '}
-        <button disabled={busy} onClick={runMonocytes}>4. WM15 blood count, model only (Monocytes check)</button>
+        <button disabled={busy} onClick={() => runText()}>3. Run WM14 + WM15 as text ONLY_ON_DEVICE (Path 1)</button>{' '}
+        <button disabled={busy} onClick={runMonocytes}>4. WM15 blood count, model only (Monocytes check)</button>{' '}
+        <button disabled={busy} onClick={() => runText(TEXT_PDFS)}>5. Run p1-p3 as text (Path 1, other layouts)</button>
       </p>
       <p>
         Synthetic:{' '}

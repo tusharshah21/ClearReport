@@ -39,7 +39,7 @@ const totals: Record<string, { n: number; found: number; value: number; unit: nu
 for (const f of readdirSync(join(DIR, 'ground-truth')).sort()) {
   const gt = JSON.parse(readFileSync(join(DIR, 'ground-truth', f), 'utf-8'))
   for (const mode of ['device', 'cloud']) {
-    const T = (totals[`${mode} ${gt.id.startsWith('WM') ? 'pdf' : gt.id.endsWith('-photo') ? 'photo' : 'clean'}`] ??= { n: 0, found: 0, value: 0, unit: 0, range: 0, flag: 0, piiMissed: 0, piiN: 0, lat: [], chars: [], runs: 0, failed: 0 })
+    const T = (totals[`${mode} ${gt.id.startsWith('WM') ? 'pdf' : /^p\d/.test(gt.id) ? 'text pdf' : gt.id.endsWith('-photo') ? 'photo' : 'clean'}`] ??= { n: 0, found: 0, value: 0, unit: 0, range: 0, flag: 0, piiMissed: 0, piiN: 0, lat: [], chars: [], runs: 0, failed: 0 })
     const runs = ['single', 'split', 'pages', 'rows'].map((s) => join(DIR, 'runs', `${gt.id}.${mode}.${s}.json`)).filter(existsSync).map((p) => JSON.parse(readFileSync(p, 'utf-8')) as Run)
     if (!runs.length) { rows.push([gt.id, gt.layout, mode, 'no run', '', '', '', '', '', '', '', '', '']); continue }
     const tried = runs.map((r) => `${r.strategy}${r.strategy === 'rows' ? `(${r.calls.length} calls)` : ''}${r.page_strategies ? `(${r.page_strategies.join(',')})` : ''}:${r.ok ? 'ok' : 'fail'}`).join(' ')

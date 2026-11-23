@@ -12,7 +12,7 @@ const saveRuns: Plugin = {
       req.on('data', (c) => (body += c))
       req.on('end', () => {
         const run = JSON.parse(body)
-        if (!/^(r\d(-photo)?|WM1[45])$/.test(run.report) || !['device', 'cloud'].includes(run.mode) || !['single', 'split', 'pages', 'rows'].includes(run.strategy)) return res.writeHead(400).end()
+        if (!/^(r\d(-photo)?|WM1[45]|p\d)$/.test(run.report) || !['device', 'cloud'].includes(run.mode) || !['single', 'split', 'pages', 'rows'].includes(run.strategy)) return res.writeHead(400).end()
         mkdirSync('test-data/runs', { recursive: true })
         writeFileSync(`test-data/runs/${run.report}.${run.mode}.${run.strategy}.json`, JSON.stringify(run, null, 2) + '\n', 'utf-8')
         res.end('ok')

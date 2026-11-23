@@ -209,7 +209,7 @@ export async function extractRows(report: string, batches: { page: number; text:
   const left: { page: number; rows: string[] }[] = []
   for (const b of batches)
     for (const r of b.text.split('\n')) {
-      const p = parser ? parseRow(r) : null // parser = false only on the spike page, to test the model path
+      const p = parser ? parseRow(r, local.sex) : null // parser = false only on the spike page, to test the model path
       if (p) tests.push({ ...p, page: b.page, method: 'parser' })
       else {
         const last = left.at(-1)
@@ -248,7 +248,7 @@ export async function extractRows(report: string, batches: { page: number; text:
       const more = (await ask(r))?.filter((t) => rowFor(t.name, [r]))
       got.push(...(more?.length ? more : [{ name: r.split(' | ')[0], value: null, unit: null, ref_low: null, ref_high: null, ref_text: null, printed_flag: null, legible: false }]))
     }
-    tests.push(...got.map((t) => ({ ...fixFromRow(t, rowFor(t.name, b.rows)), page: b.page, method: 'model' })))
+    tests.push(...got.map((t) => ({ ...fixFromRow(t, rowFor(t.name, b.rows), local.sex), page: b.page, method: 'model' })))
     onProgress?.(i + 1, left.length)
   }
   tests.sort((a, b) => a.page - b.page) // stable: parser rows keep their order, model rows follow on the same page

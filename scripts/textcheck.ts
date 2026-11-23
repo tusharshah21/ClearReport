@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict'
 import { existsSync, readFileSync } from 'node:fs'
 import { getDocument, OPS } from 'pdfjs-dist/legacy/build/pdf.mjs'
-import { displayName } from '../src/canonical'
+import { canonical, displayName } from '../src/canonical'
 import { suggestMasks } from '../src/masks'
 import { parseRow, rowsForModel } from '../src/textrows'
 import { pageWords, pagesWithResults, toLines, verify, type Line, type Word } from '../src/textlayer'
@@ -83,4 +83,31 @@ const prose = w.map((x) => ({ ...x, text: 'note' }))
 assert.deepEqual(pagesWithResults([{ words: w, images: ['1240x1753'] }, { words: prose, images: ['1240x1753'] }]), [true, false])
 assert.deepEqual(pagesWithResults([{ words: w, images: [] }, { words: prose, images: ['1240x1753'] }]), [true, true])
 assert.deepEqual(pagesWithResults([{ words: prose, images: [] }, { words: [], images: [] }]), [false, true]) // no text layer: always read
+
+// Other layouts (synthetic text PDFs from test-data/generate-pdf.ts): the parser reads every row and matches ground
+// truth, every row verifies against the PDF text, local age/sex are right, and no identity word is sent.
+{
+  const { trustOf } = await import('../src/trust')
+  for (const id of ['p1', 'p2', 'p3']) {
+    const doc = await getDocument({ data: new Uint8Array(readFileSync(`test-data/reports/${id}.pdf`)), verbosity: 0 }).promise
+    const pages: Word[][] = []
+    for (let p = 1; p <= doc.numPages; p++) pages.push(await pageWords(await doc.getPage(p)))
+    const gt = JSON.parse(readFileSync(`test-data/ground-truth/${id}.json`, 'utf-8'))
+    const rows = rowsForModel(pages)
+    const sent = rows.batches.map((b) => b.text).join('\n')
+    for (const v of [gt.pii.patient_name, gt.pii.patient_id, gt.pii.phone, gt.pii.doctor_name])
+      for (const w of String(v).split(/\s+/).filter((w) => /[a-z]/i.test(w) && w.replace(/\W/g, '').length >= 3)) assert.ok(!sent.toLowerCase().includes(w.toLowerCase().replace(/\W+$/, '')), `${id} rows leak "${w}"`)
+    assert.equal(rows.age, gt.pii.age, `${id} local age`)
+    assert.equal(rows.sex?.[0], gt.pii.sex[0], `${id} local sex`)
+    assert.equal(rows.lab_name, gt.lab_name, `${id} lab name`)
+    const got = sent.split('\n').map((r) => parseRow(r, rows.sex))
+    assert.ok(got.every(Boolean), `${id}: every row parsed`)
+    const tests = got.map((t) => ({ ...t!, page: 0 }))
+    const mu = (u: unknown) => (typeof u === 'string' ? u.replace('μ', 'µ') : u)
+    assert.deepEqual(tests.map((t) => [canonical(t.name), t.value, mu(t.unit), t.ref_low, t.ref_high, t.printed_flag]), gt.tests.map((t: Record<string, unknown>) => [canonical(t.name as string), t.value, mu(t.unit), t.ref_low, t.ref_high, t.printed_flag]), `${id} parsed rows`)
+    assert.deepEqual(trustOf(tests, pages).map((t) => t.badge), tests.map(() => 'verified'), `${id} cross-check`)
+    assert.notEqual(trustOf([{ ...tests[0], value: tests[0].value + 10 }], pages)[0].badge, 'verified', `${id} altered value must not verify`)
+    console.log(`textcheck: ${id} parser reads ${tests.length} of ${tests.length} rows, all verified; lab_name "${rows.lab_name}"`)
+  }
+}
 console.log('textcheck ok')

@@ -19,7 +19,8 @@ const tok = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
 function labelAt(ws: Word[], i: number): { field: string; end: number } | null {
   if (i > 0 && tok(ws[i - 1].text) === 'test') return null // "Test Name" is a table header
   // A field label starts a line or a column (gap before it); "age" or "contact" inside a sentence is not one.
-  if (i > 0 && ws[i].x0 - ws[i - 1].x1 < 0.03) return null
+  // A label ending in ":" ("Age/Sex:") also counts after a small gap, as in "Reg No: X  Age/Sex: 58/M".
+  const close = i > 0 && ws[i].x0 - ws[i - 1].x1 < 0.03
   for (const [field, parts] of LABELS) {
     let j = i, k = 0
     while (k < parts.length && j < ws.length) {
@@ -28,7 +29,7 @@ function labelAt(ws: Word[], i: number): { field: string; end: number } | null {
       if (t !== parts[k]) break
       j++; k++
     }
-    if (k === parts.length) return { field, end: j }
+    if (k === parts.length && (!close || /:$/.test(ws[j - 1].text) || ws[j]?.text === ':')) return { field, end: j }
   }
   return null
 }

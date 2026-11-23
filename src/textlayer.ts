@@ -52,30 +52,46 @@ export function toLines(words: Word[]): Line[] {
 }
 
 const norm = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim()
-const numbersIn = (s: string) => [...s.matchAll(/\d+(?:\.\d+)?/g)].map((m) => Number(m[0]))
+// Digit grouping is read as one number: "7,400" and Indian "1,25,000" (a comma between other digits stays a separator).
+const numbersIn = (s: string) => [...s.matchAll(/\d{1,3}(?:,\d{2,3})+(?:\.\d+)?(?!\d)|\d+(?:\.\d+)?/g)].map((m) => Number(m[0].replace(/,/g, '')))
 const has = (nums: number[], v: number) => nums.some((n) => Math.abs(n - v) < 1e-9)
 
 // Finds the test's row on the page and the numbers printed to the right of its name, on the same row
 // or within one row-height (values often sit a few points off the name's baseline).
 // nth: which occurrence of a repeated name (WM15 prints "Neutrophils" as % and as an absolute count).
 function rowNumbers(name: string, lines: Line[], nth = 0): { nums: number[]; bare: number[]; text: string } | null {
-  const want = norm(displayName(name).replace(/\([^)]*\)/g, ' ')).split(' ').slice(0, 4).join(' ') // "Creatinine (Modified Jaffe)" -> "creatinine"
-  if (!want) return null
+  const full = norm(displayName(name).replace(/\([^)]*\)/g, ' ')).split(' ').filter(Boolean).slice(0, 4) // "Creatinine (Modified Jaffe)" -> "creatinine"
+  // A name wrapped over two lines ("Glycosylated" / "Haemoglobin (HbA1c)") is found by its leading words; one word
+  // alone only if it is distinctive (6+ letters, not "Total" or "Serum").
+  for (let k = full.length; k >= 1; k--) {
+    if (k === 1 && full.length > 1 && (full[0].length < 6 || GENERIC.has(full[0]))) break
+    const r = rowWithName(full.slice(0, k).join(' '), lines, nth)
+    if (r) return r
+  }
+  return null
+}
+function rowWithName(want: string, lines: Line[], nth: number): { nums: number[]; bare: number[]; text: string } | null {
   const at = (l: Line) => ` ${norm(l.text)} `.indexOf(` ${want} `) // word-bounded: "ldl" must not match "vldl"
   const numbersBeside = (line: Line) => {
     // x where the name ends: the word that completes the name's leading words
     const n = want.split(' ').length
+    const first = line.words.findIndex((w) => want.startsWith(norm(w.text).split(' ')[0] || '\0'))
     let seen = 0, end = line.words[0].x1
-    for (const w of line.words) { if (seen >= n) break; seen += norm(w.text).split(' ').filter(Boolean).length; end = w.x1 }
+    for (const w of line.words.slice(Math.max(0, first))) { if (seen >= n) break; seen += norm(w.text).split(' ').filter(Boolean).length; end = w.x1 }
+    const start = line.words[Math.max(0, first)].x0
     const h = line.y1 - line.y0 // values often sit a little above or below the name's baseline
-    const words = lines.filter((l) => l.y1 > line.y0 - h * 0.5 && l.y0 < line.y1 + h * 0.5).flatMap((l) => l.words.filter((w) => w.x0 > end))
-    return { nums: words.flatMap((w) => numbersIn(w.text)), bare: words.filter((w) => /^\d+(?:\.\d+)?$/.test(w.text)).map((w) => Number(w.text)), text: words.map((w) => w.text).join(' ') }
+    const row = lines.filter((l) => l.y1 > line.y0 - h * 0.5 && l.y0 < line.y1 + h * 0.5).flatMap((l) => l.words)
+    // Right of the name first; then left of it, for labs that print the result before the test name.
+    const words = [...row.filter((w) => w.x0 > end), ...row.filter((w) => w.x1 < start)]
+    const bare = words.filter((w) => /^(\d{1,3}(?:,\d{2,3})+|\d+)(?:\.\d+)?$/.test(w.text)).map((w) => Number(w.text.replace(/,/g, '')))
+    return { nums: words.flatMap((w) => numbersIn(w.text)), bare, text: words.map((w) => w.text).join(' ') }
   }
   // Rows that start with the name first; a name later in a line (e.g. inside "Non-HDL") is a fallback.
   // Headings such as "GLUCOSE, FASTING (F), PLASMA" have no numbers beside them and are skipped.
   const rows = [...lines.filter((l) => at(l) === 0), ...lines.filter((l) => at(l) > 0)].map(numbersBeside).filter((r) => r.nums.length)
   return rows[nth] ?? rows[0] ?? null
 }
+const GENERIC = new Set(['total', 'serum', 'plasma', 'blood', 'random', 'fasting', 'absolute', 'estimated', 'calculated'])
 
 // Units compared loosely: "µg/dL" = "ug/dL", "m²" = "m2", case ignored.
 const unitKey = (s: string) => s.toLowerCase().replace(/²/g, '2').replace(/µ|μ/g, 'u').replace(/[^a-z0-9%/.]/g, '')

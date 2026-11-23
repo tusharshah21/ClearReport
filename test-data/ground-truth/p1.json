@@ -1,0 +1,88 @@
+{
+  "id": "p1",
+  "layout": "p1",
+  "note": "Result column first, unit inside the result cell, flag column last.",
+  "lab_name": "Northfield Clinical Labs",
+  "tests": [
+    {
+      "name": "Haemoglobin",
+      "value": 11.8,
+      "unit": "g/dL",
+      "ref_low": 13,
+      "ref_high": 17,
+      "ref_text": "13.0 - 17.0",
+      "printed_flag": "L"
+    },
+    {
+      "name": "Total WBC Count",
+      "value": 11200,
+      "unit": "/cumm",
+      "ref_low": 4000,
+      "ref_high": 10000,
+      "ref_text": "4000 - 10000",
+      "printed_flag": "H"
+    },
+    {
+      "name": "Platelet Count",
+      "value": 2.6,
+      "unit": "lakhs/cumm",
+      "ref_low": 1.5,
+      "ref_high": 4.1,
+      "ref_text": "1.5 - 4.1",
+      "printed_flag": null
+    },
+    {
+      "name": "Total Cholesterol",
+      "value": 236,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 200,
+      "ref_text": "< 200",
+      "printed_flag": "H"
+    },
+    {
+      "name": "HDL Cholesterol",
+      "value": 38,
+      "unit": "mg/dL",
+      "ref_low": 40,
+      "ref_high": null,
+      "ref_text": "> 40",
+      "printed_flag": "L"
+    },
+    {
+      "name": "Triglycerides",
+      "value": 140,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 150,
+      "ref_text": "< 150",
+      "printed_flag": null
+    },
+    {
+      "name": "Glucose Fasting",
+      "value": 96,
+      "unit": "mg/dL",
+      "ref_low": 70,
+      "ref_high": 100,
+      "ref_text": "70 - 100",
+      "printed_flag": null
+    },
+    {
+      "name": "TSH",
+      "value": 3.1,
+      "unit": "µIU/mL",
+      "ref_low": 0.4,
+      "ref_high": 4,
+      "ref_text": "0.4 - 4.0",
+      "printed_flag": null
+    }
+  ],
+  "pii": {
+    "patient_name": "Mr. Vikram Fakeperson",
+    "age": "41",
+    "sex": "Male",
+    "patient_id": "NF-TEST-55102",
+    "phone": "+91 90000 00011",
+    "doctor_name": "Dr. Imaginary Menon"
+  }
+}

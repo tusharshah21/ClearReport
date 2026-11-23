@@ -1,0 +1,115 @@
+{
+  "id": "p2",
+  "layout": "p2",
+  "note": "Two tests per printed row (side-by-side panels).",
+  "lab_name": "Riverbend Diagnostics",
+  "tests": [
+    {
+      "name": "Haemoglobin",
+      "value": 12.4,
+      "unit": "g/dL",
+      "ref_low": 12,
+      "ref_high": 15,
+      "ref_text": "12.0 - 15.0",
+      "printed_flag": null
+    },
+    {
+      "name": "Total Cholesterol",
+      "value": 182,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 200,
+      "ref_text": "< 200",
+      "printed_flag": null
+    },
+    {
+      "name": "Total RBC Count",
+      "value": 4.3,
+      "unit": "mill/cumm",
+      "ref_low": 3.8,
+      "ref_high": 4.8,
+      "ref_text": "3.8 - 4.8",
+      "printed_flag": null
+    },
+    {
+      "name": "Triglycerides",
+      "value": 165,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 150,
+      "ref_text": "< 150",
+      "printed_flag": "H"
+    },
+    {
+      "name": "PCV (Haematocrit)",
+      "value": 38.2,
+      "unit": "%",
+      "ref_low": 36,
+      "ref_high": 46,
+      "ref_text": "36 - 46",
+      "printed_flag": null
+    },
+    {
+      "name": "HDL Cholesterol",
+      "value": 52,
+      "unit": "mg/dL",
+      "ref_low": 40,
+      "ref_high": null,
+      "ref_text": "> 40",
+      "printed_flag": null
+    },
+    {
+      "name": "MCV",
+      "value": 88,
+      "unit": "fL",
+      "ref_low": 83,
+      "ref_high": 101,
+      "ref_text": "83 - 101",
+      "printed_flag": null
+    },
+    {
+      "name": "LDL Cholesterol",
+      "value": 97,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 100,
+      "ref_text": "< 100",
+      "printed_flag": null
+    },
+    {
+      "name": "Total WBC Count",
+      "value": 6800,
+      "unit": "/cumm",
+      "ref_low": 4000,
+      "ref_high": 10000,
+      "ref_text": "4000 - 10000",
+      "printed_flag": null
+    },
+    {
+      "name": "VLDL Cholesterol",
+      "value": 33,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 30,
+      "ref_text": "< 30",
+      "printed_flag": "H"
+    },
+    {
+      "name": "Platelet Count",
+      "value": 2.9,
+      "unit": "lakhs/cumm",
+      "ref_low": 1.5,
+      "ref_high": 4.1,
+      "ref_text": "1.5 - 4.1",
+      "printed_flag": null
+    }
+  ],
+  "pii": {
+    "patient_name": "Ms. Ananya Notreal",
+    "age": "33",
+    "sex": "Female",
+    "patient_id": "RBD-2026-88410",
+    "phone": "+91 90000 00012",
+    "doctor_name": "Dr. Sample Kapoor"
+  }
+}
