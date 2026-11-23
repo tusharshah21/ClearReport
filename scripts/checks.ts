@@ -8,6 +8,7 @@ import { apply, homography } from '../src/crop'
 import { BANNED, checkAll, checkTest, disagrees, farOutOfRange } from '../src/guidelines'
 import type { Test } from '../src/privacy'
 import { trustOf } from '../src/trust'
+import { questionsFor, questionsSpecific } from '../src/questions'
 
 // Every ground-truth name resolves to a known key, and no report has two tests with the same key.
 for (const f of readdirSync('test-data/ground-truth')) {
@@ -124,13 +125,30 @@ const checksOf = (id: string) => checkAll(toPayload(gtOf(id)).payload)
 const glu = checksOf('r2').find((c) => c.key === 'fasting_glucose')!
 assert.equal(glu.lab, 'normal')
 assert.equal(glu.outcome, 'lab says normal, guideline says borderline or high/low')
-assert.match(glu.message, /Your lab's range for fasting glucose is 70 - 110.*A widely used guideline \(ADA\) uses 100-125 mg\/dL as one of the criteria doctors consider for prediabetes, usually confirmed with a repeat test\. You may want to ask your doctor about this\./)
-assert.match(glu.range_note!, /\(70 - 110\) is different from .*\(below 100 mg\/dL\)/)
+assert.match(glu.message, /Your lab's range for fasting glucose is 70-110.*A widely used guideline \(ADA 2026\) uses 100-125 mg\/dL as one of the criteria doctors consider for prediabetes, usually confirmed with a repeat test\. You may want to ask your doctor about this\./)
+assert.match(glu.range_note!, /\(70-110\) is different from .*\(below 100 mg\/dL\)/)
 assert.ok(disagrees(glu), 'r2 fasting glucose: the "different ranges" callout shows')
 // r6: LDL 136 with a printed "< 100": lab and guideline both say high, so no callout; the range note stays in the details.
 const ldl = checksOf('r6').find((c) => c.key === 'ldl')!
 assert.equal(ldl.outcome, 'agrees')
 assert.ok(!disagrees(ldl), 'r6 LDL: no callout when both verdicts agree')
+assert.equal(ldl.callout, null)
+// The callout says what the guideline means for THIS result, in plain code.
+assert.equal(glu.tag, 'borderline')
+assert.equal(glu.callout, "Your result, 104 mg/dL, is inside your lab's range (70-110). A widely used guideline (ADA 2026) uses 100-125 mg/dL as one of the criteria doctors consider for prediabetes (usually confirmed with a repeat test), so by that guideline this result would be borderline. You may want to ask your doctor about this.")
+// Doctor questions: generic ones fail; the plain-code ones name a result and its value, the disagreement first.
+{
+  const r2 = toPayload(gtOf('r2')).payload, c2 = checkAll(r2)
+  assert.ok(!questionsSpecific(['Should I talk to my doctor about these numbers?', 'What do these results mean for my health?', 'Do I need any follow-up tests?'], r2, c2), 'generic questions must fail')
+  assert.ok(!questionsSpecific(["My LDL Cholesterol is 160 mg/dL, above my lab's range. What might explain this?", 'My HDL Cholesterol is 38 mg/dL. Why is it low?', 'My Triglycerides are 188 mg/dL. Is that a concern?'], r2, c2), 'the disagreement must come first')
+  assert.ok(questionsSpecific(["My fasting glucose is 104 mg/dL, inside my lab's range but borderline by a guideline. Which should we go by?", 'My LDL cholesterol is 160 mg/dL. What might explain this?', 'Why is my HDL 38 mg/dL?'], r2, c2), 'specific questions pass')
+  for (const id of ['r2', 'r6']) {
+    const p = toPayload(gtOf(id)).payload, c = checkAll(p), q = questionsFor(p, c)
+    assert.ok(questionsSpecific(q, p, c), `${id}: built questions are specific: ${q.join(' | ')}`)
+    for (const x of q) assert.ok(!BANNED.test(x), `${id}: ${x}`)
+  }
+  assert.match(questionsFor(r2, c2)[0], /^My Glucose Fasting \(FBS\) result is 104 mg\/dL/)
+}
 assert.ok(ldl.range_note && !/below 130/.test(ldl.range_note) && /below 100 mg\/dL optimal, 100-129 mg\/dL near or above optimal, 130-159 mg\/dL borderline high/.test(ldl.range_note), ldl.range_note ?? 'no note')
 // r4: TSH 0.35-5.50 has no guideline threshold in the table, so it must say so rather than invent one.
 const tsh = checksOf('r4').find((c) => c.key === 'tsh')!
@@ -161,7 +179,7 @@ assert.equal(one({ name: 'LDL', value: 115, ref_high: 100 }).outcome, 'lab says 
 assert.equal(one({ name: 'LDL', value: 135, ref_high: 130 }).guideline, 'borderline high (130-159 mg/dL)')
 for (const name of ['Total Cholesterol', 'LDL', 'HDL', 'Triglycerides']) assert.ok(one({ name, value: 100, ref_high: 200 }).message.endsWith('Indian guidelines (Lipid Association of India, 2020) set targets based on overall heart risk, so your doctor may use different goals.'), name)
 assert.ok(one({ name: 'Hemoglobin', unit: 'g/dL', value: 14, ref_low: 13, ref_high: 17 }).message.endsWith('Different ranges apply during pregnancy.'))
-assert.match(one({ name: 'FBS', value: 132, ref_low: 70, ref_high: 100 }).message, /\(ADA\) uses 126 mg\/dL or higher as one of the criteria doctors consider for diabetes, usually confirmed with a repeat test\./)
+assert.match(one({ name: 'FBS', value: 132, ref_low: 70, ref_high: 100 }).message, /\(ADA 2026\) uses 126 mg\/dL or higher as one of the criteria doctors consider for diabetes, usually confirmed with a repeat test\./)
 assert.equal(one({ name: 'Platelets', unit: 'lakhs/L', value: 2 }).outcome, 'no guideline for this test')
 assert.equal(one({ name: 'FBS', unit: 'mg/L', value: 2 }).outcome, 'unit not recognized')
 // Wording rules: describe, never diagnose or blame.

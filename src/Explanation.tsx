@@ -78,7 +78,7 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
 
   const card = ({ x, i, s, c }: (typeof rows)[number]) => {
     const m = meanings[x.name]
-    const callout = !!c && disagrees(c)
+    const callout = !!c?.callout
     const value = <span className="value">{x.value ?? '-'} {x.unit}</span>
     const body = (
       <>
@@ -86,13 +86,13 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
         {callout && (
           <div className="range-note" data-testid="range-note" lang="en">
             {Icon.ruler}
-            <div><b>{t.note}</b>{c.range_note ?? c.message}</div>
+            <div><b>{t.note}</b>{c.callout}</div>
           </div>
         )}
         {c && c.outcome !== 'no guideline for this test' && (
           <details className="mini" lang="en" style={{ marginTop: 8 }}>
             <summary>{t.check}</summary>
-            <p className="small" style={{ margin: '4px 0' }}>{c.message}{!callout && c.range_note && <> {c.range_note}</>}</p>
+            <p className="small" style={{ margin: '4px 0' }}>{c.message}{c.range_note && <> {c.range_note}</>}</p>
           </details>
         )}
         <div className="no-print" style={{ marginTop: 6 }}>
@@ -106,7 +106,12 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
         )}
       </>
     )
-    const badge = <Badge kind={KIND[s]} icon={ICON[s]}>{t[s]}</Badge>
+    const badge = (
+      <span className="badges">
+        <Badge kind={KIND[s]} icon={ICON[s]}>{t[s]}</Badge>
+        {callout && c.tag && <span lang="en" data-testid="guideline-tag"><Badge kind="note" icon={Icon.ruler}>Guideline: {c.tag}</Badge></span>}
+      </span>
+    )
     // Within range and nothing to flag: one compact line that opens on tap.
     if (s === 'within' && !callout)
       return (

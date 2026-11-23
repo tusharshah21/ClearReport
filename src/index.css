@@ -150,6 +150,8 @@ pre.payload { background: #f3f0ea; border-radius: 10px; padding: 12px; overflow:
 .badge.out { background: var(--out-bg); color: var(--out); }
 .badge.check { background: var(--check-bg); color: var(--check); }
 .badge.plain { background: #eeeae3; color: var(--muted); }
+.badge.note { background: var(--note-bg); color: var(--note); }
+.badges { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 
 /* Explanation */
 .summary-card { background: var(--primary-soft); border-color: #bcdcd7; }

@@ -12,9 +12,12 @@ const cases: [string, string, number[], number | null, number | null][] = [
   ['HDL Cholesterol', 'mg/dL', [35, 45], 40, null],
   ['HDL Cholesterol', 'mg/dL', [45], 50, null],
   ['Hemoglobin', 'g/dL', [11, 12.8, 14], 13.5, 17],
+  ['Hemoglobin', 'g/dL', [12.5], 12, 15],
+  ['HbA1c', '%', [5.9], 4, 6],
+  ['Total Cholesterol', 'mg/dL', [210], null, 240],
 ]
 for (const [name, unit, values, ref_low, ref_high] of cases)
   for (const value of values) {
     const c = checkTest({ name, value, unit, ref_low, ref_high, ref_text: null, printed_flag: null } as never, who)
-    console.log(`\n[${name} ${value}, lab ${ref_low ?? ''}-${ref_high ?? ''}] ${c.outcome}\n  ${c.message}${c.range_note ? `\n  NOTE: ${c.range_note}` : ''}`)
+    console.log(`\n[${name} ${value}, lab ${ref_low ?? ''}-${ref_high ?? ''}] ${c.outcome}\n  ${c.message}${c.range_note ? `\n  NOTE: ${c.range_note}` : ''}${c.callout ? `\n  CALLOUT [Guideline: ${c.tag}]: ${c.callout}` : ''}`)
   }

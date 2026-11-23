@@ -14,8 +14,8 @@ export const Icon = {
   ruler: svg('M3 13.5L13.5 3l3.5 3.5L6.5 17zM6.5 10l1.5 1.5M9 7.5l1.5 1.5M11.5 5l1.5 1.5'),
 }
 
-export function Badge({ kind, icon, children }: { kind: 'ok' | 'out' | 'check' | 'plain'; icon?: React.ReactNode; children: React.ReactNode }) {
-  return <span className={`badge ${kind}`}>{icon ?? Icon[kind]}{children}</span>
+export function Badge({ kind, icon, children }: { kind: 'ok' | 'out' | 'check' | 'plain' | 'note'; icon?: React.ReactNode; children: React.ReactNode }) {
+  return <span className={`badge ${kind}`}>{icon ?? Icon[kind === 'note' ? 'ruler' : kind]}{children}</span>
 }
 
 export function Busy({ children }: { children: React.ReactNode }) {

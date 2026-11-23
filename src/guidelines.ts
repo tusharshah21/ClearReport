@@ -13,7 +13,8 @@ type Dir = 'normal' | 'high' | 'low'
 // Bands are ordered; a value belongs to the first band whose upTo it is below (exclusive). Last band: upTo null.
 // criterion: for diagnostic thresholds (ADA), describe the band as one criterion doctors consider, never as "the X range".
 // cutoff: for a defining cutoff (WHO anaemia), describe it as the guideline's cutoff, never as "the X range".
-type Band = { upTo: number | null; dir: Dir; name: string; text: string; criterion?: string; cutoff?: string }
+// says: what the callout says this result "would" do by the guideline (default "be <name>"); tag: the short card label (default "in range" or the name).
+type Band = { upTo: number | null; dir: Dir; name: string; text: string; criterion?: string; cutoff?: string; says?: string; tag?: string }
 type Guideline = {
   label: string
   unit: string
@@ -41,16 +42,16 @@ export const GUIDELINES: Record<string, Guideline[]> = {
     label: 'fasting glucose', unit: 'mg/dL', source: 'ADA', normal: { low: null, high: 100, text: 'below 100' },
     bands: [
       { upTo: 100, dir: 'normal', name: 'normal', text: 'below 100' },
-      { upTo: 126, dir: 'high', name: 'prediabetes criterion', text: '100-125', criterion: 'prediabetes' },
-      { upTo: null, dir: 'high', name: 'diabetes criterion', text: '126 or higher', criterion: 'diabetes' },
+      { upTo: 126, dir: 'high', name: 'prediabetes criterion', text: '100-125', criterion: 'prediabetes', says: 'be borderline', tag: 'borderline' },
+      { upTo: null, dir: 'high', name: 'diabetes criterion', text: '126 or higher', criterion: 'diabetes', says: 'be high', tag: 'high' },
     ],
   }],
   hba1c: [{
     label: 'HbA1c', unit: '%', source: 'ADA', normal: { low: null, high: 5.7, text: 'below 5.7' },
     bands: [
       { upTo: 5.7, dir: 'normal', name: 'normal', text: 'below 5.7' },
-      { upTo: 6.5, dir: 'high', name: 'prediabetes criterion', text: '5.7-6.4', criterion: 'prediabetes' },
-      { upTo: null, dir: 'high', name: 'diabetes criterion', text: '6.5 or higher', criterion: 'diabetes' },
+      { upTo: 6.5, dir: 'high', name: 'prediabetes criterion', text: '5.7-6.4', criterion: 'prediabetes', says: 'be borderline', tag: 'borderline' },
+      { upTo: null, dir: 'high', name: 'diabetes criterion', text: '6.5 or higher', criterion: 'diabetes', says: 'be high', tag: 'high' },
     ],
   }],
   total_cholesterol: [{
@@ -88,7 +89,7 @@ export const GUIDELINES: Record<string, Guideline[]> = {
     label: 'HDL cholesterol', unit: 'mg/dL', source: 'NCEP ATP III', normal: { low: 40, high: null, text: '40 or higher' }, note: LIPID_NOTE,
     bands: [
       { upTo: 40, dir: 'low', name: 'low', text: 'below 40' },
-      { upTo: null, dir: 'normal', name: 'not low', text: '40 or higher' },
+      { upTo: null, dir: 'normal', name: 'not low', text: '40 or higher', says: 'not be low' },
     ],
   }],
   hemoglobin: (['Male', 'Female'] as const).map((sex) => {
@@ -97,8 +98,8 @@ export const GUIDELINES: Record<string, Guideline[]> = {
       label: 'hemoglobin', unit: 'g/dL', sex, ages: [15, 65] as [number, number], source: 'WHO', normal: { low: cut, high: null, text: `${cut}.0 or higher` },
       note: 'Different ranges apply during pregnancy.',
       bands: [
-        { upTo: cut, dir: 'low' as const, name: 'anaemia', text: `below ${cut}.0`, cutoff: 'anaemia' },
-        { upTo: null, dir: 'normal' as const, name: 'not anaemic', text: `${cut}.0 or higher` },
+        { upTo: cut, dir: 'low' as const, name: 'anaemia', text: `below ${cut}.0`, cutoff: 'anaemia', says: 'be below that cutoff', tag: 'below cutoff' },
+        { upTo: null, dir: 'normal' as const, name: 'not anaemic', text: `${cut}.0 or higher`, says: 'not be below that cutoff' },
       ],
     }
   }),
@@ -110,6 +111,9 @@ export const SOURCES: Record<string, string> = {
   WHO: 'WHO Guideline on haemoglobin cutoffs to define anaemia in individuals and populations (Geneva: WHO, 2024; ISBN 978-92-4-008854-2), Table 2, non-pregnant adults aged 15 to 65',
 }
 
+// How each source is named in messages: with its edition year where the source has one.
+const NAMED: Record<string, string> = { ADA: 'ADA 2026', 'NCEP ATP III': 'NCEP ATP III', WHO: 'WHO 2024' }
+
 export type Outcome =
   | 'agrees'
   | 'lab says normal, guideline says borderline or high/low'
@@ -119,11 +123,11 @@ export type Outcome =
   | 'unit not recognized'
   | 'no printed range'
   | 'no value'
-export type Check = { test: string; key: string; value: string; lab: Dir | 'no range' | null; guideline: string | null; outcome: Outcome; message: string; range_note: string | null; source: string | null }
+export type Check = { test: string; key: string; value: string; lab: Dir | 'no range' | null; guideline: string | null; outcome: Outcome; message: string; range_note: string | null; source: string | null; callout: string | null; tag: string | null }
 
 const fmt = (n: number) => String(Number(n.toPrecision(4)))
 // "70-110", "< 200", "> 40": the printed text if the model kept it, else built from the bounds.
-const rangeText = (t: Test) => t.ref_text ?? (t.ref_low !== null && t.ref_high !== null ? `${t.ref_low}-${t.ref_high}` : t.ref_high !== null ? `below ${t.ref_high}` : `above ${t.ref_low}`)
+const rangeText = (t: Test) => t.ref_text?.replace(/(\d)\s*-\s*(\d)/, '$1-$2') ?? (t.ref_low !== null && t.ref_high !== null ? `${t.ref_low}-${t.ref_high}` : t.ref_high !== null ? `below ${t.ref_high}` : `above ${t.ref_low}`)
 // 5.6 vs 5.7 or 99 vs 100 is the same cutoff written inclusively; anything further apart is a real difference.
 // The step is the guideline's printed precision ("13.0" -> 0.1), so a lab's 13.5 differs from WHO's 13.0.
 const step = (printed: string) => 10 ** -((printed.split('.')[1] ?? '').length)
@@ -132,7 +136,7 @@ const differs = (lab: number | null, g: number | null, s: number) => g !== null 
 export function checkTest(t: Test, who: Pick<Payload, 'sex' | 'age_band'>): Check {
   const n = normalize(t)
   const shown = `${t.value}${t.unit === '%' ? '' : ' '}${t.unit ?? ''}`.trim()
-  const base = { test: t.name, key: n.key, value: shown, lab: null, guideline: null, range_note: null, source: null }
+  const base = { test: t.name, key: n.key, value: shown, lab: null, guideline: null, range_note: null, source: null, callout: null, tag: null }
   const options = GUIDELINES[n.key]
   if (!options) return { ...base, outcome: 'no guideline for this test', message: `No guideline threshold is included for ${t.name} yet, so only your lab's range applies.` }
   if (n.status !== 'ok') return { ...base, outcome: 'unit not recognized', message: `The unit "${t.unit ?? 'none'}" for ${t.name} was not recognized, so no range check was done.` }
@@ -146,7 +150,7 @@ export function checkTest(t: Test, who: Pick<Payload, 'sex' | 'age_band'>): Chec
 
   const band = g.bands.find((b) => b.upTo === null || n.value! < b.upTo)!
   const unitNote = n.value === t.value ? '' : `, which is ${fmt(n.value)} ${g.unit}`
-  const src = `a widely used guideline (${g.source})`
+  const src = `a widely used guideline (${NAMED[g.source]})`
   const withUnit = (text: string) => text.replace(/^(below )?([\d.]+(?:-[\d.]+)?)( or higher)?$/, `$1$2${g.unit === '%' ? '' : ' '}${g.unit}$3`) // "126 mg/dL or higher"
   const gText = withUnit(band.text)
   const lab: Check['lab'] = n.ref_low === null && n.ref_high === null ? 'no range' : n.ref_high !== null && n.value > n.ref_high ? 'high' : n.ref_low !== null && n.value < n.ref_low ? 'low' : 'normal'
@@ -160,7 +164,15 @@ export function checkTest(t: Test, who: Pick<Payload, 'sex' | 'age_band'>): Chec
     ? `${src} uses ${gText} as one of the criteria doctors consider for ${band.criterion}, ${REPEAT}`
     : band.cutoff ? `${src} uses ${gText} as its cutoff for ${band.cutoff}`
     : `${src} treats ${gText} as ${band.dir === 'normal' ? band.name : `the ${band.name} range`}`
-  const done = (c: Check): Check => (g.note ? { ...c, message: `${c.message} ${g.note}` } : c)
+  // The callout, only when the two verdicts disagree: what the guideline would say about THIS result.
+  const pos = lab === 'normal' ? 'inside' : lab === 'high' ? 'above' : 'below'
+  const gWhere = band.criterion ? `${src} uses ${gText} as one of the criteria doctors consider for ${band.criterion} (${REPEAT})` : where
+  const callout = `Your result, ${shown}${unitNote}, is ${pos} your lab's range (${labRange}). ${cap(gWhere)}, so by that guideline this result would ${band.says ?? `be ${band.name}`}. You may want to ask your doctor ${band.dir === 'normal' ? 'how to read this' : 'about this'}.`
+  const tag = band.tag ?? (band.dir === 'normal' ? 'in range' : band.name)
+  const done = (c: Check): Check => {
+    const d = disagrees(c) ? { ...c, callout, tag } : c
+    return g.note ? { ...d, message: `${d.message} ${g.note}` } : d
+  }
 
   if (lab === 'no range') return done({ ...out, outcome: 'no printed range', message: `Your report shows no range for ${g.label}. Your result is ${shown}${unitNote}; ${where}.${band.dir === 'normal' ? '' : ' You may want to ask your doctor about this.'}` })
   if (lab === 'normal' && band.dir === 'normal') return done({ ...out, outcome: 'agrees', message: `Your ${g.label} result (${shown}${unitNote}) is inside your lab's range (${labRange}), and ${where}.` })

@@ -5,6 +5,7 @@ import { getGenerativeModel, InferenceMode, InferenceSource } from 'firebase/ai'
 import { ai } from './firebase'
 import { BANNED, disagrees, type Check } from './guidelines'
 import type { Payload } from './privacy'
+import { questionsFor, questionsSpecific } from './questions'
 import { config } from './remote'
 
 export type Explanation = { summary: string; tests: { name: string; explanation: string }[]; questions: string[] }
@@ -25,7 +26,7 @@ const RULES = `You explain a blood test report to the person it belongs to, in p
 Return JSON:
 - summary: 2-3 sentences. Name the specific tests whose result is above or below the lab's printed range, by test name, in plain words (for example: "Your triglycerides and LDL cholesterol are above your lab's range, and your HDL cholesterol is below it."). If range_check says the lab and the guideline disagree for a test, name that test and say the two ranges differ. If every result is inside its range, say so.
 - tests: one entry per test, in the same order, with "name" copied exactly. "explanation": 1-2 short sentences: what the test measures, then where the result sits compared with the lab's printed range (inside, above or below). No range given: say so.
-- questions: 3-5 short questions the person could ask their doctor.
+- questions: 3-5 short questions the person could ask their doctor. Each question names one specific test from this report and its value (for example: "My LDL cholesterol is 160 mg/dL, above my lab's range. What might explain this?"). If range_check shows that the lab and the guideline disagree for a test, the first question is about that test. No general questions that name no test.
 Strict wording rules:
 - Describe, never diagnose. Never name a disease or condition as something the person has.
 - Never write "you have", "you should", "take", "treat", "treatment with", "diagnose", "diagnosis" or "wrong".
@@ -72,7 +73,7 @@ export function template(p: Payload, checks: Check[]): Explanation {
       "The notes below compare each result with your lab's range.",
     ].filter(Boolean).join(' '),
     tests: p.tests.map((t, i) => ({ name: t.name, explanation: checks[i]?.message ?? '' })),
-    questions: ['Which of these results matter most for me, and why?', 'Do any of these results need a repeat test?', 'Is there anything in this report you would like to follow up on?'],
+    questions: questionsFor(p, checks),
   }
 }
 
@@ -81,7 +82,11 @@ async function english(p: Payload, checks: Check[]): Promise<{ en: Explanation; 
   for (const [path, prompt] of [['first try', RULES], ['retry', RULES + STRICTER]] as const) {
     try {
       const en = await ask(prompt, data)
-      if (wordingOk(en) && en.tests.length === p.tests.length) return { en, path }
+      if (wordingOk(en) && en.tests.length === p.tests.length) {
+        if (questionsSpecific(en.questions, p, checks)) return { en, path }
+        console.info('ClearReport explanation: the questions named no specific result, so they are built from the findings')
+        return { en: { ...en, questions: questionsFor(p, checks) }, path }
+      }
       console.info(`ClearReport explanation: ${path} failed the wording or shape check`)
     } catch (e) {
       console.info(`ClearReport explanation: ${path} failed: ${String(e)}`)
