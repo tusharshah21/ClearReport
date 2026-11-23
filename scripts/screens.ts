@@ -1,44 +1,47 @@
-// Screenshots of every screen at desktop (1280) and phone (390) widths, into docs/screenshots/.
-// Runs against the dev server (npm run dev) with a synthetic photo (r6-photo: fake identity, lab ranges that differ from a guideline), through Path 2.
+// The key screenshots for the README and the submission, into docs/screenshots/ as compressed JPEGs (under 200 KB each).
+// Runs against the dev server (npm run dev) with a synthetic report (r2: fake identity, a fasting glucose range that differs from a guideline), through Path 2.
 // Desktop: installed Chrome with a fresh profile, so its built-in AI shows as a one-time download.
+// Phone: the built-in AI is hidden, as on a phone, so the paths screen shows Private greyed out.
 // Usage: npx tsx scripts/screens.ts
 import { chromium } from 'playwright'
-import { mkdirSync } from 'node:fs'
+import { mkdirSync, statSync } from 'node:fs'
 
 const URL = 'http://localhost:5173/'
 const OUT = 'docs/screenshots'
+const KEEP: Record<string, string[]> = { desktop: ['02-paths', '07-review', '08-explanation'], mobile: ['02-paths-no-ai', '05-mask', '08-explanation'] }
 mkdirSync(OUT, { recursive: true })
 
 const sizes = [{ tag: 'desktop', width: 1280, height: 860, mobile: false }, { tag: 'mobile', width: 390, height: 844, mobile: true }]
+const hosts = new Set<string>() // every non-local host the app contacts during the run
 const browser = await chromium.launch({ channel: 'chrome' }) // installed Chrome, fresh temporary profile
 for (const s of sizes) {
-  const ctx = await browser.newContext({ viewport: { width: s.width, height: s.height }, deviceScaleFactor: s.mobile ? 2 : 1, isMobile: s.mobile, hasTouch: s.mobile })
-  // Phone browsers have no built-in AI (Prompt API), so the phone run hides it, as a phone would.
+  const ctx = await browser.newContext({ viewport: { width: s.width, height: s.height }, deviceScaleFactor: 1, isMobile: s.mobile, hasTouch: s.mobile })
   if (s.mobile) await ctx.addInitScript(() => { delete (window as { LanguageModel?: unknown }).LanguageModel })
   const page = await ctx.newPage()
-  const shot = async (name: string) => { await page.waitForTimeout(300); await page.screenshot({ path: `${OUT}/${name}-${s.tag}.png`, fullPage: true }); console.log(`${name}-${s.tag}.png`) }
+  page.on('request', (r) => { const h = new globalThis.URL(r.url()).host; if (!h.startsWith('localhost')) hosts.add(h) })
+  const shot = async (name: string) => {
+    if (!KEEP[s.tag].includes(name)) return
+    await page.waitForTimeout(300)
+    const path = `${OUT}/${name}-${s.tag}.jpg`
+    await page.screenshot({ path, fullPage: true, type: 'jpeg', quality: 55 })
+    console.log(`${path} ${Math.round(statSync(path).size / 1024)} KB`)
+  }
   const click = (name: string | RegExp) => page.getByRole('button', { name }).first().click()
 
   await page.goto(URL)
   await page.getByText('Before you start').waitFor()
-  await shot('01-landing')
   await click('I am 18 or older')
   await page.getByText('How should we read your report?').waitFor()
   await page.waitForFunction(() => !document.body.innerText.includes('Checking whether this device'))
-  await shot('02-paths')
+  if (s.mobile) await page.getByText('See how private reading works').click()
+  await shot(s.mobile ? '02-paths-no-ai' : '02-paths')
   await click('Mask my details')
-  await shot('03-upload')
-  await page.setInputFiles('input[type=file]', { name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not a report') })
-  await page.getByRole('alert').waitFor()
-  await shot('03b-upload-error')
-  await page.setInputFiles('input[type=file]', 'test-data/reports/r6-photo.jpg')
-  await page.getByRole('heading', { name: 'Straighten the photo' }).waitFor()
-  await page.waitForTimeout(800)
-  await shot('04-crop')
-  await click('Straighten')
-  await page.getByRole('status').filter({ hasText: 'Looking for your details' }).waitFor().catch(() => {})
-  await shot('04b-loading-ocr')
-  await page.getByRole('heading', { name: 'Cover your personal details' }).waitFor({ timeout: 120_000 })
+  await page.setInputFiles('input[type=file]', 'test-data/reports/r2.png')
+  const crop = page.getByRole('heading', { name: 'Straighten the photo' })
+  const mask = page.getByRole('heading', { name: 'Cover your personal details' })
+  await Promise.race([crop.waitFor(), mask.waitFor({ timeout: 120_000 })])
+  if (await crop.isVisible()) { await page.waitForTimeout(500); await click('Straighten') }
+  await mask.waitFor({ timeout: 120_000 })
   await page.waitForTimeout(800)
   // Draw one box as a user would (over the name line near the top), so the confirm screen shows a covered image.
   const c = (await page.locator('canvas').boundingBox())!
@@ -49,30 +52,13 @@ for (const s of sizes) {
   await shot('05-mask')
   await click('Done masking')
   await page.getByRole('heading', { name: /exact image/ }).waitFor()
-  await shot('06-confirm')
   await click(/^Send this image/)
-  await page.waitForTimeout(400)
-  await shot('06b-loading-reading')
   await page.getByRole('heading', { name: 'Check your results' }).waitFor({ timeout: 120_000 })
   await shot('07-review')
   await click('Approve and send these numbers')
-  await page.waitForTimeout(400)
-  await shot('07b-loading-explaining')
   await page.getByRole('heading', { name: 'Summary' }).waitFor({ timeout: 120_000 })
-  await click('What does this test mean?')
-  await page.getByTestId('meaning').waitFor({ timeout: 60_000 }).catch(() => {})
   await shot('08-explanation')
-  if (await page.getByRole('button', { name: 'हिन्दी' }).isEnabled()) {
-    await click('हिन्दी')
-    await shot('09-explanation-hindi')
-    await click('English')
-  }
-  if (!s.mobile) {
-    await page.emulateMedia({ media: 'print' })
-    await shot('10-print')
-    await page.pdf({ path: `${OUT}/10-print-a4.pdf`, format: 'A4', printBackground: true })
-    await page.emulateMedia({ media: 'screen' })
-  }
   await ctx.close()
 }
 await browser.close()
+console.log('external hosts:', [...hosts].sort().join(', '))
