@@ -48,7 +48,7 @@ async function reencode(src: Blob, boxes: Box[] = []): Promise<Img> {
   const g = c.getContext('2d')!
   g.drawImage(bmp, 0, 0, c.width, c.height)
   bmp.close()
-  g.fillStyle = '#000'
+  g.fillStyle = tok('mask-black')
   for (const b of boxes) g.fillRect(b.x * c.width, b.y * c.height, b.w * c.width, b.h * c.height) // burned into pixels
   // PDF pages stay PNG: JPEG artifacts around watermarks made the model mark far more values unreadable (WM14: 20 rows vs 1).
   const type = src.type === 'image/png' ? 'image/png' : 'image/jpeg'
@@ -58,7 +58,8 @@ async function reencode(src: Blob, boxes: Box[] = []): Promise<Img> {
 
 // Fractions of image size. field is set on boxes suggested by masks.ts until the user moves or keeps them; all boxes are burned in the same way.
 type Box = { x: number; y: number; w: number; h: number; field?: string; method?: 'rule' | 'ai' }
-const SUGGESTED = '#e07000'
+// Canvas colours come from the CSS tokens (src/index.css), so the theme has one source.
+const tok = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim()
 function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }: { img: Img; initial: Box[]; label: string; onDone: (boxes: Box[]) => void; onCancel: () => void; onFindMore?: (current: Box[]) => Promise<Box[]>; aiNote?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [boxes, setBoxes] = useState<Box[]>(initial)
@@ -102,33 +103,33 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
       const [x, y, w, h] = [Z(b.x * c.width), Z(b.y * c.height), Z(b.w * c.width), Z(b.h * c.height)]
       if (b.field) {
         // Suggested: see-through so the user can check what is underneath; burned in solid black like the rest.
-        g.fillStyle = 'rgba(224, 112, 0, 0.45)'
+        g.fillStyle = tok('mask-fill')
         g.fillRect(x, y, w, h)
-        g.strokeStyle = SUGGESTED
+        g.strokeStyle = tok('mask-outline')
         g.lineWidth = 2
         g.strokeRect(x, y, w, h)
         // A numbered chip at the box's left edge; the list under the image says who suggested each one.
         // (Text beside each box collided on phone-width images.)
         const n = String(numbers.get(i)), r = 11
-        g.fillStyle = '#9a4a00' // darker than the box outline: white digits on it pass 4.5:1
+        g.fillStyle = tok('mask-chip') // darker than the box outline: white digits on it pass 4.5:1
         g.beginPath(); g.arc(Math.max(r, x - r - 2), y + h / 2, r, 0, 2 * Math.PI); g.fill()
-        g.fillStyle = '#fff'
+        g.fillStyle = tok('card')
         g.font = `700 13px 'Noto Sans', system-ui, sans-serif`
         g.textAlign = 'center'; g.textBaseline = 'middle'
         g.fillText(n, Math.max(r, x - r - 2), y + h / 2 + 1)
         g.textAlign = 'start'
       } else {
-        g.fillStyle = '#000'
+        g.fillStyle = tok('mask-black')
         g.fillRect(x, y, w, h)
       }
       if (i === sel) {
-        g.strokeStyle = '#06c'
+        g.strokeStyle = tok('ring')
         g.lineWidth = 3
         g.strokeRect(x - 2, y - 2, w + 4, h + 4)
       }
     })
     if (drag) {
-      g.strokeStyle = '#e00'
+      g.strokeStyle = tok('ring')
       g.lineWidth = 2
       g.strokeRect(Z(drag.x0 * c.width), Z(drag.y0 * c.height), Z((drag.x1 - drag.x0) * c.width), Z((drag.y1 - drag.y0) * c.height))
     }
@@ -142,10 +143,10 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
     <div>
       {label && <p><b>{label}</b>{initial.some((b) => !b.field) && ' (your boxes from the previous page are copied here; move or redraw them if this page is laid out differently)'}</p>}
       <p>Draw a box over <b>your name, patient ID or UHID, phone number and the doctor's name</b>, plus any QR code or barcode: press and drag with your mouse or finger. Leave the test results visible.</p>
-      <div className="legend" aria-hidden="true"><span><i style={{ background: 'rgba(224, 112, 0, 0.45)', border: '2px solid #e07000' }} />Suggested, please check</span><span><i style={{ background: '#000' }} />Your box</span></div>
+      <div className="legend" aria-hidden="true"><span><i style={{ background: 'var(--mask-fill)', border: '2px solid var(--mask-outline)' }} />Suggested, please check</span><span><i style={{ background: 'var(--mask-black)' }} />Your box</span></div>
       {nSuggested > 0 && (
         <p className="notice" data-testid="suggested-note">
-          <b>{nSuggested} suggested box{nSuggested === 1 ? '' : 'es'}</b> (orange, found on this device). They can miss things or cover the wrong spot, so please check each one: drag a box to move it, or click it and press <i>Remove selected box</i>. Add any boxes they missed.
+          <b>{nSuggested} suggested box{nSuggested === 1 ? '' : 'es'}</b> (amber outline, found on this device). They can miss things or cover the wrong spot, so please check each one: drag a box to move it, or click it and press <i>Remove selected box</i>. Add any boxes they missed.
         </p>
       )}
       {onFindMore && (
@@ -270,7 +271,7 @@ function CropTool({ img, onDone }: { img: Img; onDone: (q: Quad | null) => void 
     c.height = (c.width * img.h) / img.w
     const g = c.getContext('2d')!
     g.drawImage(el, 0, 0, c.width, c.height)
-    g.strokeStyle = '#06c'; g.lineWidth = 2; g.fillStyle = 'rgba(0, 102, 204, 0.35)'
+    g.strokeStyle = tok('primary'); g.lineWidth = 2; g.fillStyle = tok('crop-fill')
     g.beginPath(); q.forEach((p, i) => (i ? g.lineTo : g.moveTo).call(g, p.x * c.width, p.y * c.height)); g.closePath(); g.stroke()
     const r = Math.max(12, c.width / 40) // big enough to grab with a finger
     for (const p of q) { g.beginPath(); g.arc(p.x * c.width, p.y * c.height, r, 0, 2 * Math.PI); g.fill(); g.stroke() }
@@ -528,7 +529,7 @@ export default function Flow() {
         )}
 
         {!adult && (
-          <section className="card" style={{ borderColor: 'var(--warm)' }} data-testid="adult-notice" aria-labelledby="adult-title">
+          <section className="card" style={{ borderColor: 'var(--primary)' }} data-testid="adult-notice" aria-labelledby="adult-title">
             <h2 id="adult-title">Before you start</h2>
             <p>ClearReport is for adults aged 18 and over. Results for children and teenagers use different ranges. If you are under 18, please go through your report with a parent or guardian and your doctor.</p>
             <button className="primary" onClick={() => { try { localStorage.setItem(ADULT_KEY, '1') } catch { /* private mode: ask again next time */ } setAdult(true) }}>I am 18 or older</button>
@@ -658,7 +659,7 @@ export default function Flow() {
           <section className="card" aria-labelledby="confirm-title">
             <h2 id="confirm-title">{toSend.length > 1 ? `These exact ${toSend.length} images will be sent` : 'This exact image will be sent'}</h2>
             <p>Check that your name, ID, phone and doctor's name are fully covered{toSend.length > 1 ? ' on every page' : ''}. {toSend.length > 1 ? 'These images' : 'This image'} (and nothing else from your device) {toSend.length > 1 ? 'go' : 'goes'} to Google's Gemini to be read.</p>
-            {toSend.map((p, i) => <img key={i} src={p.url} alt={`Masked page ${i + 1} that will be sent`} style={{ border: '2px solid var(--ink)', borderRadius: 8, marginBottom: 8 }} />)}
+            {toSend.map((p, i) => <img key={i} src={p.url} alt={`Masked page ${i + 1} that will be sent`} style={{ border: '2px solid var(--foreground)', borderRadius: 8, marginBottom: 8 }} />)}
             <div className="actions">
               <button className="quiet" onClick={() => { setMasks([]); setStep('mask') }}>Fix the boxes</button>
               <button className="primary" onClick={() => run(toSend)}>Send {toSend.length > 1 ? 'these images' : 'this image'}</button>
@@ -676,7 +677,7 @@ export default function Flow() {
               <li>If you'd rather not, go back and cover your details yourself instead.</li>
             </ul>
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {original.map((p, i) => <img key={i} src={p.url} alt={`Page ${i + 1} that will be sent`} style={{ maxWidth: 180, border: '1px solid var(--line)', borderRadius: 6 }} />)}
+              {original.map((p, i) => <img key={i} src={p.url} alt={`Page ${i + 1} that will be sent`} style={{ maxWidth: 180, border: '1px solid var(--border)', borderRadius: 6 }} />)}
             </div>
             <p style={{ marginTop: 14 }}>
               <label><input type="checkbox" checked={consent} onChange={(e) => setConsent(e.target.checked)} />I understand and agree to send the full image of this report, including my name, to Google's Gemini.</label>
@@ -693,7 +694,7 @@ export default function Flow() {
         )}
 
         {step === 'failed' && (
-          <section className="card" aria-labelledby="failed-title" style={{ borderColor: '#e9b8b4' }}>
+          <section className="card" aria-labelledby="failed-title" style={{ borderColor: 'var(--error-border)' }}>
             <h2 id="failed-title">{path === 1 ? 'Private reading did not work on this device' : 'We could not read your report this time'}</h2>
             <p>{path === 1 ? 'Nothing was sent anywhere. You can choose another way to continue.' : 'Nothing was saved. This is usually a network problem; trying again often works.'}</p>
             <details className="mini"><summary>Technical details</summary><p className="muted small">{error}</p></details>

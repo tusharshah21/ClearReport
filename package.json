@@ -10,7 +10,7 @@
     "preview": "vite preview",
     "gen": "tsx test-data/generate.ts",
     "eval": "tsx test-data/eval.ts",
-    "test": "tsx scripts/checks.ts && tsx scripts/textcheck.ts",
+    "test": "tsx scripts/contrast.ts && tsx scripts/checks.ts && tsx scripts/textcheck.ts",
     "ranges": "tsx scripts/rangecheck.ts",
     "predev": "node scripts/copy-ocr.mjs",
     "prebuild": "node scripts/copy-ocr.mjs"
