@@ -10,9 +10,9 @@ Video: [YouTube link to be added](#)
 
 ## The problem
 
-- **People worry about sharing medical data with AI, and upload it anyway.** In KFF's February 2026 poll of US adults, 77% said they are concerned about the privacy of medical information given to AI tools, and 41% of those who used AI for health information had uploaded personal medical information such as test results ([KFF](https://www.kff.org/public-opinion/kff-tracking-poll-on-health-information-and-trust-use-of-ai-for-health-information-and-advice/)).
+- **People worry about sharing medical data with AI, and upload it anyway.** In KFF's February 2026 survey of US adults, 77% said they are concerned about the privacy of medical information given to AI tools, and 41% of those who used AI for health information had uploaded personal medical information such as test results ([KFF](https://www.kff.org/public-opinion/kff-tracking-poll-on-health-information-and-trust-use-of-ai-for-health-information-and-advice/)).
 - **Many Indian labs print ranges that were not set for Indian patients.** Researchers in the IFCC C-RIDL study note that most laboratories in India take reference values from manufacturers' kit inserts or from the literature, which is based mainly on Western populations ([Clin Chem Lab Med 2018](https://doi.org/10.1515/cclm-2018-0152)).
-- **The printed range is not a fixed truth.** A study of apparently healthy Indian adults found reference intervals that differ from the ranges in current use for hemoglobin, platelet count and other tests ([PMC4062657](https://pmc.ncbi.nlm.nih.gov/articles/PMC4062657/)). So "inside the lab's range" and "fine by a published guideline" can disagree, and nobody tells the patient.
+- **The printed range is not a fixed truth.** A 2026 preprint analysing 794,811 examinations across 33,244 Indian diagnostic centres found significant variation in laboratory reference ranges (Lakhani S., "Cardiometabolic Risk and Diagnostic-Laboratory Reference-Range Disagreement in 794,811 Indian Insurance Applicants: An Aggregate Analysis of Digitized Medical Examinations", [medRxiv preprint](https://www.medrxiv.org/content/10.64898/2026.06.01.26354654v1), posted June 3, 2026). A study of apparently healthy Indian adults also found reference intervals that differ from the ranges in current use for hemoglobin, platelet count and other tests ([PMC4062657](https://pmc.ncbi.nlm.nih.gov/articles/PMC4062657/)). So "inside the lab's range" and "fine by a published guideline" can disagree, and nobody tells the patient.
 
 ## What ClearReport does differently
 
@@ -84,7 +84,17 @@ All numbers below come from `npm run eval` (`test-data/results.md`) and `npm tes
 
 - **Synthetic reports (6 layouts, ground truth in `test-data/ground-truth`):** the cloud read 100% of values, units, ranges and flags on all 6 clean images and both phone photos, with no personal field missed.
 - **Dr Lal PathLabs public sample PDFs (WM14, WM15):** Path 1 reads them on the device with the plain-code parser: 32 of 32 and 54 of 54 result rows, with no call to the on-device model. Against our hand-made ground truth, the saved runs score 94% (WM14) and 96% (WM15) on values, with 32 of 33 and 54 of 55 tests found. The cloud runs on the same PDFs scored 97% and 78% on values.
-- **Unfamiliar layouts, first run:** three synthetic PDFs built to look unlike anything the parser was written for (p1: result first with the unit inside the cell; p2: two tests per printed row; p3: wrapped names, sex-specific ranges, footnote markers). The parser read every row (8, 11 and 8) and every value verified against the PDF text, so the on-device fallback was not needed.
+- **Unfamiliar layouts, first run (on-device fallback).** Three synthetic text PDFs were built to look unlike anything the parser was written for. On the first, untuned run, the plain-code parser read few rows and the rest went to the on-device model:
+
+  | PDF | Rows read by the parser | On-device calls | Time | Values right | Notes | Identity leaks |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | p1: result first, unit inside the result cell | 0 of 8 | 9 | 129.6 s | 88% | plus 8 junk rows | 0 |
+  | p2: two tests per printed row | 1 of 5 paired rows | 1 | 102.2 s | 100% | all 11 tests found | 0 |
+  | p3: wrapped names, sex-specific ranges, footnote marks | 3 of 5 | 5 | 51.5 s | 75% | 6 of 8 tests found, plus 2 extra | 0 |
+
+  With the parser switched off, p1 took 1 on-device call (about 70 s) with one unit error: the platelet count came back converted to 260000 /cumm, a value that does not match the PDF text, so the cross-check would mark it "Please check this value" (that run recorded the error; it did not go through the review screen).
+
+  We then improved the parser with general rules, not rules for these files: it types each column instead of assuming the name comes first, splits side-by-side rows when both halves parse, joins wrapped names, and picks the patient's own bounds from "M: / F:" ranges. All three layouts now parse fully (8, 11 and 8 rows) with 0 model calls, and every value verifies against the PDF text (checked in `npm test`). Layouts the parser has not seen still fall back to the on-device model, and every value it returns is cross-checked against the PDF text.
 - **On-device image reading did not hold up, so we moved on-device work to text.** Reading report images with the on-device model: on 6 clean images it got 91% of values but only 58% of printed ranges, and missed 7 of 36 personal fields; on 2 phone photos it got 66% of values and 19% of ranges, and missed 6 of 12 personal fields. That is why Path 1 accepts lab PDFs and reads their text, and photos go through Path 2.
 - **No wrong value is marked as verified.** For PDFs, each value, unit and range is cross-checked against the PDF's own text layer on the device. A test changes every WM14 and WM15 value by +10 and checks that none of them verifies, and that a missing unit never verifies. Values that do not match are shown as "Please check this value" and must be confirmed before they count.
 
