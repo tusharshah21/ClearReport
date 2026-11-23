@@ -6,7 +6,7 @@
       "valueType": "STRING"
     },
     "prompt_version": {
-      "defaultValue": { "value": "v5" },
+      "defaultValue": { "value": "v6" },
       "description": "Explanation prompt version, shown under each explanation",
       "valueType": "STRING"
     },

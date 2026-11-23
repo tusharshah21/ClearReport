@@ -107,10 +107,23 @@ input[type='checkbox'] { width: 22px; height: 22px; vertical-align: -5px; margin
 .path .tag { display: inline-block; font-size: 0.85rem; font-weight: 600; color: var(--primary-dark); background: var(--primary-soft); border-radius: 999px; padding: 2px 10px; margin-bottom: 8px; }
 .path .accepts { font-size: 0.94rem; color: var(--muted); }
 .path button { margin-top: auto; width: 100%; }
+.path.unavailable { background: #f1eee8; border-style: dashed; }
+.path.unavailable h3, .path.unavailable > p { color: var(--muted); }
+.path .tag.off { background: #e4dfd6; color: var(--muted); }
+.path .how { margin: 0 0 12px; }
+.how-steps { margin: 6px 0 10px; padding-left: 1.2em; font-size: 0.92rem; }
+.how-map { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--muted); }
+.how-map .box { border-radius: 8px; padding: 4px 8px; font-weight: 600; line-height: 1.3; }
+.how-map .box small { display: block; font-weight: 400; }
+.how-map .device { background: var(--primary-soft); color: var(--primary-dark); }
+.how-map .cloud { background: var(--warm-soft); color: var(--warm); }
 
 /* Masking and cropping */
 .canvas-wrap { max-width: 820px; margin: 10px 0; border-radius: 10px; overflow: hidden; border: 1px solid var(--line); background: #fff; }
 .canvas-wrap canvas { display: block; width: 100%; }
+.canvas-wrap.zoomed { overflow: auto; max-height: 75vh; overscroll-behavior: contain; }
+.zoom-bar { margin: 10px 0 0; align-items: center; }
+.zoom-bar button { min-height: 40px; padding: 6px 14px; }
 .legend { display: flex; flex-wrap: wrap; gap: 8px 18px; font-size: 0.95rem; color: var(--muted); }
 .legend i { display: inline-block; width: 16px; height: 12px; vertical-align: -1px; margin-right: 6px; border-radius: 3px; }
 
@@ -150,6 +163,25 @@ pre.payload { background: #f3f0ea; border-radius: 10px; padding: 12px; overflow:
 .meaning { background: #f4f2ed; border-radius: 8px; padding: 10px 12px; margin: 8px 0 0; }
 .source-tag { display: inline-block; font-size: 0.85rem; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 0 8px; }
 .questions li { margin-bottom: 6px; }
+.findings { list-style: none; padding: 0; margin: 0 0 14px; }
+.findings li { display: flex; gap: 10px; align-items: flex-start; margin-bottom: 6px; }
+.findings .fi { flex: none; display: inline-flex; width: 26px; height: 26px; border-radius: 50%; align-items: center; justify-content: center; margin-top: 1px; }
+.findings .fi svg { width: 16px; height: 16px; }
+.findings .fi.below, .findings .fi.above { background: var(--out-bg); color: var(--out); }
+.findings .fi.within { background: var(--ok-bg); color: var(--ok); }
+.findings .fi.note { background: var(--note-bg); color: var(--note); }
+.panel { margin-bottom: 18px; }
+.panel h3 { font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--muted); margin: 0 0 8px; }
+.test-card:focus { outline: 3px solid var(--focus); outline-offset: 2px; }
+.test-row { padding: 0; }
+.test-row > summary { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 14px; padding: 12px 16px; color: var(--ink); font-weight: 500; list-style: none; min-height: 48px; }
+.test-row > summary::-webkit-details-marker { display: none; }
+.test-row > summary::after { content: ''; width: 9px; height: 9px; border-right: 2px solid var(--muted); border-bottom: 2px solid var(--muted); transform: rotate(45deg); margin: -4px 2px 0 auto; transition: transform 0.15s; }
+.test-row[open] > summary::after { transform: rotate(-135deg); margin-top: 4px; }
+.test-row > summary .name { font-weight: 600; }
+.test-row > summary .value { font-size: 1rem; }
+.test-row[open] { padding: 0 16px 14px; }
+.test-row[open] > summary { margin: 0 -16px; }
 
 /* Data trail */
 .trail h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 10px; }
@@ -178,7 +210,9 @@ pre.payload { background: #f3f0ea; border-radius: 10px; padding: 12px; overflow:
 @media print {
   body { background: #fff; font-size: 11pt; line-height: 1.45; }
   .app { display: block; padding: 0; max-width: none; }
-  .no-print, .trail, button, details:not([open]) { display: none !important; }
+  .no-print, .trail, button, details.mini:not([open]) { display: none !important; }
+  .test-row > summary { padding: 4px 0; min-height: 0; margin: 0 !important; }
+  .test-row > summary::after { display: none; }
   .card, .test-card { box-shadow: none; border-color: #bbb; break-inside: avoid; }
   .card { padding: 0; border: 0; }
   .test-card { padding: 8px 10px; margin-bottom: 6px; }

@@ -3,7 +3,7 @@
 // The range-check notes are never rewritten by the model: the UI shows the engine's own text next to each test.
 import { getGenerativeModel, InferenceMode, InferenceSource } from 'firebase/ai'
 import { ai } from './firebase'
-import { BANNED, type Check } from './guidelines'
+import { BANNED, disagrees, type Check } from './guidelines'
 import type { Payload } from './privacy'
 import { config } from './remote'
 
@@ -23,7 +23,7 @@ const SCHEMA = {
 
 const RULES = `You explain a blood test report to the person it belongs to, in plain everyday English (reading age about 12).
 Return JSON:
-- summary: 2-3 sentences giving the overall picture.
+- summary: 2-3 sentences. Name the specific tests whose result is above or below the lab's printed range, by test name, in plain words (for example: "Your triglycerides and LDL cholesterol are above your lab's range, and your HDL cholesterol is below it."). If range_check says the lab and the guideline disagree for a test, name that test and say the two ranges differ. If every result is inside its range, say so.
 - tests: one entry per test, in the same order, with "name" copied exactly. "explanation": 1-2 short sentences: what the test measures, then where the result sits compared with the lab's printed range (inside, above or below). No range given: say so.
 - questions: 3-5 short questions the person could ask their doctor.
 Strict wording rules:
@@ -58,9 +58,19 @@ async function ask(prompt: string, payload: string): Promise<Explanation> {
 
 // Plain template from the engine's own messages: used when the model's wording fails twice (or the call fails).
 export function template(p: Payload, checks: Check[]): Explanation {
-  const outside = p.tests.filter((t) => t.value !== null && ((t.ref_high !== null && t.value > t.ref_high) || (t.ref_low !== null && t.value < t.ref_low))).length
+  const named = (f: (t: Payload['tests'][number]) => boolean) => p.tests.filter((t) => t.value !== null && f(t)).map((t) => t.name).join(', ')
+  const above = named((t) => t.ref_high !== null && t.value! > t.ref_high)
+  const below = named((t) => t.ref_low !== null && t.value! < t.ref_low)
+  const split = p.tests.filter((_, i) => checks[i] && disagrees(checks[i])).map((t) => t.name).join(', ')
   return {
-    summary: `Your report lists ${p.tests.length} test${p.tests.length === 1 ? '' : 's'}. ${outside ? `${outside} result${outside === 1 ? ' is' : 's are'} outside the range printed by your lab.` : 'All results with a printed range are inside it.'} The notes below compare each result with your lab's range.`,
+    summary: [
+      `Your report lists ${p.tests.length} test${p.tests.length === 1 ? '' : 's'}.`,
+      above && `Above your lab's range: ${above}.`,
+      below && `Below your lab's range: ${below}.`,
+      !above && !below && 'All results with a printed range are inside it.',
+      split && `Your lab's range and a common guideline differ for: ${split}.`,
+      "The notes below compare each result with your lab's range.",
+    ].filter(Boolean).join(' '),
     tests: p.tests.map((t, i) => ({ name: t.name, explanation: checks[i]?.message ?? '' })),
     questions: ['Which of these results matter most for me, and why?', 'Do any of these results need a repeat test?', 'Is there anything in this report you would like to follow up on?'],
   }

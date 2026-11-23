@@ -9,11 +9,13 @@ export const Icon = {
   out: svg('M10 3v9M10 16.5v.5'), // exclamation, calm weight
   check: svg('M7.5 7.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6v.6M10 16v.5'), // question mark
   plain: svg('M4 10h12'),
+  down: svg('M10 4v12M5.5 11.5L10 16l4.5-4.5'), // below the range
+  up: svg('M10 16V4M5.5 8.5L10 4l4.5 4.5'), // above the range
   ruler: svg('M3 13.5L13.5 3l3.5 3.5L6.5 17zM6.5 10l1.5 1.5M9 7.5l1.5 1.5M11.5 5l1.5 1.5'),
 }
 
-export function Badge({ kind, children }: { kind: 'ok' | 'out' | 'check' | 'plain'; children: React.ReactNode }) {
-  return <span className={`badge ${kind}`}>{Icon[kind]}{children}</span>
+export function Badge({ kind, icon, children }: { kind: 'ok' | 'out' | 'check' | 'plain'; icon?: React.ReactNode; children: React.ReactNode }) {
+  return <span className={`badge ${kind}`}>{icon ?? Icon[kind]}{children}</span>
 }
 
 export function Busy({ children }: { children: React.ReactNode }) {

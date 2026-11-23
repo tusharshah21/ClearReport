@@ -5,7 +5,7 @@ import { app } from './firebase'
 
 export const DEFAULTS = {
   cloud_model: 'gemini-3.5-flash-lite', // documented default, pinned so results are reproducible
-  prompt_version: 'v5',
+  prompt_version: 'v6',
   hindi_enabled: true,
   path3_enabled: true, // "send the full report" option
 }
