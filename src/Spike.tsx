@@ -5,7 +5,7 @@ import { extract, extractDoc, extractRows, findPersonal, model, textModel, toB64
 import { aiBoxes, nonResultLines, ocrWords, resultLine, suggestMasks, type Suggestion } from './masks'
 import { isPdf, pdfPages } from './pdf'
 import { toLines, type Word } from './textlayer'
-import { rowsForModel } from './textrows'
+import { contextBlocks, rowsForModel } from './textrows'
 import { trustOf } from './trust'
 
 setLogLevel('debug') // SDK logs why on-device was or wasn't used
@@ -131,6 +131,23 @@ export default function Spike() {
     setBusy(false)
   }
 
+  // The on-device fallback with context blocks: p1-p3 with the parser switched off, so every row goes to the model.
+  // Results stay in window.__noParser for scoring against ground truth; nothing is saved.
+  async function runNoParser() {
+    setBusy(true)
+    await warmText()
+    const out: Record<string, unknown> = {}
+    for (const id of TEXT_PDFS.filter((t) => /^p\d$/.test(t))) {
+      const s = await loadSynthetic(id)
+      const rows = rowsForModel(s.pages.map((p) => p.words ?? []))
+      const r = await extractRows(id, rows.batches, rows, (d, n) => say(`${id}, parser off: ${d} of ${n} blocks`), undefined, false)
+      out[id] = { ok: r.ok, calls: r.calls.length, ms: r.latency_ms, tests: (r.output as { tests?: unknown[] } | null)?.tests ?? [], sent: contextBlocks(rows.lines, () => true).map((b) => b.lines.join('\n')) }
+      say(`${id}, parser off: ${r.ok ? 'ok' : 'FAILED'}, ${r.calls.length} calls, ${(r.latency_ms / 1000).toFixed(1)} s, ${(out[id] as { tests: unknown[] }).tests.length} rows`)
+    }
+    ;(window as unknown as { __noParser: unknown }).__noParser = out
+    setBusy(false)
+  }
+
   // The duplicate-name fix (skippedRows) on the device: WM15's blood-count rows with the parser off. Not saved as a run.
   async function runMonocytes() {
     setBusy(true)
@@ -190,7 +207,8 @@ export default function Spike() {
         <button disabled={busy} onClick={() => runText()}>3. Run WM14 + WM15 as text ONLY_ON_DEVICE (Path 1)</button>{' '}
         <button disabled={busy} onClick={runMonocytes}>4. WM15 blood count, model only (Monocytes check)</button>{' '}
         <button disabled={busy} onClick={() => runText(TEXT_PDFS)}>5. Run p1-p3 as text (Path 1, other layouts)</button>{' '}
-        <button disabled={busy} onClick={runMasks}>6. Mask coverage: rules vs rules + on-device AI</button>
+        <button disabled={busy} onClick={runMasks}>6. Mask coverage: rules vs rules + on-device AI</button>{' '}
+        <button disabled={busy} onClick={runNoParser}>7. p1-p3 with the parser off (context blocks)</button>
       </p>
       <p>
         Synthetic:{' '}

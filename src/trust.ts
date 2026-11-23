@@ -25,6 +25,7 @@ export function trustOf(rows: Row[], pages: (Word[] | null)[]): Trust[] {
     const legible = r.legible !== false
     const t = (badge: Badge, why: string): Trust => ({ ...c, legible, badge, why })
     if (!legible) return t('check', 'Part of this value or its range could not be read clearly on the report.')
+    if (c.value === 'mismatch' && c.pdf_value === null) return t('check', "Your PDF's text has no number on the same line as this test's name, so the value could not be checked automatically.")
     if (c.value === 'mismatch') return t('check', "The value read for this test does not match the number in your PDF's text.")
     if (c.range === 'mismatch') return t('check', "The reference range read for this test does not match your PDF's text.")
     if (c.unit === 'mismatch') return t('check', "The unit read for this test does not match your PDF's text.")
