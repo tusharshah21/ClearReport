@@ -1,6 +1,7 @@
 // Plain code, runs locally: suggests mask boxes over identity fields from positioned words
 // (PDF text layer, or Tesseract OCR for photos). Suggestions only; the user checks every box.
-import { looksLikeResult, toLines, type Line, type Word } from './textlayer'
+import { canonical } from './canonical'
+import { toLines, type Line, type Word } from './textlayer'
 
 // method: which local method suggested the box (label rules, or the on-device model in Path 2). Fractions of the page.
 export type Suggestion = { x: number; y: number; w: number; h: number; field: string; method?: 'rule' | 'ai' }
@@ -46,10 +47,32 @@ const boxOf = (ws: Word[], field: string, method: 'rule' | 'ai'): Suggestion => 
   return { x: Math.max(0, x0 - p), y: Math.max(0, y0 - p), w: x1 - x0 + 2 * p, h: y1 - y0 + 2 * p, field, method }
 }
 
+// An OCR line that looks like a test result: a number with a unit, a printed range ("13.0 - 17.0", or "70-100"
+// with OCR dropping the spaces), a decimal or a percentage. Photo OCR garbles units, so the decimal and the range
+// count on their own. A unit needs a real denominator ("mg/dL", "lakhs/cumm"): "45Y/M", "STY/FDMALE" (age/sex)
+// and dates ("17/11/2026", "17-11-2026") are not results.
+const RANGE = /(?<![\d/.-])\d{1,4}(?:\.\d+)?\s*[-–~]\s*\d{1,4}(?:\.\d+)?(?![\d/-])/
+const UNIT = /[a-zµμ]\/(?:d?l|ml|[uµμ]l|cumm|cmm|mm3|hpf|min|hrs?|kg|m2|day)\b/i
+export const resultLine = (t: string) => /\d/.test(t) && (UNIT.test(t) || RANGE.test(t) || /\d\.\d/.test(t) || /\d\s*%/.test(t))
+
+// Photo OCR garbles some result rows past recognition ("212 mg/dL" read as "pete"), so the guard is also by
+// position: with 3+ result-like lines, everything from the first to the last of them is the results block.
+// Personal details sit above or below it. ponytail: a report printing identity beside the table would lose those boxes.
+// A line that is only a known test name ("Total Cholesterol", its values OCR'd on a line of their own) also marks the block.
+function outsideResults(lines: Line[]): (l: Line) => boolean {
+  const res = lines.filter((l) => resultLine(l.text) || !canonical(l.text).startsWith('?'))
+  if (res.length < 3) return (l) => !resultLine(l.text)
+  const top = res[0].y0, bottom = res[res.length - 1].y1
+  return (l) => !resultLine(l.text) && ((l.y0 + l.y1) / 2 < top || (l.y0 + l.y1) / 2 > bottom)
+}
+
 // Lines that are not result rows (header, footer, signature): the only text the on-device model sees in Path 2.
 // OCR noise from a photo ("EER", "0h wae") is dropped: a line needs a 4+ letter word or a long digit run.
 const readable = (s: string) => /[a-z]{4,}/i.test(s) || (s.match(/\d/g)?.length ?? 0) >= 6
-export const nonResultLines = (words: Word[]): Line[] => toLines(words).filter((l) => readable(l.text) && !looksLikeResult(l.words.map((w) => w.text).join(' ')))
+export const nonResultLines = (words: Word[]): Line[] => {
+  const lines = toLines(words)
+  return lines.filter(outsideResults(lines)).filter((l) => readable(l.text))
+}
 
 // A finding must look like its kind; the model sometimes labels noise ("212 89/4 200" as a birth date).
 const digits = (s: string) => s.match(/\d/g)?.length ?? 0
@@ -76,8 +99,11 @@ export function aiBoxes(lines: Line[], found: { line: number; text: string; kind
   return out
 }
 
-export function suggestMasks(words: Word[]): Suggestion[] {
-  const lines = toLines(words)
+// ocr: words from a photo or scanned page. No box is ever suggested on a line that looks like a test result
+// (OCR reads "pH 6.0" as a "Ph:" phone label); covering a result would hide it from the reading step.
+export function suggestMasks(words: Word[], ocr = false): Suggestion[] {
+  const all = toLines(words)
+  const lines = ocr ? all.filter(outsideResults(all)) : all
   const out: Suggestion[] = []
   const add = (ws: Word[], field: string) => {
     if (!ws.length) return

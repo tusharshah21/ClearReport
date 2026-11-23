@@ -2,9 +2,9 @@ import { useState } from 'react'
 import { setLogLevel } from 'firebase/app'
 import { guessCorners, straighten } from './crop'
 import { extract, extractDoc, extractRows, findPersonal, model, textModel, toB64, warmText, type Mode, type Run } from './extract'
-import { aiBoxes, nonResultLines, ocrWords, suggestMasks, type Suggestion } from './masks'
+import { aiBoxes, nonResultLines, ocrWords, resultLine, suggestMasks, type Suggestion } from './masks'
 import { isPdf, pdfPages } from './pdf'
-import type { Word } from './textlayer'
+import { toLines, type Word } from './textlayer'
 import { rowsForModel } from './textrows'
 import { trustOf } from './trust'
 
@@ -153,8 +153,12 @@ export default function Spike() {
       const pii = (await (await fetch(`/test-data/ground-truth/${id}.json`)).json()).pii as Record<string, string>
       const t0 = performance.now()
       let words = await ocrWords(blob)
-      let rules = suggestMasks(words)
-      if (rules.length < 2) { const w2 = await ocrWords(blob, true); const again = suggestMasks(w2); if (again.length > rules.length) { rules = again; words = w2 } }
+      let rules = suggestMasks(words, true)
+      if (rules.length < 2) { const w2 = await ocrWords(blob, true); const again = suggestMasks(w2, true); if (again.length > rules.length) { rules = again; words = w2 } }
+      // Boxes whose centre sits on a line that looks like a test result (should be 0 after the result-line guard).
+      const resLines = toLines(words).filter((l) => resultLine(l.text))
+      const onResult = (bs: Suggestion[]) => bs.filter((b) => resLines.some((l) => b.y + b.h / 2 >= l.y0 && b.y + b.h / 2 <= l.y1)).length
+      const unguarded = suggestMasks(words)
       const ocrMs = performance.now() - t0
       const lines = nonResultLines(words)
       let extra: Suggestion[] = [], aiMs = 0, calls = 0, err = ''
@@ -162,7 +166,7 @@ export default function Spike() {
       const fields: [string, string][] = [['name', pii.patient_name], ['id', pii.patient_id], ['phone', pii.phone], ['doctor', pii.doctor_name], ['age', pii.age]]
       const cov = (b: Suggestion[]) => fields.map(([k, v]) => `${k}=${coverage(v, words, b)}`).join(' ')
       const stray = extra.filter((b) => !fields.some(([, v]) => coverage(v, words, [b]) !== 'missed' && coverage(v, words, [b]) !== 'not read')).length
-      say(`${id}: OCR ${(ocrMs / 1000).toFixed(1)} s, ${lines.length} non-result lines | rules: ${cov(rules)} | rules+AI: ${cov([...rules, ...extra])} | AI +${extra.length} boxes (${stray} on non-identity text), ${calls} calls, ${(aiMs / 1000).toFixed(1)} s${err ? ` | AI error: ${err}` : ''}`)
+      say(`${id}: OCR ${(ocrMs / 1000).toFixed(1)} s, ${lines.length} non-result lines | rules: ${cov(rules)} | rules+AI: ${cov([...rules, ...extra])} | AI +${extra.length} boxes (${stray} on non-identity text), ${calls} calls | boxes on result lines: rules without guard ${onResult(unguarded)}/${unguarded.length}, with guard ${onResult(rules)}/${rules.length}, AI ${onResult(extra)}/${extra.length}, ${(aiMs / 1000).toFixed(1)} s${err ? ` | AI error: ${err}` : ''}`)
     }
     say('Mask coverage: done.')
     setBusy(false)

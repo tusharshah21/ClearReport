@@ -250,7 +250,7 @@ console.log('crop ok')
   console.log('row parser layouts ok')
 }
 {
-  const { aiBoxes, nonResultLines, suggestMasks } = await import('../src/masks')
+  const { aiBoxes, nonResultLines, resultLine, suggestMasks } = await import('../src/masks')
   const w = (text: string, x0: number, y0: number) => ({ text, x0, x1: x0 + 0.01 * text.length, y0, y1: y0 + 0.02 })
   const words = [
     w('ROHAN', 0.1, 0.1), w('UNLABELLEDNAME', 0.17, 0.1),                       // name with no label
@@ -266,5 +266,14 @@ console.log('crop ok')
   assert.ok(ai[0].x <= 0.1 && ai[0].x + ai[0].w >= 0.31, 'the name box spans both words')
   assert.deepEqual(nonResultLines([w('EER', 0.1, 0.5), w('0h', 0.1, 0.6), w('wae', 0.14, 0.6)]), [], 'OCR noise never reaches the model')
   assert.deepEqual(aiBoxes(lines, [{ line: 1, text: 'ROHAN', kind: 'date_of_birth' }], []), [], 'a finding that does not fit its kind is dropped')
+  // OCR result lines never get a box: "Ph 6.0" (urine pH) is not a phone label; age/sex and dates are not results.
+  const ocr = [w('Ph', 0.1, 0.4), w('6.0', 0.3, 0.4), w('5.0', 0.5, 0.4), w('-', 0.55, 0.4), w('8.0', 0.57, 0.4), w('Age/Sex:', 0.1, 0.45), w('45Y/M', 0.2, 0.45)]
+  assert.deepEqual(suggestMasks(ocr, true).map((b) => b.field), ['age/sex'], 'no box on an OCR result line')
+  assert.deepEqual(suggestMasks(ocr).map((b) => b.field), ['phone', 'age/sex'], 'without the OCR guard the pH row would be boxed')
+  // A garbled OCR row inside the results block ("pete" for "34.2 %") never reaches the model: it is between result lines.
+  const block = [w('Patient', 0.1, 0.1), w('Name:', 0.17, 0.1), w('ROHAN', 0.25, 0.1), ...[0.3, 0.4, 0.5].flatMap((y) => [w('Hb', 0.1, y), w('13.9', 0.3, y), w('g/dL', 0.4, y)]), w('pete', 0.3, 0.35), w('Thank', 0.1, 0.8), w('you', 0.2, 0.8)]
+  assert.deepEqual(nonResultLines(block).map((l) => l.text), ['PatientName: ROHAN', 'Thank you'], 'nothing inside the results block reaches the model')
+  for (const [t, want] of [['91 70-100', true], ['27.9 an-n', true], ['3 4% - 50', true], ['Date: 17-11-2026', false], ['Age/Sex: 57Y/FEMALE', false], ['AGE/SEX 57Y/FEMALE PH +91 20000 00006', false], [': STY/FDMALE LL) +0 92000 ¢ 00006', false], ['212 mg/dL < 200', true], ['1.3 lakhs/cumm', true], ['Mobile: +91 80000 00014', false]] as const)
+    assert.equal(resultLine(t), want, t)
   console.log('ai mask boxes ok')
 }
