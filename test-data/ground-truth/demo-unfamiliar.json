@@ -1,0 +1,106 @@
+{
+  "id": "demo-unfamiliar",
+  "layout": "demo-unfamiliar",
+  "note": "Two-column result cards (name / value and unit / range lines), a layout the plain-code parser was not written for. For the demo video.",
+  "lab_name": "Bluepine Health Diagnostics",
+  "tests": [
+    {
+      "name": "Haemoglobin",
+      "value": 12.6,
+      "unit": "g/dL",
+      "ref_low": 12,
+      "ref_high": 15,
+      "ref_text": "12.0 - 15.0",
+      "printed_flag": null
+    },
+    {
+      "name": "Total WBC Count",
+      "value": 7600,
+      "unit": "/cumm",
+      "ref_low": 4000,
+      "ref_high": 10000,
+      "ref_text": "4000 - 10000",
+      "printed_flag": null
+    },
+    {
+      "name": "Platelet Count",
+      "value": 2.4,
+      "unit": "lakhs/cumm",
+      "ref_low": 1.5,
+      "ref_high": 4.1,
+      "ref_text": "1.5 - 4.1",
+      "printed_flag": null
+    },
+    {
+      "name": "Fasting Glucose",
+      "value": 104,
+      "unit": "mg/dL",
+      "ref_low": 70,
+      "ref_high": 110,
+      "ref_text": "70 - 110",
+      "printed_flag": null
+    },
+    {
+      "name": "HbA1c",
+      "value": 5.9,
+      "unit": "%",
+      "ref_low": 4,
+      "ref_high": 6,
+      "ref_text": "4.0 - 6.0",
+      "printed_flag": null
+    },
+    {
+      "name": "Total Cholesterol",
+      "value": 214,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 200,
+      "ref_text": "< 200",
+      "printed_flag": "H"
+    },
+    {
+      "name": "HDL Cholesterol",
+      "value": 46,
+      "unit": "mg/dL",
+      "ref_low": 40,
+      "ref_high": null,
+      "ref_text": "> 40",
+      "printed_flag": null
+    },
+    {
+      "name": "Triglycerides",
+      "value": 162,
+      "unit": "mg/dL",
+      "ref_low": null,
+      "ref_high": 150,
+      "ref_text": "< 150",
+      "printed_flag": "H"
+    },
+    {
+      "name": "TSH",
+      "value": 2.8,
+      "unit": "µIU/mL",
+      "ref_low": 0.4,
+      "ref_high": 4,
+      "ref_text": "0.4 - 4.0",
+      "printed_flag": null
+    },
+    {
+      "name": "Serum Creatinine",
+      "value": 0.8,
+      "unit": "mg/dL",
+      "ref_low": 0.6,
+      "ref_high": 1.1,
+      "ref_text": "0.6 - 1.1",
+      "printed_flag": null
+    }
+  ],
+  "pii": {
+    "patient_name": "Ms. Kavya Madeupname",
+    "age": "46",
+    "sex": "Female",
+    "patient_id": "BHD-UNF-73150",
+    "phone": "+91 90000 00016",
+    "doctor_name": "Dr. Notarealdoc Pillai"
+  }
+}

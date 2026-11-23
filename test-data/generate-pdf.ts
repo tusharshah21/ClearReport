@@ -1,5 +1,5 @@
 // Synthetic TEXT PDFs (HTML -> PDF via Playwright page.pdf, so they keep a real text layer) in layouts unlike
-// Dr Lal PathLabs, plus ground truth. All names, IDs and phone numbers are fake. Run: npx tsx test-data/generate-pdf.ts
+// Dr Lal PathLabs, plus ground truth. All names, IDs and phone numbers are fake. Run: npx tsx test-data/generate-pdf.ts [id]
 //   p1: result first, unit inside the result cell ("11.8 g/dL"), flag column last
 //   p2: two tests per printed row (side-by-side panels)
 //   p3: messy: wrapped test names, sex-specific ranges, footnote markers, a comment row
@@ -132,15 +132,41 @@ function demo() {
   ${DEMO.tests.map((g) => `<tr><td>${g.name}</td><td>${fmt(g.value)}</td><td>${g.unit}</td><td>${g.ref_text}</td><td>${g.printed_flag ?? ''}</td></tr>`).join('')}</table>${SYNTH}`
 }
 
+// demo-unfamiliar: a layout the parser was not written for (two-column result cards: name, then value and unit,
+// then the range on its own line), so Path 1 has to use the on-device model. Not added to textcheck on purpose.
+const UNF = {
+  id: 'demo-unfamiliar', lab_name: 'Bluepine Health Diagnostics', note: 'Two-column result cards (name / value and unit / range lines), a layout the plain-code parser was not written for. For the demo video.',
+  pii: { patient_name: 'Ms. Kavya Madeupname', age: '46', sex: 'Female', patient_id: 'BHD-UNF-73150', phone: '+91 90000 00016', doctor_name: 'Dr. Notarealdoc Pillai' },
+  tests: [
+    t('Haemoglobin', 12.6, 'g/dL', '12.0 - 15.0', 12, 15), t('Total WBC Count', 7600, '/cumm', '4000 - 10000', 4000, 10000),
+    t('Platelet Count', 2.4, 'lakhs/cumm', '1.5 - 4.1', 1.5, 4.1), t('Fasting Glucose', 104, 'mg/dL', '70 - 110', 70, 110),
+    t('HbA1c', 5.9, '%', '4.0 - 6.0', 4, 6), t('Total Cholesterol', 214, 'mg/dL', '< 200', null, 200),
+    t('HDL Cholesterol', 46, 'mg/dL', '> 40', 40, null), t('Triglycerides', 162, 'mg/dL', '< 150', null, 150),
+    t('TSH', 2.8, 'µIU/mL', '0.4 - 4.0', 0.4, 4), t('Serum Creatinine', 0.8, 'mg/dL', '0.6 - 1.1', 0.6, 1.1),
+  ],
+}
+function unfamiliar() {
+  const p = UNF.pii
+  return `<style>body{font-family:Helvetica,Arial,sans-serif;font-size:13px;margin:28px;color:#1b2a3a}h1{margin:0;font-size:22px;color:#1d5b8f}
+  .who{display:grid;grid-template-columns:1fr 1fr;gap:4px 24px;background:#eef4fa;border-radius:8px;padding:10px 14px;margin:12px 0}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}.card{border:1px solid #c9d8e6;border-radius:10px;padding:10px 14px}
+  .n{font-weight:bold;font-size:14px}.v{font-size:20px;margin:4px 0}.r{color:#555}.f{color:#b03a2e;font-weight:bold}</style>
+  <h1>${UNF.lab_name}</h1><div>Plot 9, Placeholder Park, Jaipur 302000</div>
+  <div class="who"><div>Patient: ${p.patient_name}</div><div>Visit ID: ${p.patient_id}</div><div>${p.age} yrs, ${p.sex}</div><div>Phone: ${p.phone}</div><div>Referred by: ${p.doctor_name}</div><div>Report date: 22/11/2026</div></div>
+  <div class="grid">${UNF.tests.map((g) => `<div class="card"><div class="n">${g.name}</div><div class="v">${fmt(g.value)} ${g.unit}${g.printed_flag ? ` <span class="f">${flagWord(g)}</span>` : ''}</div><div class="r">Expected: ${g.ref_text}</div></div>`).join('')}</div>${SYNTH}`
+}
+
+const only = process.argv[2] // optional: generate just this id
 const browser = await chromium.launch({ channel: 'chrome' })
 const page = await browser.newPage()
-for (const [r, html] of [[P1, p1()], [P2, p2()], [P3, p3()], [DEMO, demo()]] as const) {
+for (const [r, html] of ([[P1, p1()], [P2, p2()], [P3, p3()], [DEMO, demo()], [UNF, unfamiliar()]] as const).filter(([r]) => !only || r.id === only)) {
   await page.setContent(`<!doctype html><meta charset="utf-8"><body>${html}</body>`)
   await page.pdf({ path: join(OUT, 'reports', `${r.id}.pdf`), format: 'A4', printBackground: true })
   writeFileSync(join(OUT, 'ground-truth', `${r.id}.json`), JSON.stringify({ id: r.id, layout: r.id, note: r.note, lab_name: r.lab_name, tests: r.tests, pii: r.pii }, null, 2) + '\n', 'utf-8')
   console.log(`${r.id}: ${r.tests.length} tests`)
 }
 // r7-photo: same phone-photo treatment as generate.ts (rotation, tilt, blur, uneven light, JPEG q60).
+if (!only || only === 'r7-photo') {
 await page.setViewportSize({ width: 900, height: 600 })
 await page.setContent(`<!doctype html><meta charset="utf-8"><body>${r7()}</body>`)
 const png = (await page.screenshot({ fullPage: true })).toString('base64')
@@ -153,4 +179,5 @@ await page.setContent(`<!doctype html><body style="margin:0;background:#5f5242;w
 await page.screenshot({ path: join(OUT, 'reports', 'r7-photo.jpg'), type: 'jpeg', quality: 60 })
 writeFileSync(join(OUT, 'ground-truth', 'r7-photo.json'), JSON.stringify({ id: 'r7-photo', layout: 'r7', note: R7.note, lab_name: R7.lab_name, tests: R7.tests, pii: R7.pii }, null, 2) + '\n', 'utf-8')
 console.log('r7-photo: unlabelled name, rotate -3deg, tilt 6/-5, blur 0.7px, JPEG q60')
+}
 await browser.close()
