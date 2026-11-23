@@ -49,6 +49,12 @@ Only values with a printed limit count, and only values the user has confirmed (
 - ADA bands are described as "one of the criteria doctors consider for diabetes (or prediabetes), usually confirmed with a repeat test". The phrase "diabetes range" is never used (checked in `scripts/checks.ts`).
 - Every lipid message ends with: "Indian guidelines (Lipid Association of India, 2020) set targets based on overall heart risk, so your doctor may use different goals."
 - Every hemoglobin message ends with: "Different ranges apply during pregnancy."
+- WHO is described as "uses below 13.0 g/dL as its cutoff for anaemia", never "the anaemia range".
+- LDL: the range note names the ATP III bands (below 100 optimal, 100-129 near or above optimal, 130-159 borderline high, 160-189 high, 190 or higher very high). The guideline is never described as "below 130" (checked in `scripts/checks.ts`).
+- The "Your lab and a common guideline use different ranges" callout shows only when the two verdicts disagree (lab normal and guideline borderline, high or low; lab outside its range and guideline normal; or opposite directions). When both agree, any difference in the printed range is shown only inside the "Range check" details.
+- A difference between ranges is judged at the guideline's printed precision, so a lab's 13.5 g/dL differs from WHO's 13.0 g/dL.
+
+To print every range-check message for sample values of each test: `npx tsx scripts/audit-wording.ts`.
 
 ## Not included
 

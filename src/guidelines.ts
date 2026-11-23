@@ -12,14 +12,15 @@ import type { Payload, Test } from './privacy'
 type Dir = 'normal' | 'high' | 'low'
 // Bands are ordered; a value belongs to the first band whose upTo it is below (exclusive). Last band: upTo null.
 // criterion: for diagnostic thresholds (ADA), describe the band as one criterion doctors consider, never as "the X range".
-type Band = { upTo: number | null; dir: Dir; name: string; text: string; criterion?: string }
+// cutoff: for a defining cutoff (WHO anaemia), describe it as the guideline's cutoff, never as "the X range".
+type Band = { upTo: number | null; dir: Dir; name: string; text: string; criterion?: string; cutoff?: string }
 type Guideline = {
   label: string
   unit: string
   sex?: 'Male' | 'Female'
   ages?: [number, number] // the guideline covers only these ages; applied only when the whole age band is inside
   source: string
-  normal: { low: number | null; high: number | null; text: string } // for the "your lab's range differs" note
+  normal: { low: number | null; high: number | null; text: string } // for the "your lab's range differs" note; text carries units only when it is not a plain range
   bands: Band[]
   note?: string // appended to every message for this test
 }
@@ -61,8 +62,10 @@ export const GUIDELINES: Record<string, Guideline[]> = {
     ],
   }],
   // Not flagged below 130 (product decision): ATP III calls 100-129 "near or above optimal", not borderline.
+  // The note names the bands, never a single "below 130" range, which ATP III does not use.
   ldl: [{
-    label: 'LDL cholesterol', unit: 'mg/dL', source: 'NCEP ATP III', normal: { low: null, high: 130, text: 'below 130' }, note: LIPID_NOTE,
+    label: 'LDL cholesterol', unit: 'mg/dL', source: 'NCEP ATP III', note: LIPID_NOTE,
+    normal: { low: null, high: 130, text: 'below 100 mg/dL optimal, 100-129 mg/dL near or above optimal, 130-159 mg/dL borderline high, 160-189 mg/dL high, 190 mg/dL or higher very high' },
     bands: [
       { upTo: 100, dir: 'normal', name: 'optimal', text: 'below 100' },
       { upTo: 130, dir: 'normal', name: 'near or above optimal', text: '100-129' },
@@ -94,7 +97,7 @@ export const GUIDELINES: Record<string, Guideline[]> = {
       label: 'hemoglobin', unit: 'g/dL', sex, ages: [15, 65] as [number, number], source: 'WHO', normal: { low: cut, high: null, text: `${cut}.0 or higher` },
       note: 'Different ranges apply during pregnancy.',
       bands: [
-        { upTo: cut, dir: 'low' as const, name: 'anaemia', text: `below ${cut}.0` },
+        { upTo: cut, dir: 'low' as const, name: 'anaemia', text: `below ${cut}.0`, cutoff: 'anaemia' },
         { upTo: null, dir: 'normal' as const, name: 'not anaemic', text: `${cut}.0 or higher` },
       ],
     }
@@ -122,12 +125,13 @@ const fmt = (n: number) => String(Number(n.toPrecision(4)))
 // "70-110", "< 200", "> 40": the printed text if the model kept it, else built from the bounds.
 const rangeText = (t: Test) => t.ref_text ?? (t.ref_low !== null && t.ref_high !== null ? `${t.ref_low}-${t.ref_high}` : t.ref_high !== null ? `below ${t.ref_high}` : `above ${t.ref_low}`)
 // 5.6 vs 5.7 or 99 vs 100 is the same cutoff written inclusively; anything further apart is a real difference.
-const step = (g: number) => 10 ** -((String(g).split('.')[1] ?? '').length)
-const differs = (lab: number | null, g: number | null) => g !== null && lab !== null && Math.abs(lab - g) > step(g) + 1e-9
+// The step is the guideline's printed precision ("13.0" -> 0.1), so a lab's 13.5 differs from WHO's 13.0.
+const step = (printed: string) => 10 ** -((printed.split('.')[1] ?? '').length)
+const differs = (lab: number | null, g: number | null, s: number) => g !== null && lab !== null && Math.abs(lab - g) > s + 1e-9
 
 export function checkTest(t: Test, who: Pick<Payload, 'sex' | 'age_band'>): Check {
   const n = normalize(t)
-  const shown = `${t.value} ${t.unit ?? ''}`.trim()
+  const shown = `${t.value}${t.unit === '%' ? '' : ' '}${t.unit ?? ''}`.trim()
   const base = { test: t.name, key: n.key, value: shown, lab: null, guideline: null, range_note: null, source: null }
   const options = GUIDELINES[n.key]
   if (!options) return { ...base, outcome: 'no guideline for this test', message: `No guideline threshold is included for ${t.name} yet, so only your lab's range applies.` }
@@ -143,16 +147,18 @@ export function checkTest(t: Test, who: Pick<Payload, 'sex' | 'age_band'>): Chec
   const band = g.bands.find((b) => b.upTo === null || n.value! < b.upTo)!
   const unitNote = n.value === t.value ? '' : `, which is ${fmt(n.value)} ${g.unit}`
   const src = `a widely used guideline (${g.source})`
-  const withUnit = (text: string) => text.replace(/^(below )?([\d.]+(?:-[\d.]+)?)( or higher)?$/, `$1$2 ${g.unit}$3`) // "126 mg/dL or higher"
+  const withUnit = (text: string) => text.replace(/^(below )?([\d.]+(?:-[\d.]+)?)( or higher)?$/, `$1$2${g.unit === '%' ? '' : ' '}${g.unit}$3`) // "126 mg/dL or higher"
   const gText = withUnit(band.text)
   const lab: Check['lab'] = n.ref_low === null && n.ref_high === null ? 'no range' : n.ref_high !== null && n.value > n.ref_high ? 'high' : n.ref_low !== null && n.value < n.ref_low ? 'low' : 'normal'
   const labRange = lab === 'no range' ? null : rangeText(t)
-  const range_note = labRange && (differs(n.ref_high, g.normal.high) || differs(n.ref_low, g.normal.low))
+  const s = step(g.normal.text.match(/[\d.]+/)![0])
+  const range_note = labRange && (differs(n.ref_high, g.normal.high, s) || differs(n.ref_low, g.normal.low, s))
     ? `Your lab's range for ${g.label} (${labRange}) is different from the range ${src} uses (${withUnit(g.normal.text)}).`
     : null
   const out = { ...base, lab, guideline: `${band.name} (${gText})`, range_note, source: SOURCES[g.source] }
   const where = band.criterion
     ? `${src} uses ${gText} as one of the criteria doctors consider for ${band.criterion}, ${REPEAT}`
+    : band.cutoff ? `${src} uses ${gText} as its cutoff for ${band.cutoff}`
     : `${src} treats ${gText} as ${band.dir === 'normal' ? band.name : `the ${band.name} range`}`
   const done = (c: Check): Check => (g.note ? { ...c, message: `${c.message} ${g.note}` } : c)
 
@@ -164,12 +170,16 @@ export function checkTest(t: Test, who: Pick<Payload, 'sex' | 'age_band'>): Chec
   return done({ ...out, outcome: 'lab and guideline point in opposite directions', message: `Your lab's range for ${g.label} is ${labRange} and ${where}; they point in different directions for your result (${shown}${unitNote}). You may want to ask your doctor about this.` })
 }
 
+// The "different ranges" callout shows only when the two verdicts disagree; otherwise the range note stays in the details.
+export const disagrees = (c: Pick<Check, 'outcome'>) =>
+  c.outcome === 'lab says normal, guideline says borderline or high/low' || c.outcome === 'lab says abnormal, guideline says normal' || c.outcome === 'lab and guideline point in opposite directions'
+
 const cap = (s: string) => s[0].toUpperCase() + s.slice(1)
 
 export const checkAll = (p: Payload) => p.tests.map((t) => checkTest(t, p))
 
 // Wording rules for every user-facing sentence (engine messages and the AI explanation): describe, never diagnose or blame.
-export const BANNED = /you have|you should|wrong|diagnos|treat(ment)? with|take |diabetes range|prediabetes range/i
+export const BANNED = /you have|you should|wrong|diagnos|treat(ment)? with|take |diabetes range|prediabetes range|anaemia range|below 130/i
 
 // Far-out-of-range rule (product rule, pending review by a doctor; see docs/guidelines.md):
 // hemoglobin, platelets and WBC only, below half the lab's lower limit or above twice its upper limit.

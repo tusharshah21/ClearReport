@@ -5,7 +5,7 @@ import { canonical, displayName } from '../src/canonical'
 import { ageBand, toPayload } from '../src/privacy'
 import { normalize } from '../src/units'
 import { apply, homography } from '../src/crop'
-import { BANNED, checkAll, checkTest, farOutOfRange } from '../src/guidelines'
+import { BANNED, checkAll, checkTest, disagrees, farOutOfRange } from '../src/guidelines'
 import type { Test } from '../src/privacy'
 import { trustOf } from '../src/trust'
 
@@ -126,12 +126,22 @@ assert.equal(glu.lab, 'normal')
 assert.equal(glu.outcome, 'lab says normal, guideline says borderline or high/low')
 assert.match(glu.message, /Your lab's range for fasting glucose is 70 - 110.*A widely used guideline \(ADA\) uses 100-125 mg\/dL as one of the criteria doctors consider for prediabetes, usually confirmed with a repeat test\. You may want to ask your doctor about this\./)
 assert.match(glu.range_note!, /\(70 - 110\) is different from .*\(below 100 mg\/dL\)/)
+assert.ok(disagrees(glu), 'r2 fasting glucose: the "different ranges" callout shows')
+// r6: LDL 136 with a printed "< 100": lab and guideline both say high, so no callout; the range note stays in the details.
+const ldl = checksOf('r6').find((c) => c.key === 'ldl')!
+assert.equal(ldl.outcome, 'agrees')
+assert.ok(!disagrees(ldl), 'r6 LDL: no callout when both verdicts agree')
+assert.ok(ldl.range_note && !/below 130/.test(ldl.range_note) && /below 100 mg\/dL optimal, 100-129 mg\/dL near or above optimal, 130-159 mg\/dL borderline high/.test(ldl.range_note), ldl.range_note ?? 'no note')
 // r4: TSH 0.35-5.50 has no guideline threshold in the table, so it must say so rather than invent one.
 const tsh = checksOf('r4').find((c) => c.key === 'tsh')!
 assert.equal(tsh.outcome, 'no guideline for this test')
 assert.equal(tsh.range_note, null)
 // Same cutoff written inclusively is not a difference; abnormal both ways agrees; mmol/L is converted first.
 const one = (t: Partial<Test>, who = { sex: 'Male' as const, age_band: '30-39' }) => checkTest({ name: '', value: null, unit: 'mg/dL', ref_low: null, ref_high: null, ref_text: null, printed_flag: null, ...t }, who)
+// A lab's 13.5 differs from WHO's 13.0 (printed precision, not whole numbers); WHO is a cutoff, never "the anaemia range".
+const hb = one({ name: 'Hemoglobin', unit: 'g/dL', value: 12.8, ref_low: 13.5, ref_high: 17 })
+assert.ok(hb.range_note, 'hemoglobin 13.5 vs 13.0 is a range difference')
+assert.match(hb.message, /uses below 13\.0 g\/dL as its cutoff for anaemia/)
 assert.equal(one({ name: 'HbA1c', unit: '%', value: 5.5, ref_low: 4, ref_high: 5.6 }).range_note, null)
 assert.equal(one({ name: 'HbA1c', unit: '%', value: 5.5, ref_low: 4, ref_high: 5.6 }).outcome, 'agrees')
 assert.equal(one({ name: 'LDL', value: 160, ref_high: 100 }).outcome, 'agrees')
