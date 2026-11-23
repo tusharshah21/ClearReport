@@ -17,12 +17,12 @@ export const ratio = (a: string, b: string) => { const [x, y] = [lum(a), lum(b)]
 const PAIRS: [string, string, number, string][] = [
   // App (light)
   ['ink', 'paper', 4.5, 'body text'], ['ink', 'card', 4.5, 'text on cards'], ['ink', 'muted', 4.5, 'text on muted panels, "Please check" badge'],
-  ['ink-muted', 'paper', 4.5, 'secondary text'], ['ink-muted', 'card', 4.5, 'secondary text on cards'], ['ink-muted', 'muted', 4.5, 'secondary text on muted panels'],
+  ['ink-muted', 'paper', 4.5, 'secondary text, section labels, disclaimer bar'], ['ink-muted', 'card', 4.5, 'secondary text on cards'], ['ink-muted', 'muted', 4.5, 'secondary text on muted panels'],
   ['ink', 'grid-line', 4.5, 'text where it crosses a graph-paper line'], ['ink-muted', 'grid-line', 4.5, 'secondary text where it crosses a graph-paper line'],
   ['white', 'primary', 4.5, 'primary button'], ['white', 'primary-hover', 4.5, 'primary button, hover'],
-  ['primary', 'paper', 4.5, 'links, brand'], ['primary', 'card', 4.5, 'links and secondary buttons on cards'], ['primary', 'device-bg', 4.5, 'secondary button hover'],
+  ['primary', 'paper', 4.5, 'links, brand, section label numbers'], ['primary', 'card', 4.5, 'links and secondary buttons on cards'], ['primary', 'device-bg', 4.5, 'secondary button hover'],
   ['device-fg', 'device-bg', 4.5, 'on-device chips, tags, promises'], ['cloud-fg', 'cloud-bg', 4.5, 'cloud chips, Full report button hover'], ['cloud-fg', 'card', 4.5, 'Full report button text'],
-  ['ink', 'highlight', 4.5, 'callout heading on the highlighter band, "Guideline: borderline" chip'], ['ink', 'highlight-tint', 4.5, 'callout body'],
+  ['ink', 'highlight', 4.5, 'callout heading on the highlighter band, "Guideline: borderline" chip, landing highlighter marks'], ['ink', 'highlight-tint', 4.5, 'callout body'],
   ['status-range-fg', 'status-range-bg', 4.5, 'Above/Below range badge'], ['status-ok-fg', 'status-ok-bg', 4.5, 'Within range badge'],
   ['error', 'card', 4.5, 'error text on cards'], ['error', 'error-bg', 4.5, 'error notice'],
   ['ring', 'paper', 3, 'focus ring (non-text)'], ['ring', 'card', 3, 'focus ring on cards (non-text)'],

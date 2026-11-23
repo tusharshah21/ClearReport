@@ -16,8 +16,9 @@ type Kind = 'private' | 'mask' | 'full'
 type Node = { icon: keyof typeof ICONS; label: string; sub: string; where: 'device' | 'cloud' }
 const DEVICE: Node = { icon: 'laptop', label: 'Your device', sub: 'your report is opened here', where: 'device' }
 const CLOUD: Node = { icon: 'cloud', label: 'Gemini in the cloud', sub: '', where: 'cloud' }
-const PATHS: Record<Kind, { tab: string; mid: Node | null; here: string; there: string }> = {
-  private: { tab: 'Private (PDF)', mid: { icon: 'shield', label: 'Personal details removed', sub: 'on this device', where: 'device' }, here: 'Your PDF is read here; name, ID and phone removed here', there: 'Only anonymous numbers, age range and sex' },
+// mark: the one phrase of this section drawn with the highlighter stroke (decoration only; the words are unchanged).
+const PATHS: Record<Kind, { tab: string; mid: Node | null; here: string; there: string; mark?: string }> = {
+  private: { tab: 'Private (PDF)', mid: { icon: 'shield', label: 'Personal details removed', sub: 'on this device', where: 'device' }, here: 'Your PDF is read here; name, ID and phone removed here', there: 'Only anonymous numbers, age range and sex', mark: 'Only anonymous numbers' },
   mask: { tab: 'Mask it yourself', mid: { icon: 'box', label: 'You cover your details', sub: 'black boxes, on this device', where: 'device' }, here: 'You cover your details with black boxes here', there: 'The covered image, then anonymous numbers' },
   full: { tab: 'Full report', mid: null, here: 'Nothing is removed first', there: 'The full report image, only with your consent' },
 }
@@ -32,11 +33,12 @@ function Link({ tone, second, full }: { tone: 'device' | 'cloud'; second?: boole
     </svg>
   )
 }
-function Stop({ n, text }: { n: Node; text?: string }) {
+function Stop({ n, text, mark }: { n: Node; text?: string; mark?: string }) {
+  const t = text ?? n.sub
   return (
     <div className={`beam-node ${n.where}`}>
       <span className="beam-icon">{ICONS[n.icon]}</span>
-      <span><b>{n.label}</b>{(text ?? n.sub) && <small>{text ?? n.sub}</small>}</span>
+      <span><b>{n.label}</b>{t && <small>{mark && t.startsWith(mark) ? <><mark className="hl">{mark}</mark>{t.slice(mark.length)}</> : t}</small>}</span>
     </div>
   )
 }
@@ -71,7 +73,7 @@ export default function Beam() {
         <div className="beam" key={kind} aria-hidden="true">
           <Stop n={DEVICE} text={kind === 'full' ? p.here : undefined} />
           {p.mid ? <><Link tone="device" /><Stop n={p.mid} /><Link tone="cloud" second /></> : <Link tone="cloud" full />}
-          <Stop n={CLOUD} text={p.there} />
+          <Stop n={CLOUD} text={p.there} mark={p.mark} />
         </div>
       </div>
     </div>

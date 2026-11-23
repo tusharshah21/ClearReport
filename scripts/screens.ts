@@ -75,7 +75,11 @@ for (const s of sizes) {
   await click('Done masking')
   await page.getByRole('heading', { name: /exact image/ }).waitFor()
   await click(/^Send this image/)
-  await page.getByRole('heading', { name: 'Check your results' }).waitFor({ timeout: 120_000 })
+  // If the cloud read fails, print the page's technical details (for example a busy model or a quota error) before stopping.
+  await page.getByRole('heading', { name: 'Check your results' }).waitFor({ timeout: 120_000 }).catch(async (e) => {
+    await page.getByText('Technical details').click().catch(() => {})
+    console.log('Cloud read failed:', (await page.locator('main').innerText()).slice(0, 1500)); throw e
+  })
   await shot('07-review')
   await click('Approve and send these numbers')
   await page.getByRole('heading', { name: 'Summary' }).waitFor({ timeout: 120_000 })

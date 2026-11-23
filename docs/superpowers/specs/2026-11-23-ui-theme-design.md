@@ -14,7 +14,7 @@ Every colour has one meaning, and meaning is never carried by colour alone (alwa
 | --- | --- | --- |
 | Stain violet | On your device | Data trail device steps, Private path card, on-device chips, the device half of the data-journey beam, primary buttons and links (the app's brand) |
 | Eosin rose | In the cloud | Data trail cloud steps, Full report path card, cloud chips, the cloud half of the beam after the shield |
-| Highlighter yellow | Only "your lab and a guideline disagree" | The signature callout and the "Guideline: borderline" chip. Nothing else is yellow |
+| Highlighter yellow | Only "your lab and a guideline disagree" | In the app: the signature callout and the "Guideline: borderline" chip, nothing else. On the landing page: also one key phrase per section, drawn with the same marker stroke (since Prompt 21) |
 | Peach | Above or below the lab's range | "Above range" / "Below range" chips and finding icons, always with an icon and words |
 | Teal | Within the lab's range | "Within range" chips and finding icons |
 | Red | Real errors only | Error notices and error text, always with an icon and words. A true red, clearly different in hue from the rose |
@@ -65,16 +65,19 @@ Buttons on dark keep `--primary` with white text (6.83:1). The outlined secondar
 ## Textures
 
 - Landing hero: a faint microscope-slide grid in `--night-grid`, in the same 65-degree perspective as before, fading out towards the bottom, with one soft violet radial glow behind the headline. Static.
-- App: a very faint graph-paper grid in `--grid-line` on `--paper`. It sits behind content only: long text is on solid cards, and the lines are faint enough (1.05:1 on paper) that short text on the paper itself stays clear.
+- App and the landing page's light sections: a very faint graph-paper grid in `--grid-line` on `--paper`. It sits behind content only: long text is on solid cards, and the lines are faint enough (1.05:1 on paper) that short text on the paper itself stays clear.
 - Print: no textures, no glow.
 
 ## Component treatments
 
-- Landing: dark hero (headline in `--night-text`, "Keep your identity." in a violet-to-rose gradient), primary "Read my report" and outlined "Try a sample report", the product image on dark with a thin violet edge glow (regenerated in the new theme from a Path 1 run of demo.pdf), the live HTML glucose card on phones. The first section after the hero starts the light paper area with a soft gradient transition; the footer is dark again.
+- Landing: dark hero (headline in `--night-text`, "Keep your identity." in a violet-to-rose gradient), primary "Read my report" and outlined "Try a sample report", the product image with a thin violet edge glow (regenerated in the new theme from a Path 1 run of demo.pdf), the live HTML glucose card on phones. The product image (or the card) straddles the boundary: the night ends with a crisp edge halfway down it and the paper starts there, with no gradient band. The footer is dark again.
+- Landing sections: a lab-report header above each heading (number and name in small Plex Mono capitals, for example "01 · WHAT LEAVES YOUR DEVICE"), and one highlighter mark per section on a key phrase.
+- Brand mark: a circle (a microscope slide seen from above) split diagonally, violet and rose, with a thin outline (ink on light, `--night-text` on dark, the glow colours for the halves on dark). Used beside "ClearReport" in both headers, as the favicon and in the Open Graph image.
+- Disclaimer above every app screen: a slim bar with an info icon and a light border, no fill.
 - Data-journey beam: violet on the device side, rose after the shield.
 - Data trail: violet dots and chips for device steps, rose for cloud steps.
 - Path cards: Private has violet accents, Full report rose accents, Mask it yourself neutral with a violet button (masking happens on the device).
-- Result cards: value in Plex Mono, bold; peach and teal status chips with icons.
+- Result cards: value in Plex Mono 500 at 1.7rem (1.5rem in the collapsed rows), the visual focus of each card; peach and teal status chips with icons.
 - Signature callout: a highlighter band behind its heading (yellow marker stroke with a slightly irregular edge, CSS only) and a small pen icon; the body on `--highlight-tint`. The "Guideline: borderline" chip uses the same yellow.
 - Mask, crop and canvas chips: violet outline and chip, white digits, black burned-in masks.
 

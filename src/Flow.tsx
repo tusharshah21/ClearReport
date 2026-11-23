@@ -3,7 +3,7 @@ import { guessCorners, straighten, type Quad } from './crop'
 import { extractDoc, extractRows, findPersonal, TEXT_CREATE_OPTIONS, toB64, warmText, type Run } from './extract'
 import { explain, type Explained } from './explain'
 import Explanation from './Explanation'
-import { Busy, DataTrail } from './ui'
+import { Busy, DataTrail, Icon, Logo } from './ui'
 import { checkAll, DISCLAIMER, type Check } from './guidelines'
 import { aiBoxes, nonResultLines, ocrWords, suggestMasks, type Suggestion } from './masks'
 import { isPdf, pdfPages } from './pdf'
@@ -560,11 +560,11 @@ export default function Flow() {
   return (
     <div className="app">
       <header>
-        <p className="brand"><a href="/">ClearReport</a></p>
+        <p className="brand"><a href="/"><Logo />ClearReport</a></p>
         <p>Understand your blood test report, in plain words, privately.</p>
       </header>
       <main className="content" id="main">
-        <p className="notice no-print" data-testid="disclaimer">{DISCLAIMER}</p>
+        <p className="disclaimer-bar no-print" data-testid="disclaimer">{Icon.info}<span>{DISCLAIMER}</span></p>
         {sample && <p className="notice calm sample-banner no-print" role="status" data-testid="sample-banner">You are using a synthetic sample report. No real person's data.</p>}
 
         {step === 'choose' && !original && (

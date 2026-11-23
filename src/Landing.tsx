@@ -1,6 +1,6 @@
 import Beam from './Beam'
 import { checkTest, DISCLAIMER } from './guidelines'
-import { Badge, Icon } from './ui'
+import { Badge, Icon, Logo } from './ui'
 // The landing page at "/". Static: no Firebase, no AI, no report. The tool lives at /app.
 // Hero layout inspired by "Hero Section Dark" by kinfe123 / FarmUI (MIT), rebuilt in plain CSS with the Specimen tokens.
 
@@ -34,7 +34,7 @@ function GlucoseCard() {
 }
 
 const FAQ: [string, React.ReactNode][] = [
-  ['Is this medical advice?', <>No. ClearReport explains your report in plain words and compares each result with your lab's range and a named guideline. It does not give medical advice and never says you have a condition. Always discuss your results with your doctor.</>],
+  ['Is this medical advice?', <>No. ClearReport explains your report in plain words and compares each result with your lab's range and a named guideline. It <mark className="hl">does not give medical advice</mark> and never says you have a condition. Always discuss your results with your doctor.</>],
   ['What is stored?', <>Nothing about your report. It stays in your browser tab's memory and is gone when you close the tab. ClearReport has no database and no storage bucket. The only thing your browser remembers is that you confirmed you are 18 or over.</>],
   ['Which devices get private mode?', <>Private reading uses Chrome's built-in AI, so it needs desktop Chrome 139 or newer on a laptop or desktop with 16 GB of RAM or a graphics card with more than 4 GB of memory, free disk space for the model, and Chrome's built-in AI switched on (see the <a href={`${REPO}#try-it`}>README</a>). On other devices, including phones, you cover your details yourself before the image is sent.</>],
   ['Which languages?', <>Explanations are written in plain English, with a Hindi version you can switch to.</>],
@@ -46,22 +46,27 @@ export default function Landing() {
     <div className="landing">
       <div className="land-dark land-head">
         <header className="land-top">
-          <p className="brand">ClearReport</p>
+          <p className="brand"><Logo />ClearReport</p>
           <a className="btn quiet small-btn" href="/app">Open the app</a>
         </header>
       </div>
 
       <main id="main">
-        <section className="land-hero land-dark" aria-labelledby="land-title">
-          <div className="hero-grid" aria-hidden="true"><div className="hero-grid-plane"><div className="hero-grid-lines" /></div></div>
-          <div className="land-hero-inner">
-            <p className="eyebrow">Free, no account. English and हिन्दी.</p>
-            <h1 id="land-title">Understand your blood test report. <span className="grad">Keep your identity.</span></h1>
-            <p className="lede">Your report is read on your device when possible, and only anonymous numbers go to the cloud for a plain-language explanation in English or Hindi.</p>
-            <div className="land-ctas">
-              <a className="btn primary" href="/app">Read my report</a>
-              <a className="btn" href="/app?sample=demo">Try a sample report</a>
+        <section className="land-hero" aria-labelledby="land-title">
+          <div className="land-hero-top land-dark">
+            <div className="hero-grid" aria-hidden="true"><div className="hero-grid-plane"><div className="hero-grid-lines" /></div></div>
+            <div className="land-hero-inner">
+              <p className="eyebrow">Free, no account. English and हिन्दी.</p>
+              <h1 id="land-title">Understand your blood test report. <span className="grad">Keep your identity.</span></h1>
+              <p className="lede">Your report is read on your device when possible, and only anonymous numbers go to the cloud for a plain-language explanation in English or Hindi.</p>
+              <div className="land-ctas">
+                <a className="btn primary" href="/app">Read my report</a>
+                <a className="btn" href="/app?sample=demo">Try a sample report</a>
+              </div>
             </div>
+          </div>
+          {/* The product image straddles the edge: the night ends halfway down it and the paper starts there. */}
+          <div className="hero-shot">
             <figure className="browser-frame">
               <div className="browser-bar" aria-hidden="true"><i /><i /><i /><span>clearreport-717f3.web.app/app</span></div>
               <picture><source media="(max-width: 600px)" srcSet="data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==" /><source srcSet="/landing/hero.webp" type="image/webp" /><img src="/landing/hero.jpg" width="1120" height="700" fetchPriority="high" alt="ClearReport explaining a synthetic report: the fasting glucose result of 104 mg/dL is within the lab's range of 70 to 110, and a callout says a widely used guideline (ADA 2026) would call it borderline. The data trail beside it shows which steps happened on the device and which in the cloud." /></picture>
@@ -72,17 +77,19 @@ export default function Landing() {
 
         <div className="land-light">
         <section className="land-section" aria-labelledby="journey-title">
+          <p className="sec-label" aria-hidden="true"><span>01</span> · What leaves your device</p>
           <h2 id="journey-title">What leaves your device</h2>
           <p className="muted">Choose a path to see where your report goes.</p>
           <div className="card"><Beam /></div>
         </section>
 
         <section className="land-section" aria-labelledby="why-title">
+          <p className="sec-label" aria-hidden="true"><span>02</span> · Why this matters</p>
           <h2 id="why-title">Why this matters</h2>
           <div className="land-grid2">
             <div className="card fact">
               <p className="fact-big">33,244</p>
-              <p>Indian labs: a 2026 preprint found their reference ranges vary significantly, so "inside your lab's range" is not a fixed truth.</p>
+              <p>Indian labs: a 2026 preprint found their reference ranges vary significantly, so "inside your lab's range" is <mark className="hl">not a fixed truth</mark>.</p>
               <p className="small muted">Lakhani S., medRxiv preprint, June 2026. <a href="https://www.medrxiv.org/content/10.64898/2026.06.01.26354654v1">Read the preprint</a></p>
             </div>
             <div className="card fact">
@@ -94,15 +101,17 @@ export default function Landing() {
         </section>
 
         <section className="land-section" aria-labelledby="how-title">
+          <p className="sec-label" aria-hidden="true"><span>03</span> · How it works</p>
           <h2 id="how-title">How it works</h2>
           <ol className="steps3">
             <li><b>1. Read</b>Your report's numbers are read, on this device when it can.</li>
-            <li><b>2. Check</b>You see exactly what will be sent, with your name and details removed, and approve it.</li>
+            <li><b>2. Check</b>You see exactly what will be sent, with <mark className="hl">your name and details removed</mark>, and approve it.</li>
             <li><b>3. Explain</b>Gemini explains the anonymous numbers in plain English or Hindi, with questions for your doctor.</li>
           </ol>
         </section>
 
         <section className="land-section" aria-labelledby="hood-title">
+          <p className="sec-label" aria-hidden="true"><span>04</span> · Under the hood</p>
           <h2 id="hood-title">Under the hood</h2>
           <div className="hood">
             <div className="card hood-col device">
@@ -120,7 +129,7 @@ export default function Landing() {
               <ul>
                 <li><code>ONLY_IN_CLOUD</code> Reads the image you covered (or the full report, only if you chose that and agreed).</li>
                 <li><code>ONLY_IN_CLOUD</code> Writes the plain-language explanation and the Hindi translation from the anonymous numbers.</li>
-                <li>It sees only what you approved.</li>
+                <li>It sees <mark className="hl">only what you approved</mark>.</li>
                 <li>If it is busy, the app waits and retries, then tries Gemini 3.8 Flash once. The page names the model that answered.</li>
               </ul>
             </div>
@@ -139,9 +148,10 @@ export default function Landing() {
         </section>
 
         <section className="land-section" aria-labelledby="privacy-title">
+          <p className="sec-label" aria-hidden="true"><span>05</span> · Privacy promises</p>
           <h2 id="privacy-title">Privacy promises</h2>
           <ul className="promises">
-            <li><b>Nothing is stored.</b> Your report stays in your browser tab's memory. ClearReport has no database and no storage bucket.</li>
+            <li><b>Nothing is stored.</b> Your report stays in your browser tab's memory. ClearReport has <mark className="hl">no database and no storage bucket</mark>.</li>
             <li><b>You approve what is sent.</b> You see the exact anonymous numbers, or the exact covered image, before anything goes to the cloud.</li>
             <li><b>Paid-tier Gemini.</b> Explanations use the Gemini Developer API on a paid plan, under Google's paid-services terms.</li>
             <li><b>App Check.</b> Firebase App Check (reCAPTCHA Enterprise) lets only the ClearReport web app call Gemini.</li>
@@ -149,6 +159,7 @@ export default function Landing() {
         </section>
 
         <section className="land-section" aria-labelledby="faq-title">
+          <p className="sec-label" aria-hidden="true"><span>06</span> · Questions</p>
           <h2 id="faq-title">Questions</h2>
           <div className="faq">
             {FAQ.map(([q, a]) => (

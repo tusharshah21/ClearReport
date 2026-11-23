@@ -12,7 +12,20 @@ export const Icon = {
   down: svg('M10 4v12M5.5 11.5L10 16l4.5-4.5'), // below the range
   up: svg('M10 16V4M5.5 8.5L10 4l4.5 4.5'), // above the range
   ruler: svg('M3 13.5L13.5 3l3.5 3.5L6.5 17zM6.5 10l1.5 1.5M9 7.5l1.5 1.5M11.5 5l1.5 1.5'),
+  info: svg('M10 9v5.5M10 6v.5M10 18a8 8 0 1 0 0-16 8 8 0 0 0 0 16z'),
   pen: svg('M12.5 4.5l3 3L8 15H5v-3zM10.5 6.5l3 3M4 18h12'), // highlighter pen, for the "lab and guideline disagree" callout
+}
+
+// Brand mark: a microscope slide seen from above, split diagonally into the two stains (violet = on this device,
+// rose = in the cloud), with a thin outline. Colours come from CSS (--logo-a, --logo-b, --logo-line) so it works on dark too.
+export function Logo() {
+  return (
+    <svg className="logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M4.93 4.93A10 10 0 0 1 19.07 19.07Z" fill="var(--logo-a)" />
+      <path d="M19.07 19.07A10 10 0 0 1 4.93 4.93Z" fill="var(--logo-b)" />
+      <circle cx="12" cy="12" r="10" fill="none" stroke="var(--logo-line)" strokeWidth="1.25" />
+    </svg>
+  )
 }
 
 export function Badge({ kind, icon, children }: { kind: 'ok' | 'out' | 'check' | 'plain' | 'note'; icon?: React.ReactNode; children: React.ReactNode }) {
