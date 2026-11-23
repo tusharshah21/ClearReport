@@ -58,7 +58,7 @@ Every AI call in the app, with its inference mode:
 
 | Mode | What it does | What data it sees | Code |
 | --- | --- | --- | --- |
-| `ONLY_ON_DEVICE` | Path 1: reads result rows the plain-code parser could not read | Result rows from the PDF text, with identity lines already dropped | [src/extract.ts:226](src/extract.ts#L226) |
+| `ONLY_ON_DEVICE` | Path 1: tries to read result rows the plain-code parser could not read (not reliable yet, see [Accuracy and evaluation](#accuracy-and-evaluation)) | Result rows from the PDF text, with identity lines already dropped | [src/extract.ts:226](src/extract.ts#L226) |
 | `ONLY_ON_DEVICE` | Path 2, optional "Look for more personal details": finds names, IDs and phone numbers in the OCR text so they can be boxed | The page's OCR text, which never leaves the device | [src/extract.ts:195](src/extract.ts#L195) |
 | `ONLY_ON_DEVICE` | Evaluation only (dev spike page): reads a report image on the device | Synthetic test images | [src/extract.ts:72](src/extract.ts#L72) |
 | `ONLY_IN_CLOUD` | Paths 2 and 3: reads the results from the image | Path 2: the image the user covered and approved. Path 3: the full image, with consent | [src/extract.ts:79](src/extract.ts#L79) |
@@ -94,9 +94,17 @@ All numbers below come from `npm run eval` (`test-data/results.md`) and `npm tes
 
   With the parser switched off, p1 took 1 on-device call (about 70 s) with one unit error: the platelet count came back converted to 260000 /cumm, a value that does not match the PDF text, so the cross-check would mark it "Please check this value" (that run recorded the error; it did not go through the review screen).
 
-  We then improved the parser with general rules, not rules for these files: it types each column instead of assuming the name comes first, splits side-by-side rows when both halves parse, joins wrapped names, and picks the patient's own bounds from "M: / F:" ranges. All three layouts now parse fully (8, 11 and 8 rows) with 0 model calls, and every value verifies against the PDF text (checked in `npm test`). Layouts the parser has not seen still fall back to the on-device model, and every value it returns is cross-checked against the PDF text.
+  We then improved the parser with general rules, not rules for these files: it types each column instead of assuming the name comes first, splits side-by-side rows when both halves parse, joins wrapped names, and picks the patient's own bounds from "M: / F:" ranges. All three layouts now parse fully (8, 11 and 8 rows) with 0 model calls, and every value verifies against the PDF text (checked in `npm test`). Layouts the parser has not seen still fall back to the on-device model, and every value it returns is cross-checked against the PDF text. The next result shows how far that fallback can be trusted.
+- **A new unfamiliar layout read badly on the device.** `demo-unfamiliar.pdf` (synthetic, 10 tests in two-column result cards: the name, then the value and unit, then "Expected:" and the range, each on its own line) was read on Path 1 in Chrome after the parser work above, with the parser unchanged:
+
+  | Run | Rows read by the parser | Rows from the on-device model | On-device calls | Time | Tests with the right name | Right values (under wrong names) | Right ranges | Verified | Please check | Read from image | Identity sent |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | 1 (cold) | 0 | 5 | 5 | 54.2 s | 0 of 10 | 4 of 10 | 0 | 0 | 4 | 1 | none |
+  | 2 (warm) | 0 | 6 | 1 | 34.8 s | 0 of 10 | 6 of 10 | 0 | 0 | 5 | 1 | none |
+
+  There were no timeouts or errors; the reads were simply wrong. The parser's row builder sent the model only the value lines (for example "12.6 g/dL | 7,600 /cumm"), because the names and ranges sit on lines of their own, so the model invented test names and dropped rows (at least 4 of the 10 tests each run). The cross-check marked no row as verified and flagged 4 or 5 rows per run, but it did not catch everything: in each run one row whose invented name does not appear in the PDF text could not be checked at all, so it got the neutral "Read from image" badge, which does not block approval. Age band and sex were not found either.
 - **On-device image reading did not hold up, so we moved on-device work to text.** Reading report images with the on-device model: on 6 clean images it got 91% of values but only 58% of printed ranges, and missed 7 of 36 personal fields; on 2 phone photos it got 66% of values and 19% of ranges, and missed 6 of 12 personal fields. That is why Path 1 accepts lab PDFs and reads their text, and photos go through Path 2.
-- **No wrong value is marked as verified.** For PDFs, each value, unit and range is cross-checked against the PDF's own text layer on the device. A test changes every WM14 and WM15 value by +10 and checks that none of them verifies, and that a missing unit never verifies. Values that do not match are shown as "Please check this value" and must be confirmed before they count.
+- **No wrong value is marked as verified.** For PDFs, each value, unit and range is cross-checked against the PDF's own text layer on the device. A test changes every WM14 and WM15 value by +10 and checks that none of them verifies, and that a missing unit never verifies. Values that do not match are shown as "Please check this value" and must be confirmed before they count. A row whose test name cannot be found in the PDF text cannot be checked; it is shown as "Read from image" and does not have to be confirmed (see the unfamiliar-layout result above).
 
 ## Privacy and safety
 
