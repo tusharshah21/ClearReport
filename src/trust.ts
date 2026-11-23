@@ -30,6 +30,9 @@ export function trustOf(rows: Row[], pages: (Word[] | null)[]): Trust[] {
     if (c.unit === 'mismatch') return t('check', "The unit read for this test does not match your PDF's text.")
     if (r.value === null && c.pdf_value !== null) return t('check', "No value was read for this test, but your PDF's text has a number on this row.")
     if (c.value === 'verified') return t('verified', '')
+    // A page with a text layer (a lab PDF) can always be checked: a row that could not be matched to it is not
+    // trusted. "Read from image" is only for pages with no text layer (photos and scans).
+    if (lines[page]) return t('check', r.value === null ? 'No value was read for this test.' : "This test's name or value could not be found in your PDF's text, so it could not be checked.")
     return t('image', '')
   })
 }

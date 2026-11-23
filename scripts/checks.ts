@@ -200,12 +200,12 @@ assert.equal(displayName('Absolute Leucocyte Count\n(Calculated)\nBasophils'), '
 assert.equal(displayName('Creatinine\n(Modified Jaffe,Kinetic)'), 'Creatinine')
 assert.equal(displayName('Some New Test\n(Method)'), 'Some New Test (Method)')
 
-// Badges: legible=false or a text-layer mismatch => "check"; text-layer match => "verified"; photo => "image".
+// Badges: legible=false, a text-layer mismatch or a row not found in the text layer => "check"; match => "verified"; photo => "image".
 const w = (text: string, x0: number, y: number) => ({ text, x0, x1: x0 + 0.01 * text.length, y0: y, y1: y + 0.012 })
 const page = [w('Triglycerides', 0.1, 0.3), w('145.00', 0.45, 0.3), w('mg/dL', 0.6, 0.3), w('<150.00', 0.75, 0.3), w('HDL', 0.1, 0.33), w('Cholesterol', 0.14, 0.33), w('41.00', 0.45, 0.33)]
 const row = (name: string, value: number | null, extra = {}) => ({ name, value, ref_low: null, ref_high: null, ...extra })
 assert.deepEqual(trustOf([row('Triglycerides', 145, { ref_high: 150, unit: 'mg/dL' }), row('Triglycerides', 115, { unit: 'mg/dL' }), row('HDL Cholesterol', 41), row('HDL Cholesterol', null, { legible: false }), row('Urea', 20)], [page]).map((t) => t.badge),
-  ['verified', 'check', 'verified', 'check', 'image'])
+  ['verified', 'check', 'verified', 'check', 'check']) // Urea is not in this PDF's text: it cannot be checked, so it is never neutral
 assert.deepEqual(trustOf([row('Triglycerides', 145, { ref_high: 160, unit: 'mg/dL' })], [page]).map((t) => [t.value, t.range, t.badge]), [['verified', 'mismatch', 'check']])
 // Units: missing (WM14 T3) or misread (WM15 RBC) units on a row that prints one => "check".
 assert.deepEqual(trustOf([row('Triglycerides', 145), row('Triglycerides', 145, { unit: 'mmol/L' }), row('Triglycerides', 145, { unit: 'MG/DL' }), row('Triglycerides', 145, { unit: 'g/dL' })], [page]).map((t) => [t.unit, t.badge]),
