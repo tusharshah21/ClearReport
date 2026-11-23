@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { guessCorners, straighten, type Quad } from './crop'
-import { extractDoc, extractRows, textModel, TEXT_CREATE_OPTIONS, toB64, type Run } from './extract'
+import { extractDoc, extractRows, TEXT_CREATE_OPTIONS, toB64, warmText, type Run } from './extract'
 import { explain, type Explained } from './explain'
 import Explanation from './Explanation'
 import { checkAll, DISCLAIMER, type Check } from './guidelines'
@@ -240,6 +240,15 @@ export default function Flow() {
     LanguageModel.availability(TEXT_CREATE_OPTIONS).then((a) => setAvail(a as Avail), () => setAvail('error'))
   }, [])
 
+  // Start-up of the on-device model overlaps with what the user does next (upload, review). The status line says so honestly.
+  function startWarm() {
+    if (devicePrep.current) return
+    setProgress('Preparing the on-device model...')
+    devicePrep.current = warmText((v) => setProgress(`Downloading on-device model: ${Math.round(v * 100)}%`))
+    const mine = (s: string) => s.startsWith('Preparing the on-device') || s.startsWith('Downloading on-device')
+    devicePrep.current.then(() => setProgress((s) => (mine(s) ? '' : s)), (e) => setProgress(`On-device model could not start: ${e}`))
+  }
+
   function reset() {
     for (const i of [...(original ?? []), ...(toSend ?? [])]) URL.revokeObjectURL(i.url)
     setOriginal(null); setToSend(null); setMasks([]); setPageWords([]); setSuggest([]); setSkipped([]); setConsent(false); setError(''); setResult(null); setApproved(null); setExplained(null); setProgress(''); setPath(null); setCropped(false); setStep('choose')
@@ -249,11 +258,8 @@ export default function Flow() {
     setPath(p)
     setConsent(false) // consent is per report, per choice; never carried over
     setError('')
-    if (p === 1 && !devicePrep.current) {
-      // Must start from this click: Chrome only allows the model download after a user gesture.
-      devicePrep.current = textModel().initializeDeviceModel((v) => setProgress(`Downloading on-device model: ${Math.round(v * 100)}%`))
-      devicePrep.current.then(() => setProgress(''), (e) => setProgress(`On-device model could not start: ${e}`))
-    }
+    // Must start from this click when a download is needed: Chrome only allows it after a user gesture.
+    if (p === 1) startWarm()
     if (!original) return setStep('upload')
     if (isPhotoFile && !cropped) return setStep('crop')
     proceed(p, original)
@@ -271,6 +277,8 @@ export default function Flow() {
       const words = pdf ? pdf.map((p) => p.words) : [null]
       setPageWords(words)
       setOriginal(pages)
+      // A text PDF with the model already on this device: start loading it now (no download, so no gesture needed).
+      if (words.some((w) => w?.length) && avail === 'available') startWarm()
       if (path === 1 && !words.some((w) => w?.length)) {
         // Path 1 reads a PDF's text on this device. Photos and scanned PDFs have no text, so the user picks Path 2 or 3.
         setPath(null)
@@ -321,9 +329,12 @@ export default function Flow() {
   // Path 1: the PDF's text, identity removed locally (textrows.ts), read by the on-device model only.
   function runText(words: (Word[] | null)[]) {
     return read(words, async () => {
-      await devicePrep.current
       const rows = rowsForModel(words.map((w) => w ?? []))
-      return extractRows('user', rows.batches, rows, (done, total) => setProgress(`Read ${done} of ${total} groups of rows on this device...`))
+      // Rows the parser reads need no model; only leftover rows wait for the warm-up to finish.
+      return extractRows('user', rows.batches, rows, (done, total) => setProgress(`Read ${done} of ${total} groups of rows on this device...`), async () => {
+        setProgress('Preparing the on-device model...')
+        await devicePrep.current
+      })
     })
   }
 

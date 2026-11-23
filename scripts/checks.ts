@@ -214,3 +214,17 @@ console.log('crop ok')
   assert.deepEqual(skippedRows(rows, ['Monocytes', 'Lymphocytes', 'Monocytes']), [])
   console.log('skipped rows ok')
 }
+{
+  const { parseRow } = await import('../src/textrows')
+  const p = (r: string) => { const x = parseRow(r); return x && [x.value, x.unit, x.ref_low, x.ref_high, x.printed_flag] }
+  assert.deepEqual(p('Hemoglobin | 10.9 | L | g/dL | 13.0 - 17.0'), [10.9, 'g/dL', 13, 17, 'L'])
+  assert.deepEqual(p('Cholesterol, Total | 250.70 H | mg/dL | <200.00'), [250.7, 'mg/dL', null, 200, 'H'])
+  assert.deepEqual(p('HDL Cholesterol | 51.2 | mg/dL | >40'), [51.2, 'mg/dL', 40, null, null])
+  assert.deepEqual(p('Triglycerides | 120 | High | mg/dL | Upto 150'), [120, 'mg/dL', null, 150, 'H'])
+  assert.deepEqual(p('A : G Ratio | 1.34 | 0.90 - 2.00'), [1.34, null, 0.9, 2, null])
+  assert.deepEqual(p('Platelet Count | 151 | 10^3/µL | 150 - 410'), [151, '10^3/µL', 150, 410, null])
+  // Not sure: the model reads these.
+  for (const r of ['Glucose | <5 | mg/dL', 'Page | 2 | of | 5', 'HbA1c | 5.0 | % | Non diabetic: <5.7', 'TSH | 4 | uIU/mL | 0.5 - 4.8 | extra', 'Desirable | 200 - 239'])
+    assert.equal(parseRow(r), null, r)
+  console.log('row parser ok')
+}

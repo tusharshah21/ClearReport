@@ -110,6 +110,18 @@ export default function Spike() {
     setBusy(false)
   }
 
+  // The duplicate-name fix (skippedRows) on the device: WM15's blood-count rows with the parser off. Not saved as a run.
+  async function runMonocytes() {
+    setBusy(true)
+    const s = await loadSynthetic('WM15')
+    const rows = rowsForModel(s.pages.map((p) => p.words ?? []))
+    const cbc = rows.batches.filter((b) => /Monocytes/.test(b.text))
+    const r = await extractRows('WM15-cbc', cbc, rows, (d, n) => say(`WM15 blood count, model only: ${d} of ${n} batches`), undefined, false)
+    const tests = ((r.output as { tests?: { name: string; value: unknown; unit: unknown }[] } | null)?.tests ?? [])
+    say(`Model only: ${r.calls.length} calls, ${(r.latency_ms / 1000).toFixed(1)} s. Monocytes rows: ${JSON.stringify(tests.filter((t) => /monocytes/i.test(t.name)).map((t) => [t.value, t.unit]))}`)
+    setBusy(false)
+  }
+
   async function runOne(mode: Mode) {
     if (!img) return
     setBusy(true)
@@ -125,7 +137,8 @@ export default function Spike() {
         <button disabled={busy} onClick={checkStatus}>Check status</button>{' '}
         <button disabled={busy} onClick={() => runAll()}>Run all 8 synthetic reports (device + cloud)</button>{' '}
         <button disabled={busy} onClick={() => runAll(['device'])}>2. Run all 8 ONLY_ON_DEVICE</button>{' '}
-        <button disabled={busy} onClick={runText}>3. Run WM14 + WM15 as text ONLY_ON_DEVICE (Path 1)</button>
+        <button disabled={busy} onClick={runText}>3. Run WM14 + WM15 as text ONLY_ON_DEVICE (Path 1)</button>{' '}
+        <button disabled={busy} onClick={runMonocytes}>4. WM15 blood count, model only (Monocytes check)</button>
       </p>
       <p>
         Synthetic:{' '}

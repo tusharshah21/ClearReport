@@ -5,9 +5,10 @@ import { existsSync, readFileSync } from 'node:fs'
 import { getDocument, OPS } from 'pdfjs-dist/legacy/build/pdf.mjs'
 import { displayName } from '../src/canonical'
 import { suggestMasks } from '../src/masks'
-import { rowsForModel } from '../src/textrows'
+import { parseRow, rowsForModel } from '../src/textrows'
 import { pageWords, pagesWithResults, toLines, verify, type Line, type Word } from '../src/textlayer'
 
+const norm = (s: string) => displayName(s).toLowerCase().replace(/[^a-z0-9]/g, '')
 const best = (rs: string[]) => (rs.includes('verified') ? 'verified' : rs.includes('mismatch') ? 'mismatch' : 'unverified')
 for (const id of ['WM14', 'WM15']) {
   const pdf = `test-data/real-samples/${id}.pdf`
@@ -40,6 +41,20 @@ for (const id of ['WM14', 'WM15']) {
   const missingRows = gt.tests.filter((t: { name: string }) => !sent.toLowerCase().includes(displayName(t.name).toLowerCase().split(/[ ,(]/)[0]))
   assert.deepEqual(missingRows.map((t: { name: string }) => t.name), [], `${id} Path 1 rows missing tests`)
   console.log(`textcheck: ${id} Path 1 sends ${rows.batches.length} batches, ${sent.split('\n').length} rows, ${rows.dropped_lines} identity lines dropped`)
+  // Deterministic parser: every row it accepts must equal ground truth (same name, in order for repeated names).
+  const all = sent.split('\n'), parsed = all.map(parseRow)
+  const used = new Set<number>(), bad: string[] = []
+  for (const p of parsed.filter((p) => p !== null)) {
+    const k = gt.tests.findIndex((t: { name: string }, i: number) => !used.has(i) && norm(t.name) === norm(p.name))
+    if (k < 0) { bad.push(`${p.name}: not in ground truth`); continue }
+    used.add(k)
+    const t = gt.tests[k]
+    // Ground truth keeps a value hidden on the page (text layer only) as null; the parser reads the text, like the cross-check.
+    for (const f of ['value', 'unit', 'ref_low', 'ref_high', 'ref_text', 'printed_flag'] as const)
+      if (!(f === 'value' && t.value === null) && String(p[f]).replace('μ', 'µ') !== String(t[f]).replace('μ', 'µ')) bad.push(`${p.name} ${f}: ${p[f]} (want ${t[f]})`)
+  }
+  assert.deepEqual(bad, [], `${id} parser rows differ from ground truth`)
+  console.log(`textcheck: ${id} parser reads ${parsed.filter(Boolean).length} of ${all.length} rows, ${all.length - parsed.filter(Boolean).length} go to the on-device model; lab_name "${rows.lab_name}"`)
   const seen: Record<string, number> = {}
   const sugg = { total: 0, right: 0, wrong: [] as string[] }
   for (const t of gt.tests) {

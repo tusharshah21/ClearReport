@@ -6,10 +6,13 @@ import { BADGE_TEXT, type Trust } from './trust'
 
 export type Result = { payload: Payload; findings: Finding[]; run: Run; trust: Trust[] }
 const COLORS = { verified: '#1a7f37', check: '#b35900', image: '#555' }
+// Path 1 only: which local method read each row. Shown as a detail, never sent (toPayload whitelists the fields).
+const METHOD = { parser: 'read by plain-code parser', model: 'read by on-device model' } as const
 
 // Values flagged "Please check" stay out of the range check until the user confirms or corrects them.
 export default function Review({ result, onCancel, onApprove }: { result: Result; onCancel: () => void; onApprove: (p: Payload, confirmed: boolean[]) => void }) {
   const [edits, setEdits] = useState<Record<number, { text: string; confirmed: boolean }>>({})
+  const methods = ((result.run.output as { tests?: { method?: keyof typeof METHOD }[] } | null)?.tests ?? []).map((t) => t?.method)
   const pending = (i: number) => result.trust[i].badge === 'check' && !edits[i]?.confirmed
   const tests = result.payload.tests.map((t, i) => (edits[i]?.confirmed ? { ...t, value: edits[i].text.trim() === '' ? null : Number(edits[i].text) } : t))
   const payload: Payload = { ...result.payload, tests }
@@ -46,7 +49,7 @@ export default function Review({ result, onCancel, onApprove }: { result: Result
                 </td>
                 <td>{t.unit}</td>
                 <td>{t.ref_text}</td>
-                <td><span title={tr.why} style={{ color: COLORS[tr.badge], fontSize: 12 }}>{BADGE_TEXT[tr.badge]}</span>{tr.why && tr.badge === 'check' && !e?.confirmed && <div style={{ fontSize: 11, color: '#666' }}>{tr.why}</div>}</td>
+                <td><span title={tr.why} style={{ color: COLORS[tr.badge], fontSize: 12 }}>{BADGE_TEXT[tr.badge]}</span>{methods[i] && <div data-testid="method" style={{ fontSize: 11, color: '#777' }}>{METHOD[methods[i]!]}</div>}{tr.why && tr.badge === 'check' && !e?.confirmed && <div style={{ fontSize: 11, color: '#666' }}>{tr.why}</div>}</td>
               </tr>
             )
           })}
@@ -76,7 +79,7 @@ export default function Review({ result, onCancel, onApprove }: { result: Result
       )}
       <pre data-testid="payload" style={{ background: '#f4f4f4', padding: 10, overflow: 'auto', maxHeight: 420, fontSize: 12 }}>{JSON.stringify(payload, null, 2)}</pre>
       <p style={{ fontSize: 12, color: '#666' }}>
-        Read {result.run.calls.every((c) => c.source === 'on_device') ? 'on this device' : 'by Gemini in the cloud'} in {(result.run.latency_ms / 1000).toFixed(1)} s ({result.run.strategy === 'pages' ? `${result.run.page_strategies?.length} pages` : result.run.strategy === 'rows' ? `${result.run.calls.length} on-device calls` : `${result.run.strategy} call`}).
+        Read {result.run.calls.every((c) => c.source === 'on_device') ? 'on this device' : 'by Gemini in the cloud'} in {(result.run.latency_ms / 1000).toFixed(1)} s ({result.run.strategy === 'pages' ? `${result.run.page_strategies?.length} pages` : result.run.strategy === 'rows' ? `${methods.filter((m) => m === 'parser').length} rows by the plain-code parser, ${result.run.calls.length} on-device model calls` : `${result.run.strategy} call`}).
       </p>
       <button onClick={onCancel}>Cancel</button>{' '}
       <button disabled={nPending > 0} onClick={() => onApprove(payload, tests.map((_, i) => !!edits[i]?.confirmed))}><b>Approve</b></button>

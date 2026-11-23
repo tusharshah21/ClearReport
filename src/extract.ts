@@ -1,7 +1,7 @@
 import { getGenerativeModel, InferenceMode, InferenceSource, type GenerativeModel } from 'firebase/ai'
 import { ai } from './firebase'
 import { config } from './remote'
-import { fixFromRow, rowFor, skippedRows } from './textrows'
+import { fixFromRow, parseRow, rowFor, skippedRows } from './textrows'
 
 const num = { type: ['number', 'null'] }
 const str = { type: ['string', 'null'] }
@@ -192,10 +192,31 @@ let rowsModel: GenerativeModel | null = null
 export const textModel = () =>
   (rowsModel ??= getGenerativeModel(ai, { mode: InferenceMode.ONLY_ON_DEVICE, onDeviceParams: { createOptions: TEXT_CREATE_OPTIONS, promptOptions: { responseConstraint: SCHEMAS.tests } } }))
 
-// One call per batch, one at a time, always ONLY_ON_DEVICE (never the cloud). Rows keep their page for the text-layer cross-check.
-export async function extractRows(report: string, batches: { page: number; text: string }[], local: { age: string | null; sex: string | null }, onProgress?: (done: number, total: number) => void): Promise<Run> {
+// Warm-up, started when the user picks Path 1 or uploads a text PDF: download if needed, then one tiny call through
+// Firebase AI Logic so Chrome loads the model into memory. The SDK opens a new session per call but keeps the last one
+// alive, which keeps the model loaded for the real calls. No report text is in this call.
+let warm: Promise<void> | null = null
+export const warmText = (onDownload?: (v: number) => void) =>
+  (warm ??= textModel().initializeDeviceModel(onDownload)
+    .then(() => textModel().generateContent('Reply with an empty list of tests.'))
+    .then(() => {}, (e) => { warm = null; throw e }))
+
+// Path 1. The deterministic parser (textrows.ts) reads every row it is sure about; only the rest go to the on-device
+// model, grouped per page, one call at a time, always ONLY_ON_DEVICE (never the cloud). Each test records its method.
+export async function extractRows(report: string, batches: { page: number; text: string }[], local: { age: string | null; sex: string | null; lab_name?: string | null }, onProgress?: (done: number, total: number) => void, beforeModel?: () => Promise<unknown>, parser = true): Promise<Run> {
   const t0 = performance.now()
-  const calls: Call[] = [], tests: unknown[] = []
+  const calls: Call[] = [], tests: { page: number; [k: string]: unknown }[] = []
+  const left: { page: number; rows: string[] }[] = []
+  for (const b of batches)
+    for (const r of b.text.split('\n')) {
+      const p = parser ? parseRow(r) : null // parser = false only on the spike page, to test the model path
+      if (p) tests.push({ ...p, page: b.page, method: 'parser' })
+      else {
+        const last = left.at(-1)
+        if (last?.page === b.page && last.rows.length < 10) last.rows.push(r)
+        else left.push({ page: b.page, rows: [r] })
+      }
+    }
   const ask = async (text: string): Promise<{ name: string; [k: string]: unknown }[] | null> => {
     const t1 = performance.now()
     let c: Call, out: { name: string; [k: string]: unknown }[] | null = null
@@ -216,25 +237,26 @@ export async function extractRows(report: string, batches: { page: number; text:
     return c.ok ? out : null
   }
   let ok = true
-  for (const [i, b] of batches.entries()) {
-    const rows = b.text.split('\n')
-    const got = await ask(b.text)
+  if (left.length) await beforeModel?.()
+  for (const [i, b] of left.entries()) {
+    const got = await ask(b.rows.join('\n'))
     if (!got) { ok = false; break } // a failed private read is reported, never retried in the cloud
     // The small model sometimes returns only the first rows of a batch (and skipped the same rows again when re-sent
     // together): send each skipped row on its own. A row it still cannot read is kept with a blank value and
     // legible: false, so the review screen asks the user to check it (with the PDF-text suggestion); never dropped.
-    for (const r of skippedRows(rows, got.map((t) => t.name))) {
+    for (const r of skippedRows(b.rows, got.map((t) => t.name))) {
       const more = (await ask(r))?.filter((t) => rowFor(t.name, [r]))
       got.push(...(more?.length ? more : [{ name: r.split(' | ')[0], value: null, unit: null, ref_low: null, ref_high: null, ref_text: null, printed_flag: null, legible: false }]))
     }
-    tests.push(...got.map((t) => ({ ...fixFromRow(t, rowFor(t.name, rows)), page: b.page })))
-    onProgress?.(i + 1, batches.length)
+    tests.push(...got.map((t) => ({ ...fixFromRow(t, rowFor(t.name, b.rows)), page: b.page, method: 'model' })))
+    onProgress?.(i + 1, left.length)
   }
+  tests.sort((a, b) => a.page - b.page) // stable: parser rows keep their order, model rows follow on the same page
   return {
     report, mode: 'device', strategy: 'rows', at: new Date().toISOString(), ok, calls,
     latency_ms: Math.round(performance.now() - t0),
     output_chars: calls.reduce((s, c) => s + c.output_chars, 0),
     // Identity never went to the model; age and sex were read locally and only become an age band and sex later.
-    output: ok ? { lab_name: null, pii: { patient_name: null, age: local.age, sex: local.sex, patient_id: null, phone: null, doctor_name: null }, tests } : null,
+    output: ok ? { lab_name: local.lab_name ?? null, pii: { patient_name: null, age: local.age, sex: local.sex, patient_id: null, phone: null, doctor_name: null }, tests } : null,
   }
 }
