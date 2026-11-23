@@ -22,7 +22,7 @@ const save = (run: Run) => import.meta.env.DEV && fetch('/__runs', { method: 'PO
 async function toPages(f: Blob): Promise<Pick<Img, 'pages' | 'skipped'>> {
   const all = isPdf(f) ? await pdfPages(f) : [{ png: f, words: null, results: true }]
   const kept = all.some((p) => p.results) ? all.filter((p) => p.results) : all
-  const pages = await Promise.all(kept.map(async ({ png, words }) => ({ mimeType: png.type, data: await toB64(png), url: URL.createObjectURL(png), words })))
+  const pages = await Promise.all(kept.map(async ({ png: p, words }) => { const png = p!; return { mimeType: png.type, data: await toB64(png), url: URL.createObjectURL(png), words } }))
   return { pages, skipped: all.flatMap((p, i) => (kept.includes(p) ? [] : [i + 1])) }
 }
 async function loadSynthetic(id: string): Promise<Img> {

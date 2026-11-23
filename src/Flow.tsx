@@ -260,7 +260,7 @@ export default function Flow() {
     setError('')
     // Must start from this click when a download is needed: Chrome only allows it after a user gesture.
     if (p === 1) startWarm()
-    if (!original) return setStep('upload')
+    if (!original || (p !== 1 && !original.length)) return setStep('upload') // Path 1 kept no page images
     if (isPhotoFile && !cropped) return setStep('crop')
     proceed(p, original)
   }
@@ -268,11 +268,15 @@ export default function Flow() {
   async function onFile(f: File) {
     try {
       setProgress(isPdf(f) ? 'Reading PDF pages on this device...' : '')
-      const all = isPdf(f) ? await pdfPages(f) : null
+      // Path 1 needs only the PDF's text layer, so pages are not drawn as images. A PDF with no text is drawn after
+      // all, because the user then picks Path 2 or 3.
+      const textOnly = path === 1 && isPdf(f)
+      let all = isPdf(f) ? await pdfPages(f, 2000, !textOnly) : null
+      if (textOnly && !all!.some((p) => p.words.length)) all = await pdfPages(f)
       // Pages with no results (checked locally, pdf.ts) are dropped here: not masked, not shown for consent, not sent.
       const pdf = all && (all.some((p) => p.results) ? all.filter((p) => p.results) : all)
       setSkipped(all ? all.flatMap((p, i) => (pdf!.includes(p) ? [] : [i + 1])) : [])
-      const pages = await Promise.all((pdf ? pdf.map((p) => p.png) : [f]).map((b) => reencode(b)))
+      const pages = await Promise.all((pdf ? pdf.flatMap((p) => (p.png ? [p.png] : [])) : [f]).map((b) => reencode(b)))
       setProgress('')
       const words = pdf ? pdf.map((p) => p.words) : [null]
       setPageWords(words)

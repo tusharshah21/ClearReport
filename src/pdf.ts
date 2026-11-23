@@ -15,8 +15,9 @@ export async function imageSizes(page: PDFPageProxy): Promise<string[]> {
 }
 
 // Each page as a PNG plus its text-layer words (empty for scanned PDFs). The words never leave the device.
-export type PdfPage = { png: Blob; words: Word[]; images: string[]; results: boolean }
-export async function pdfPages(file: Blob, longSide = 2000): Promise<PdfPage[]> {
+// render = false skips the PNGs (png is null): Path 1 reads only the text layer.
+export type PdfPage = { png: Blob | null; words: Word[]; images: string[]; results: boolean }
+export async function pdfPages(file: Blob, longSide = 2000, render = true): Promise<PdfPage[]> {
   // isEvalSupported:false: pdf.js never compiles code from the file (defence in depth for untrusted PDFs).
   const doc = await getDocument({ data: new Uint8Array(await file.arrayBuffer()), isEvalSupported: false }).promise
   try {
@@ -24,6 +25,8 @@ export async function pdfPages(file: Blob, longSide = 2000): Promise<PdfPage[]> 
     const out: PdfPage[] = []
     for (let i = 1; i <= doc.numPages; i++) {
       const page = await doc.getPage(i)
+      const words = await pageWords(page)
+      if (!render) { out.push({ png: null, words, results: true, images: await imageSizes(page) }); page.cleanup(); continue }
       const base = page.getViewport({ scale: 1 })
       const viewport = page.getViewport({ scale: longSide / Math.max(base.width, base.height) })
       const canvas = document.createElement('canvas')
@@ -34,7 +37,6 @@ export async function pdfPages(file: Blob, longSide = 2000): Promise<PdfPage[]> 
       g.fillRect(0, 0, canvas.width, canvas.height)
       await page.render({ canvas, canvasContext: g, viewport }).promise
       const png = await new Promise<Blob>((ok, fail) => canvas.toBlob((b) => (b ? ok(b) : fail(new Error('render failed'))), 'image/png'))
-      const words = await pageWords(page)
       out.push({ png, words, results: true, images: await imageSizes(page) })
       page.cleanup()
     }
