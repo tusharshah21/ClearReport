@@ -308,6 +308,29 @@ function CropTool({ img, onDone }: { img: Img; onDone: (q: Quad | null) => void 
   )
 }
 
+// Upload: a drop zone around the native file input (which stays for keyboard and screen-reader use). Layout idea from
+// Edu Calvo "File Upload" (MIT). A dropped file goes through the same checks as a chosen one (onFile).
+const fileIcon = (label: string) => (
+  <span className="file-icon"><svg viewBox="0 0 24 30" aria-hidden="true"><path d="M3 2h12l6 6v20H3z" fill="var(--card)" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /><path d="M15 2v6h6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" /></svg><span>{label}</span></span>
+)
+function DropZone({ pdfOnly, onFile }: { pdfOnly: boolean; onFile: (f: File) => void }) {
+  const [dragging, setDragging] = useState(false)
+  return (
+    <div
+      className={`drop${dragging ? ' dragging' : ''}`}
+      onDragOver={(e) => { e.preventDefault(); setDragging(true) }}
+      onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false) }}
+      onDrop={(e) => { e.preventDefault(); setDragging(false); const f = e.dataTransfer.files?.[0]; if (f) onFile(f) }}
+    >
+      <div className="drop-icons" aria-hidden="true">{fileIcon('PDF')}{!pdfOnly && <>{fileIcon('JPG')}{fileIcon('PNG')}</>}</div>
+      <p className="drop-hint" aria-hidden="true">{dragging ? 'Drop it here' : 'Drag your file here, or choose it below'}</p>
+      <label htmlFor="file" className="sr-only">{pdfOnly ? 'PDF file' : 'Photo or PDF file'}</label>
+      <input id="file" type="file" accept={pdfOnly ? 'application/pdf' : 'image/*,application/pdf'} onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+      <p className="drop-accepts small">{pdfOnly ? 'Accepts: the PDF your lab sent.' : 'Accepts: a photo, screenshot or PDF.'}</p>
+    </div>
+  )
+}
+
 export default function Flow() {
   const [avail, setAvail] = useState<Avail>('checking')
   const [path, setPath] = useState<Path | null>(null)
@@ -602,8 +625,7 @@ export default function Flow() {
             <p>{path === 1
               ? 'Choose the PDF file your lab sent you (by email, app or website). It is read on this device.'
               : 'Choose the PDF from your lab, or take a clear, flat photo of each page in good light. A screenshot works too.'}</p>
-            <label htmlFor="file" className="sr-only">{path === 1 ? 'PDF file' : 'Photo or PDF file'}</label>
-            <input id="file" type="file" accept={path === 1 ? 'application/pdf' : 'image/*,application/pdf'} onChange={(e) => e.target.files?.[0] && onFile(e.target.files[0])} />
+            <DropZone pdfOnly={path === 1} onFile={onFile} />
             {error && <p className="notice error" role="alert">{error}</p>}
             <div className="actions"><button className="quiet" onClick={reset}>Back</button></div>
           </section>
