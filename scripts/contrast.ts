@@ -24,6 +24,7 @@ const PAIRS: [string, string, number, string][] = [
   ['status-range-fg', 'status-range-bg', 4.5, 'Above/Below range badge'], ['status-ok-fg', 'status-ok-bg', 4.5, 'Within range badge'],
   ['error', 'card', 4.5, 'error text on cards'], ['error-fg', 'error-bg', 4.5, 'error notice'],
   ['ring', 'background', 3, 'focus ring (non-text)'], ['ring', 'card', 3, 'focus ring on cards (non-text)'],
+  ['white', 'cloud-fg', 3, 'tick in a finished cloud step (non-text)'], ['cloud-fg', 'card', 3, 'outline of the current cloud step (non-text)'],
   ['white', 'mask-chip', 4.5, 'numbered chip on suggested mask boxes'], ['mask-outline', 'white', 3, 'suggested mask outline on paper (non-text)'],
 ]
 const rows = PAIRS.map(([f, b, min, use]) => {

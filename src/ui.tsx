@@ -22,7 +22,7 @@ export function Busy({ children }: { children: React.ReactNode }) {
   return <p className="status-line" role="status"><span className="spinner" aria-hidden="true" />{children}</p>
 }
 
-// ---- Data trail: each step of this report and where it happened. ----
+// ---- Data trail: each step of this report and where it happened, as a timeline (layout idea from Dice UI Timeline, MIT). ----
 export type TrailPath = 1 | 2 | 3 | null
 export type TrailStep = 'choose' | 'upload' | 'crop' | 'mask' | 'confirm-masked' | 'consent' | 'extracting' | 'failed' | 'review' | 'explaining' | 'explained'
 type Item = { key: string; label: string; where: 'device' | 'cloud' }
@@ -62,8 +62,8 @@ export function DataTrail({ path, step, hasFile }: { path: TrailPath; step: Trai
       ) : (
         <ol aria-labelledby="trail-title">
           {items.map((it, i) => (
-            <li key={it.key} className={state(i)} aria-current={state(i) === 'now' ? 'step' : undefined}>
-              <span className="dot" aria-hidden="true" />
+            <li key={it.key} className={`${state(i)} ${it.where}`} aria-current={state(i) === 'now' ? 'step' : undefined}>
+              <span className="dot" aria-hidden="true">{state(i) === 'done' && Icon.ok}</span>
               <span className="sr-only">{state(i) === 'done' ? 'Done: ' : state(i) === 'now' ? 'Now: ' : 'Not yet: '}</span>
               {it.key === 'read' && path === 1 ? 'Read on this device' : it.label}
               {it.key === 'removed' && path === 1 && <> (before reading)</>}
@@ -77,7 +77,8 @@ export function DataTrail({ path, step, hasFile }: { path: TrailPath; step: Trai
   )
   const now = items && at >= 0 && at < items.length ? (items[at].key === 'read' && path === 1 ? 'Read on this device' : items[at].label) : null
   return (
-    <aside className="trail card" aria-label="Data trail">
+    // No motion on the results and explanation screens: the timeline's fade-in is switched off there.
+    <aside className={`trail card${['review', 'explaining', 'explained'].includes(step) ? ' still' : ''}`} aria-label="Data trail">
       {/* Open beside the content on wide screens; on a phone it starts as one line above the content. */}
       <details open={wide}>
         <summary>Data trail{now ? <>: <span className="muted">now, {now.replace(' (after you approve)', '')}</span></> : ': where your report goes'}</summary>

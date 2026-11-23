@@ -230,15 +230,25 @@ pre.payload { background: var(--background); border-radius: 10px; padding: 12px;
 /* Data trail */
 .trail h2 { font-size: 1rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted-foreground); margin-bottom: 10px; }
 .trail ol { list-style: none; margin: 0; padding: 0; }
-.trail li { position: relative; padding: 0 0 14px 30px; font-size: 0.95rem; }
-.trail li::before { content: ''; position: absolute; left: 7px; top: 22px; bottom: 0; width: 2px; background: var(--border); }
+.trail li { position: relative; padding: 0 0 16px 34px; font-size: 0.95rem; }
+.trail li::before { content: ''; position: absolute; left: 10px; top: 24px; bottom: 2px; width: 2px; border-radius: 2px; background: var(--border); }
 .trail li:last-child::before { display: none; }
-.trail .dot { position: absolute; left: 0; top: 4px; width: 16px; height: 16px; border-radius: 50%; border: 2px solid var(--border); background: var(--card); }
-.trail li.done .dot { background: var(--primary); border-color: var(--primary); }
-.trail li.now .dot { border-color: var(--primary); box-shadow: 0 0 0 4px var(--device-bg); }
+.trail li.done.device::before { background: var(--device-border); }
+.trail li.done.cloud::before { background: var(--cloud-border); }
+.trail .dot { position: absolute; left: 0; top: 2px; width: 22px; height: 22px; border-radius: 50%; border: 2px solid var(--border); background: var(--card); display: grid; place-items: center; }
+.trail .dot svg { width: 13px; height: 13px; }
+.trail li.done.device .dot { background: var(--primary); border-color: var(--primary); color: var(--card); }
+.trail li.done.cloud .dot { background: var(--cloud-fg); border-color: var(--cloud-fg); color: var(--card); }
+.trail li.now.device .dot { border-color: var(--primary); box-shadow: 0 0 0 4px var(--device-bg); }
+.trail li.now.cloud .dot { border-color: var(--cloud-fg); box-shadow: 0 0 0 4px var(--cloud-bg); }
+.trail li.now { font-weight: 600; }
 .trail li.todo { color: var(--muted-foreground); }
+.trail li.done .dot, .trail li.now .dot { animation: trail-in 0.4s ease-out; }
+@keyframes trail-in { from { opacity: 0; transform: scale(0.6); } to { opacity: 1; transform: none; } }
+.trail.still li .dot { animation: none; }
+@media (prefers-reduced-motion: reduce) { .trail li .dot { animation: none; } }
 .trail .where { display: inline-block; font-size: 0.8rem; font-weight: 600; border-radius: 999px; padding: 0 8px; margin-top: 2px; }
-.trail .where.device { background: var(--device-bg); color: var(--primary); }
+.trail .where.device { background: var(--device-bg); color: var(--device-fg); }
 .trail .where.cloud { background: var(--cloud-bg); color: var(--cloud-fg); }
 .trail details > summary { display: none; }
 @media (max-width: 860px) {
