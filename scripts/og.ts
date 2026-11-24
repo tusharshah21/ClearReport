@@ -3,18 +3,19 @@
 // self-hosted IBM Plex files, so nothing is fetched. Usage: npx tsx scripts/og.ts
 import { chromium } from 'playwright'
 import { readFileSync, statSync } from 'node:fs'
+import { logoSvg } from '../src/logo'
 
 const b64 = (p: string) => readFileSync(p).toString('base64')
 const font = (w: number) => `@font-face { font-family: Plex; font-weight: ${w}; src: url(data:font/woff2;base64,${b64(`node_modules/@fontsource/ibm-plex-sans/files/ibm-plex-sans-latin-${w}-normal.woff2`)}) format('woff2'); }`
-const logo = `<svg viewBox="0 0 24 24" width="44" height="44"><path d="M4.93 4.93A10 10 0 0 1 19.07 19.07Z" fill="#8B7CFF"/><path d="M19.07 19.07A10 10 0 0 1 4.93 4.93Z" fill="#FF7AA8"/><circle cx="12" cy="12" r="10" fill="none" stroke="#E8ECF6" stroke-width="1.25"/></svg>`
+const logo = logoSvg({ size: 52 })
 
 const html = `<!doctype html><html><head><style>
 ${font(500)} ${font(700)}
 * { margin: 0; box-sizing: border-box; }
-body { width: 1200px; height: 630px; overflow: hidden; background: #0B1020; font-family: Plex, sans-serif; }
-header { height: 96px; display: flex; align-items: center; gap: 16px; padding: 0 40px; color: #E8ECF6; }
+body { width: 1200px; height: 630px; overflow: hidden; background: #050608; font-family: Plex, sans-serif; }
+header { height: 96px; display: flex; align-items: center; gap: 16px; padding: 0 40px; color: #F5F5F7; }
 b { font-size: 38px; font-weight: 700; letter-spacing: -0.02em; }
-span { margin-left: auto; font-size: 22px; font-weight: 500; color: #9AA6C3; }
+span { margin-left: auto; font-size: 22px; font-weight: 500; color: #A1A1AA; }
 img { display: block; width: 1200px; height: 534px; object-fit: cover; object-position: top; }
 </style></head><body>
 <header>${logo}<b>ClearReport</b><span>Understand your blood test report. Keep your identity.</span></header>

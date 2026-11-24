@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
+import { LOGO } from './logo'
 // Small shared UI pieces: status icons and the data trail. Icons always come with words (never colour alone).
 
 const svg = (d: string) => (
@@ -16,14 +17,19 @@ export const Icon = {
   pen: svg('M12.5 4.5l3 3L8 15H5v-3zM10.5 6.5l3 3M4 18h12'), // highlighter pen, for the "lab and guideline disagree" callout
 }
 
-// Brand mark: a microscope slide seen from above, split diagonally into the two stains (violet = on this device,
-// rose = in the cloud), with a thin outline. Colours come from CSS (--logo-a, --logo-b, --logo-line) so it works on dark too.
+// The brand mark (src/logo.ts): violet = on this device, rose = in the cloud, a shield for privacy. The same colours on
+// the light app header and the black landing header.
 export function Logo() {
+  const clip = useId()
   return (
-    <svg className="logo" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M4.93 4.93A10 10 0 0 1 19.07 19.07Z" fill="var(--logo-a)" />
-      <path d="M19.07 19.07A10 10 0 0 1 4.93 4.93Z" fill="var(--logo-b)" />
-      <circle cx="12" cy="12" r="10" fill="none" stroke="var(--logo-line)" strokeWidth="1.25" />
+    <svg className="logo" viewBox="0 0 100 100" aria-hidden="true" focusable="false">
+      <clipPath id={clip}><circle cx="50" cy="50" r="50" /></clipPath>
+      <g clipPath={`url(#${clip})`}>
+        <rect width="100" height="100" fill={LOGO.violet} />
+        <path d={LOGO.rosePath} fill={LOGO.rose} />
+        <path d={LOGO.curve} fill="none" stroke={LOGO.gap} strokeWidth={LOGO.gapWidth} />
+      </g>
+      <path d={LOGO.shield} fill={LOGO.gap} transform={LOGO.shieldScale} />
     </svg>
   )
 }

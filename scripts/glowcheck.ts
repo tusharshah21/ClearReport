@@ -18,7 +18,7 @@ for (const [width, height] of [[1280, 860], [390, 844]]) {
   // Every element with its own text, on the glow (no fully opaque background between it and the section).
   const targets = await page.evaluate(() => {
     document.querySelectorAll<HTMLDetailsElement>('.land-light details').forEach((d) => { d.open = true }) // answers as read
-    const out: { id: string; color: number[]; rect: number[] }[] = []
+    const out: { id: string; color: number[]; rects: number[][] }[] = []
     const opaque = (el: Element | null): boolean => {
       for (; el && !el.classList.contains('land-light'); el = el.parentElement) {
         const m = getComputedStyle(el).backgroundColor.match(/[\d.]+/g)!.map(Number)
@@ -26,13 +26,21 @@ for (const [width, height] of [[1280, 860], [390, 844]]) {
       }
       return false
     }
-    document.querySelectorAll('.land-light *').forEach((el, i) => {
+    // Any CSS colour (rgb(), color(srgb ...) from color-mix) as 0-255 RGB, by painting it.
+    const px = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
+    const rgb = (css: string) => { px.clearRect(0, 0, 1, 1); px.fillStyle = css; px.fillRect(0, 0, 1, 1); return [...px.getImageData(0, 0, 1, 1).data.slice(0, 3)] }
+    document.querySelectorAll('.land-light *').forEach((el) => {
       const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim())
-      if (!own || opaque(el) || el.closest('mark, .cmp')) return
-      const r = el.getBoundingClientRect()
-      if (!r.width || !r.height) return
-      el.setAttribute('data-gc', String(i))
-      out.push({ id: `${el.tagName.toLowerCase()}.${el.className || ''} "${el.textContent!.trim().slice(0, 40)}"`, color: getComputedStyle(el).color.match(/[\d.]+/g)!.map(Number), rect: [r.left, r.top + scrollY, r.width, r.height] })
+      if (!own || opaque(el) || el.closest('mark, .cmp, .sr-only')) return // .sr-only is never drawn
+      // Only the line boxes of the element's own text, so borders, corners and child chips are not counted.
+      const rects: number[][] = []
+      el.childNodes.forEach((n) => {
+        if (n.nodeType !== 3 || !n.textContent!.trim()) return
+        const range = document.createRange(); range.selectNodeContents(n)
+        for (const r of range.getClientRects()) if (r.width >= 1 && r.height >= 1) rects.push([r.left, r.top + scrollY, r.width, r.height])
+      })
+      if (!rects.length) return
+      out.push({ id: `${el.tagName.toLowerCase()}.${el.className || ''} "${el.textContent!.trim().slice(0, 40)}"`, color: rgb(getComputedStyle(el).color), rects })
     })
     return out
   })
@@ -46,10 +54,12 @@ for (const [width, height] of [[1280, 860], [390, 844]]) {
       const img = new Image(); img.src = `data:image/png;base64,${png}`; await img.decode()
       const c = document.createElement('canvas'); c.width = img.width; c.height = img.height
       const g = c.getContext('2d')!; g.drawImage(img, 0, 0)
-      return targets.map(({ rect: [x, y, w, h] }) => {
-        const d = g.getImageData(Math.floor(x) + 2, Math.floor(y) + 2, Math.max(1, Math.ceil(w) - 4), Math.max(1, Math.ceil(h) - 4)).data // inset past borders
+      return targets.map(({ rects }) => {
         let best = [0, 0, 0], bestSum = -1
-        for (let i = 0; i < d.length; i += 4) { const s = d[i] * 0.3 + d[i + 1] * 0.6 + d[i + 2] * 0.1; if (s > bestSum) { bestSum = s; best = [d[i], d[i + 1], d[i + 2]] } }
+        for (const [x, y, w, h] of rects) {
+          const d = g.getImageData(Math.floor(x), Math.floor(y), Math.max(1, Math.ceil(w)), Math.max(1, Math.ceil(h))).data
+          for (let i = 0; i < d.length; i += 4) { const s = d[i] * 0.3 + d[i + 1] * 0.6 + d[i + 2] * 0.1; if (s > bestSum) { bestSum = s; best = [d[i], d[i + 1], d[i + 2]] } }
+        }
         return best
       })
     }, { png, targets })
@@ -62,7 +72,7 @@ for (const [width, height] of [[1280, 860], [390, 844]]) {
   }
   for (const [id, r] of min) {
     worst = Math.min(worst, r)
-    if (r < 4.5) { failures++; console.log(`${width}px ${r.toFixed(2)}:1 ${id}`) }
+    if (r < (Number(process.env.GC_MIN) || 4.5)) { failures++; console.log(`${width}px ${r.toFixed(2)}:1 ${id}`) }
   }
   console.log(`${width}px: ${min.size} text elements checked, lowest ${Math.min(...min.values()).toFixed(2)}:1`)
   await page.close()
