@@ -1,0 +1,2 @@
+# Synthetic edge-case files: never converted or text-diffed (report.docx is a fake .docx that breaks .docx diff drivers).
+test-data/edge/** -text -diff
