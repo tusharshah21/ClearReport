@@ -11,6 +11,7 @@
 import { chromium, type BrowserContext, type Page } from 'playwright'
 import { readFileSync, readdirSync, writeFileSync, mkdirSync } from 'node:fs'
 import { createWorker } from 'tesseract.js'
+import { tmpdir } from 'node:os'
 
 const BASE = process.env.APP_URL ?? 'http://localhost:5173'
 const GEMINI = /(^|\.)(firebasevertexai|generativelanguage)\.googleapis\.com$/
@@ -199,7 +200,8 @@ async function path1(file: string, id: string) {
   await browser.close()
 }
 
-const worker = await createWorker('eng', 1, { langPath: 'node_modules/@tesseract.js-data/eng/4.0.0_best_int', gzip: true })
+// cachePath: tesseract.js in Node otherwise writes eng.traineddata (5 MB) into the repo root.
+const worker = await createWorker('eng', 1, { langPath: 'node_modules/@tesseract.js-data/eng/4.0.0_best_int', gzip: true, cachePath: tmpdir() })
 try {
   await path2('test-data/reports/r1.png', 'r1', worker)
   await path2('test-data/reports/r6-photo.jpg', 'r6-photo', worker)
