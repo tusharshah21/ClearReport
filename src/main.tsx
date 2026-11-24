@@ -18,6 +18,8 @@ const isApp = location.pathname.replace(/\/+$/, '') === '/app'
 let Page: () => React.ReactNode
 if (spike || isApp) {
   document.title = 'ClearReport: read your report'
+  // index.html serves both routes; its canonical link names "/", which is wrong for the tool page.
+  document.querySelector('link[rel=canonical]')?.setAttribute('href', `${location.origin}/app`)
   const [{ startSession }, { loadConfig }] = await Promise.all([import('./firebase'), import('./remote')])
   Page = spike ? (await import('./Spike')).default : (await import('./Flow')).default
   startSession() // not awaited: the app works while sign-in finishes
