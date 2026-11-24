@@ -1,8 +1,10 @@
+import { useEffect, useRef, useState } from 'react'
 import Beam from './Beam'
 import { checkTest, DISCLAIMER } from './guidelines'
 import { Badge, Icon, Logo } from './ui'
 // The landing page at "/". Static: no Firebase, no AI, no report. The tool lives at /app.
-// Hero layout inspired by "Hero Section Dark" by kinfe123 / FarmUI (MIT), rebuilt in plain CSS with the Specimen tokens.
+// Hero layout inspired by "Hero Section Dark" by kinfe123 / FarmUI (MIT) and the 21st.dev "SaaS Template" (header,
+// announcement pill, button styles and the glow behind the product image), rebuilt in plain CSS with the Specimen tokens.
 
 const REPO = 'https://github.com/tusharshah21/ClearReport'
 
@@ -41,27 +43,60 @@ const FAQ: [string, React.ReactNode][] = [
   ['Is it free?', <>Yes. There is no account to create and nothing to pay.</>],
 ]
 
+const NAV: [string, string][] = [['#how', 'How it works'], ['#privacy', 'Privacy'], ['#hood', 'Under the hood']]
+const svgIcon = (d: string) => <svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d={d} /></svg>
+
+// Sticky header. On phones the links sit behind a menu button (disclosure pattern): Escape and a link tap close it.
+function Header() {
+  const [open, setOpen] = useState(false)
+  const button = useRef<HTMLButtonElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') { setOpen(false); button.current?.focus() } }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [open])
+  const links = NAV.map(([href, label]) => <a key={href} href={href} onClick={() => setOpen(false)}>{label}</a>)
+  return (
+    <div className="land-dark land-head">
+      <header className="land-top">
+        <a className="brand" href="/"><Logo />ClearReport</a>
+        <nav className="land-nav" aria-label="Sections">{links}</nav>
+        <div className="land-top-right">
+          <a className="btn ghost small-btn" href={REPO}>GitHub</a>
+          <a className="btn light small-btn" href="/app">Open the app</a>
+        </div>
+        <button ref={button} type="button" className="menu-btn" aria-expanded={open} aria-controls="land-menu" aria-label="Menu" onClick={() => setOpen(!open)}>
+          {open ? svgIcon('M18 6 6 18M6 6l12 12') : svgIcon('M4 6h16M4 12h16M4 18h16')}
+        </button>
+      </header>
+      <div id="land-menu" className="land-menu" hidden={!open}>
+        <nav aria-label="Sections">
+          {links}
+          <a href={REPO} onClick={() => setOpen(false)}>GitHub</a>
+          <a className="btn light" href="/app">Open the app</a>
+        </nav>
+      </div>
+    </div>
+  )
+}
+
 export default function Landing() {
   return (
     <div className="landing">
-      <div className="land-dark land-head">
-        <header className="land-top">
-          <p className="brand"><Logo />ClearReport</p>
-          <a className="btn quiet small-btn" href="/app">Open the app</a>
-        </header>
-      </div>
+      <Header />
 
       <main id="main">
         <section className="land-hero" aria-labelledby="land-title">
           <div className="land-hero-top land-dark">
             <div className="hero-grid" aria-hidden="true"><div className="hero-grid-plane"><div className="hero-grid-lines" /></div></div>
             <div className="land-hero-inner">
-              <p className="eyebrow">Free, no account. English and हिन्दी.</p>
+              <p className="pill">Built with Firebase AI Logic and Chrome's built-in Gemini Nano <a href="#hood">See how <span aria-hidden="true">→</span></a></p>
               <h1 id="land-title">Understand your blood test report. <span className="grad">Keep your identity.</span></h1>
               <p className="lede">Your report is read on your device when possible, and only anonymous numbers go to the cloud for a plain-language explanation in English or Hindi.</p>
               <div className="land-ctas">
-                <a className="btn primary" href="/app">Read my report</a>
-                <a className="btn" href="/app?sample=demo">Try a sample report</a>
+                <a className="btn light" href="/app">Read my report</a>
+                <a className="btn ghost" href="/app?sample=demo">Try a sample report</a>
               </div>
             </div>
           </div>
@@ -100,7 +135,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <section className="land-section" aria-labelledby="how-title">
+        <section className="land-section" id="how" aria-labelledby="how-title">
           <p className="sec-label" aria-hidden="true"><span>03</span> · How it works</p>
           <h2 id="how-title">How it works</h2>
           <ol className="steps3">
@@ -110,7 +145,7 @@ export default function Landing() {
           </ol>
         </section>
 
-        <section className="land-section" aria-labelledby="hood-title">
+        <section className="land-section" id="hood" aria-labelledby="hood-title">
           <p className="sec-label" aria-hidden="true"><span>04</span> · Under the hood</p>
           <h2 id="hood-title">Under the hood</h2>
           <div className="hood">
@@ -147,7 +182,7 @@ export default function Landing() {
           <p className="small muted hood-more">Also Firebase App Check, Anonymous Auth, Remote Config and Hosting. <a href={`${REPO}#how-we-use-firebase-ai-logic`}>Every AI call, with its code</a></p>
         </section>
 
-        <section className="land-section" aria-labelledby="privacy-title">
+        <section className="land-section" id="privacy" aria-labelledby="privacy-title">
           <p className="sec-label" aria-hidden="true"><span>05</span> · Privacy promises</p>
           <h2 id="privacy-title">Privacy promises</h2>
           <ul className="promises">

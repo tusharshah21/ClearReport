@@ -89,6 +89,20 @@ Buttons on dark keep `--primary` with white text (6.83:1). The outlined secondar
 - `prefers-reduced-motion` is respected (no pulses, spinners turn static).
 - Focus is visible on dark and on light.
 
+## Landing v2 (2026-11-24)
+
+The landing page only; the app screens do not change. The header, announcement pill, buttons and the glow behind the product image take their look from the 21st.dev "SaaS Template", used as a visual reference only and rebuilt in plain CSS with these tokens (no Tailwind, no Google Fonts, no outside images).
+
+- Black replaces the navy night: `--night` #050608, `--night-surface` #111317, `--night-grid` #16181D, `--night-border` #2A2D34 (decorative), `--night-text` #F5F5F7, `--night-muted` #A1A1AA. The faint slide grid stays; on black it reads as a quiet texture. The page's `theme-color` is #050608.
+- Sticky header: `--night` at 80% with a 12px backdrop blur and a thin bottom border. Logo and name on the left; "How it works", "Privacy" and "Under the hood" in the centre (anchor links); a ghost "GitHub" link and a white "Open the app" button on the right. Below 761px a menu button (`aria-expanded`, `aria-controls`) opens the same links; Escape closes it and returns focus to the button, and tapping a link closes it. Sections keep clear of the header with `scroll-margin-top`.
+- Announcement pill above the headline: "Built with Firebase AI Logic and Chrome's built-in Gemini Nano", with "See how" linking to Under the hood.
+- Headline: Plex Sans 500, letter spacing -0.04em, `--night-text` fading to `--night-text-fade` (#B4B4B5, white at 70% over black) towards the bottom. "Keep your identity." keeps the violet-to-rose gradient.
+- Buttons: white (a white to `--light-btn-end` #E4E4E9 gradient, black text, a gentle scale on hover) and ghost (transparent, thin `--night-border` border).
+- Product image: rounded 14px with a large soft shadow and a violet-to-rose radial glow behind it (CSS only), kept inside the black half. The crisp black-to-paper edge halfway down the image, and the live glucose card on phones, stay.
+- The hero fades in on load (0.6s); with `prefers-reduced-motion` it does not, and the white button does not scale.
+- The footer is black with the header's thin border.
+- Contrast: the headline's faintest point is 9.78:1, the white buttons 16.00:1 at their palest, header links 4.65:1 where the translucent header sits over the light paper (checked as `--night` at 80% over `--paper`).
+
 ## What does not change
 
 No logic, extraction, privacy, copy meaning or test expectations change. Layout and markup stay as they are, apart from class names and icons needed for the treatments above (path card accents, the pen icon in the callout, monospace values).

@@ -66,9 +66,10 @@ export default function Beam() {
       <div id="beam-panel" role="tabpanel" aria-labelledby={`beam-tab-${kind}`} tabIndex={0}>
         <p className="sr-only">
           {kind === 'full'
-            ? `${p.tab}: ${p.here}. Your device sends ${p.there.toLowerCase()} straight to Gemini in the cloud.`
+            ? `${p.tab}: ${p.here}. Your device would send ${p.there.toLowerCase()} straight to Gemini in the cloud.`
             : `${p.tab}: on your device, ${p.mid!.label.toLowerCase()} (${p.here.toLowerCase()}). Then ${p.there.toLowerCase()} go to Gemini in the cloud.`}
         </p>
+        {kind === 'full' && <p className="beam-paused">Paused while ClearReport runs on Google's free tier.</p>}
         {/* key: switching tabs restarts the pulse from the device */}
         <div className="beam" key={kind} aria-hidden="true">
           <Stop n={DEVICE} text={kind === 'full' ? p.here : undefined} />

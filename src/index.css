@@ -35,12 +35,15 @@
   --mask-chip: #4330A8;
   --mask-fill: rgba(91, 63, 209, 0.35);
   --crop-fill: rgba(91, 63, 209, 0.3);
-  /* Landing (dark) */
-  --night: #0B1020;
-  --night-surface: #121933;
-  --night-grid: #1E2A4A;
-  --night-text: #E8ECF6;
-  --night-muted: #9AA6C3;
+  /* Landing (dark, "Landing v2": near-black) */
+  --night: #050608;
+  --night-surface: #111317;
+  --night-grid: #16181D;
+  --night-border: #2A2D34;
+  --night-text: #F5F5F7;
+  --night-text-fade: #B4B4B5; /* white at 70% over --night: the bottom of the headline's fade */
+  --night-muted: #A1A1AA;
+  --light-btn-end: #E4E4E9; /* bottom of the white button's gradient */
   --glow-violet: #8B7CFF;
   --glow-rose: #FF7AA8;
   /* Brand mark (src/ui.tsx Logo): the two stains and a thin outline; redefined on dark below. */
@@ -142,6 +145,7 @@ input[type='checkbox'] { width: 22px; height: 22px; vertical-align: -5px; margin
 .beam-tabs button { min-height: 40px; padding: 6px 14px; border-radius: 999px; border-color: var(--border); color: var(--ink); font-weight: 500; }
 .beam-tabs button[aria-selected='true'] { background: var(--primary); border-color: var(--primary); color: var(--card); font-weight: 600; }
 .beam-wrap [role='tabpanel']:focus-visible { outline-offset: 4px; }
+.beam-paused { display: inline-block; margin: 6px 0 0; padding: 2px 10px; border-radius: 999px; background: var(--muted); color: var(--ink-muted); font-size: 0.9rem; }
 .beam { display: flex; align-items: flex-start; padding: 14px 0 4px; }
 .beam-node { flex: 0 0 136px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 0.9rem; line-height: 1.35; }
 .beam-node b { display: block; font-weight: 600; }
@@ -259,7 +263,7 @@ pre.payload { background: var(--paper); border: 1px solid var(--border); border-
 .test-card { border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin: 0 0 12px; background: var(--card); }
 .test-card .head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; align-items: baseline; }
 .value { font-family: var(--mono); font-variant-numeric: tabular-nums; }
-.test-card .value { font-size: 1.7rem; font-weight: 500; line-height: 1.2; letter-spacing: -0.01em; } /* the value is the focus of each card */
+.test-card .value { font-size: 1.7rem; font-weight: 500; line-height: 1.2; letter-spacing: -0.01em; white-space: nowrap; } /* the value is the focus of each card */
 .test-card .range { color: var(--ink-muted); font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 0.95rem; white-space: nowrap; }
 /* Signature callout: a highlighter stroke behind the heading (an uneven marker edge, CSS only), a pen icon, and the
    body on a pale yellow tint. In the app, yellow means only "your lab and a guideline disagree"; the landing page uses
@@ -368,15 +372,35 @@ a.btn:not(.primary):hover { background: var(--device-bg); }
 a.btn.quiet { border-color: var(--border); color: var(--ink); font-weight: 500; }
 .small-btn { min-height: 40px; padding: 6px 14px; font-size: 0.95rem; }
 .brand a { color: inherit; text-decoration: none; }
-.landing { min-height: 100vh; } /* the body's graph paper shows through the light sections, as in the app */
+/* The body's graph paper shows through the light sections, as in the app. Black behind the translucent sticky header
+   at the top of the page, so it matches the hero there. */
+.landing { min-height: 100vh; background: linear-gradient(to bottom, var(--night) 0 120px, transparent 120px); }
 .land-dark { background: var(--night); color: var(--night-text); --logo-a: var(--glow-violet); --logo-b: var(--glow-rose); --logo-line: var(--night-text); }
 .land-dark :focus-visible { outline-color: var(--glow-violet); }
 .land-dark a:not(.btn) { color: var(--glow-violet); }
-.land-dark .brand { color: var(--night-text); }
-.land-dark a.btn.quiet, .land-dark a.btn:not(.primary) { background: transparent; border-color: var(--glow-violet); color: var(--night-text); }
-.land-dark a.btn:not(.primary):hover { background: var(--night-surface); }
-.land-top { max-width: 1120px; margin: 0 auto; padding: 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; position: relative; z-index: 2; }
-.land-head { background: var(--night); }
+.land-dark .brand, .land-dark a.brand { color: var(--night-text); text-decoration: none; }
+/* Landing v2 buttons: white (black text, a soft gradient, a gentle scale on hover) and ghost (thin border). */
+.land-dark a.btn.light { background: linear-gradient(to bottom, #FFFFFF, #FFFFFF 40%, var(--light-btn-end)); border: 1px solid transparent; color: var(--night); transition: transform 0.2s ease-out; }
+.land-dark a.btn.light:hover { background: linear-gradient(to bottom, #FFFFFF, var(--light-btn-end)); transform: scale(1.04); }
+.land-dark a.btn.light:active { transform: scale(0.98); }
+.land-dark a.btn.ghost { background: transparent; border: 1px solid var(--night-border); color: var(--night-text); font-weight: 500; }
+.land-dark a.btn.ghost:hover { background: var(--night-surface); }
+@media (prefers-reduced-motion: reduce) { .land-dark a.btn.light, .land-dark a.btn.light:hover, .land-dark a.btn.light:active { transform: none; transition: none; } }
+/* Sticky header: near-black at 80% with a blur, a thin bottom border; links in the centre on desktop, a menu on phones. */
+.land-head { position: sticky; top: 0; z-index: 50; background: rgba(5, 6, 8, 0.8); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); border-bottom: 1px solid var(--night-border); }
+.land-top { max-width: 1120px; margin: 0 auto; padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; gap: 12px; position: relative; }
+.land-top .brand { font-size: 1.25rem; }
+.land-nav { position: absolute; left: 50%; transform: translateX(-50%); display: flex; gap: 28px; }
+.land-dark .land-nav a, .land-dark .land-menu a:not(.btn) { color: var(--night-muted); text-decoration: none; font-size: 0.95rem; }
+.land-dark .land-nav a:hover, .land-dark .land-menu a:not(.btn):hover { color: var(--night-text); }
+.land-top-right { display: flex; gap: 8px; align-items: center; }
+.land-dark .menu-btn { display: none; align-items: center; justify-content: center; min-height: 44px; min-width: 44px; padding: 0; background: transparent; border: 1px solid var(--night-border); color: var(--night-text); }
+.land-dark .menu-btn:hover:not(:disabled) { background: var(--night-surface); }
+.land-menu nav { max-width: 1120px; margin: 0 auto; padding: 4px 16px 16px; display: flex; flex-direction: column; }
+.land-dark .land-menu a:not(.btn) { padding: 11px 0; border-bottom: 1px solid var(--night-grid); font-size: 1rem; }
+.land-menu .btn { margin-top: 14px; }
+@media (max-width: 760px) { .land-nav, .land-top-right { display: none; } .land-dark .menu-btn { display: inline-flex; } }
+@media (min-width: 761px) { .land-menu { display: none; } }
 .land-hero-top { position: relative; overflow: hidden; padding: 40px 16px 0; }
 /* One soft violet glow behind the headline. Static. */
 .land-hero-top::before { content: ''; position: absolute; left: 50%; top: -120px; width: min(900px, 140vw); height: 560px; transform: translateX(-50%); background: radial-gradient(closest-side, rgba(139, 124, 255, 0.28), rgba(139, 124, 255, 0.08) 55%, transparent); pointer-events: none; }
@@ -392,21 +416,35 @@ a.btn.quiet { border-color: var(--border); color: var(--ink); font-weight: 500; 
 }
 .hero-grid::after { content: ''; position: absolute; inset: 0; background: linear-gradient(to top, var(--night) 10%, transparent 90%); }
 .land-hero-inner { position: relative; z-index: 1; max-width: 1040px; margin: 0 auto; text-align: center; }
-.eyebrow { display: inline-block; font-size: 0.9rem; color: var(--night-text); background: var(--night-surface); border: 1px solid var(--night-grid); border-radius: 999px; padding: 4px 14px; margin-bottom: 18px; }
-.land-hero h1 { font-size: clamp(2rem, 5.2vw, 3.4rem); line-height: 1.1; letter-spacing: -0.025em; max-width: 820px; margin: 0 auto 16px; color: var(--night-text); }
+/* Announcement pill */
+.pill { display: inline-flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: 4px 10px; font-size: 0.85rem; line-height: 1.4; color: var(--night-muted); background: rgba(255, 255, 255, 0.04); border: 1px solid var(--night-border); border-radius: 999px; padding: 6px 16px; margin: 0 0 24px; max-width: 100%; }
+.land-dark .pill a { color: var(--night-text); font-weight: 500; text-decoration: none; white-space: nowrap; }
+.land-dark .pill a:hover { text-decoration: underline; }
+/* Headline: medium weight, tight, white fading to 70% white towards the bottom (checked in scripts/contrast.ts). */
+.land-hero h1 {
+  font-size: clamp(2.2rem, 5.6vw, 3.8rem); font-weight: 500; line-height: 1.08; letter-spacing: -0.04em; max-width: 860px; margin: 0 auto 18px;
+  color: var(--night-text); background: linear-gradient(to bottom, var(--night-text) 35%, var(--night-text-fade)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+/* A gentle fade-in on load. */
+.land-hero-inner, .hero-shot > * { animation: land-in 0.6s ease-out both; }
+@keyframes land-in { from { opacity: 0; transform: translateY(10px); } }
+@media (prefers-reduced-motion: reduce) { .land-hero-inner, .hero-shot > * { animation: none; } }
 .grad { color: var(--glow-violet); background: linear-gradient(90deg, var(--glow-violet), var(--glow-rose)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .lede { font-size: 1.15rem; color: var(--night-muted); max-width: 640px; margin: 0 auto 22px; }
 .land-ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 0; padding-bottom: 40px; }
 /* The product image straddles the boundary: the night ends with a crisp edge halfway down it, the paper starts there. */
-.hero-shot { position: relative; z-index: 1; padding: 0 16px; background: linear-gradient(to bottom, var(--night) 50%, transparent 50%); }
+.hero-shot { position: relative; padding: 0 16px; background: linear-gradient(to bottom, var(--night) 50%, transparent 50%); }
+/* A soft violet-to-rose glow behind the product image (CSS only), kept inside the black half. */
+.hero-shot::before { content: ''; position: absolute; left: 50%; top: -110px; width: min(1240px, 112%); height: 58%; transform: translateX(-50%); background: radial-gradient(50% 60% at 30% 50%, rgba(139, 124, 255, 0.62), transparent 72%), radial-gradient(45% 55% at 70% 50%, rgba(255, 122, 168, 0.48), transparent 72%); filter: blur(32px); pointer-events: none; }
+.hero-shot > * { position: relative; }
 .land-ctas .btn { min-height: 48px; padding: 10px 24px; }
-.browser-frame { margin: 0 auto; max-width: 1000px; background: var(--night-surface); border: 1px solid rgba(139, 124, 255, 0.55); border-radius: 12px; overflow: hidden; box-shadow: 0 0 0 1px rgba(139, 124, 255, 0.15), 0 0 40px rgba(139, 124, 255, 0.28), 0 30px 80px rgba(0, 0, 0, 0.5); }
+.browser-frame { margin: 0 auto; max-width: 1000px; background: var(--night-surface); border: 1px solid rgba(255, 255, 255, 0.12); border-radius: 14px; overflow: hidden; box-shadow: 0 40px 100px -20px rgba(5, 6, 8, 0.55), 0 20px 40px -20px rgba(5, 6, 8, 0.35); }
 .browser-bar { display: flex; align-items: center; gap: 6px; padding: 9px 12px; background: var(--night-surface); border-bottom: 1px solid var(--night-grid); }
 .browser-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--night-grid); }
 .browser-bar span { margin-left: 10px; font-size: 0.8rem; font-family: var(--mono); color: var(--night-muted); background: var(--night); border-radius: 6px; padding: 1px 10px; }
 .browser-frame img { display: block; width: 100%; height: auto; }
 .land-light { position: relative; }
-.land-section { max-width: 1040px; margin: 0 auto; padding: 36px 16px 8px; }
+.land-section { max-width: 1040px; margin: 0 auto; padding: 36px 16px 8px; scroll-margin-top: 72px; } /* clear of the sticky header */
 .land-light > .land-section:first-child { padding-top: 56px; }
 .land-section > h2 { font-size: 1.6rem; }
 /* Section labels read like the headers of a lab printout: a number and the name, in small monospace capitals. */
@@ -421,7 +459,7 @@ a.btn.quiet { border-color: var(--border); color: var(--ink); font-weight: 500; 
 .faq details { padding: 0; margin-bottom: 10px; }
 .faq summary { padding: 14px 18px; color: var(--ink); min-height: 48px; }
 .faq details p { padding: 0 18px 4px; margin-top: 0; }
-.land-footer { margin: 32px 0 0; padding: 28px 16px 40px; background: var(--night); color: var(--night-muted); font-size: 0.95rem; }
+.land-footer { margin: 32px 0 0; padding: 28px 16px 40px; background: var(--night); color: var(--night-muted); font-size: 0.95rem; border-top: 1px solid var(--night-border); }
 .land-footer > * { max-width: 1040px; margin-left: auto; margin-right: auto; }
 @media (max-width: 720px) {
   .land-grid2, .promises { grid-template-columns: 1fr; }

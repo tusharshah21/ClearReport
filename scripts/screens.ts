@@ -20,7 +20,8 @@ mkdirSync(OUT, { recursive: true })
 if (ID === 'landing') {
   const b = await chromium.launch({ channel: 'chrome' })
   for (const [tag, width, height] of [['desktop', 1280, 860], ['mobile', 390, 844]] as const) {
-    const page = await b.newPage({ viewport: { width, height }, deviceScaleFactor: 1 })
+    // Reduced motion: the hero's fade-in is off, so a full-page capture never catches it half way.
+    const page = await b.newPage({ viewport: { width, height }, deviceScaleFactor: 1, reducedMotion: 'reduce' })
     await page.goto(URL.replace('/app', '/'))
     await page.locator('.browser-frame img').evaluate((img: HTMLImageElement) => img.decode())
     const path = `${OUT}/01-landing-${tag}.jpg`

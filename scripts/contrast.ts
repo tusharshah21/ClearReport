@@ -30,11 +30,13 @@ const PAIRS: [string, string, number, string][] = [
   ['white', 'primary', 3, 'tick in a finished device step (non-text)'],
   ['white', 'mask-chip', 4.5, 'numbered chip on suggested mask boxes'], ['mask-outline', 'white', 3, 'suggested mask outline on paper (non-text)'],
   // Landing (dark)
-  ['night-text', 'night', 4.5, 'hero headline and text on dark'], ['night-text', 'night-surface', 4.5, 'eyebrow pill, outlined button hover'],
-  ['night-muted', 'night', 4.5, 'lede, footer text'], ['night-muted', 'night-surface', 4.5, 'address bar in the browser frame'],
-  ['night-text', 'night-grid', 4.5, 'text where it crosses a slide-grid line'],
+  ['night-text', 'night', 4.5, 'headline top, header and menu text, ghost buttons'], ['night-text', 'night-surface', 4.5, 'pill link, ghost button and menu button hover'],
+  ['night-text-fade', 'night', 4.5, 'headline bottom (white fading to 70% white)'],
+  ['night-muted', 'night', 4.5, 'lede, header links, footer text'], ['night-muted', 'night-surface', 4.5, 'announcement pill text, address bar in the browser frame'],
+  ['night-text', 'night-grid', 4.5, 'text where it crosses a slide-grid line, menu link dividers'],
+  ['night', 'white', 4.5, 'white button text ("Read my report", "Open the app"), top'], ['night', 'light-btn-end', 4.5, 'white button text, bottom of its gradient'],
   ['glow-violet', 'night', 4.5, 'links on dark, gradient start'], ['glow-rose', 'night', 4.5, 'gradient end'],
-  ['white', 'primary', 4.5, 'primary button on dark ("Read my report")'], ['glow-violet', 'night', 3, 'outlined button border and focus ring on dark (non-text)'],
+  ['glow-violet', 'night', 3, 'focus ring on dark (non-text)'], ['glow-violet', 'night-surface', 3, 'focus ring on a hovered dark control (non-text)'],
 ]
 const rows = PAIRS.map(([f, b, min, use]) => {
   assert.ok(T[f] && T[b], `missing token ${T[f] ? b : f}`)
@@ -51,4 +53,11 @@ const mix = (a: string, b: string, t: number) => '#' + [1, 3, 5].map((i) => Math
 const grad = Array.from({ length: 11 }, (_, k) => ratio(mix(T['glow-violet'], T['glow-rose'], k / 10), T.night))
 assert.ok(Math.min(...grad) >= 4.5, `hero gradient: lowest point ${Math.min(...grad).toFixed(2)} < 4.5`)
 if (process.argv.includes('--table')) console.log(`| gradient \`--glow-violet\` to \`--glow-rose\` (lowest point) | \`--night\` ${T.night} | ${Math.min(...grad).toFixed(2)}:1 | 4.5:1 | landing headline "Keep your identity." |`)
-console.log(`contrast ok: ${rows.length} pairs and the hero gradient`)
+// The sticky header is --night at 80% with a blur: over the light paper sections it is at its palest.
+const header = mix(T.night, T.paper, 0.2)
+for (const [f, use] of [['night-text', 'header text and logo name over the light sections'], ['night-muted', 'header links over the light sections']] as const) {
+  const r = ratio(T[f], header)
+  if (process.argv.includes('--table')) console.log(`| \`--${f}\` ${T[f]} | header over \`--paper\` ${header} | ${r.toFixed(2)}:1 | 4.5:1 | ${use} |`)
+  assert.ok(r >= 4.5, `contrast --${f} on the header over paper: ${r.toFixed(2)} < 4.5`)
+}
+console.log(`contrast ok: ${rows.length} pairs, the hero gradient and the header over paper`)
