@@ -98,9 +98,10 @@ The landing page only; the app screens do not change. The header, announcement p
 - Announcement pill above the headline: "Built with Firebase AI Logic and Chrome's built-in Gemini Nano", with "See how" linking to Under the hood.
 - Headline: Plex Sans 500, letter spacing -0.04em, `--night-text` fading to `--night-text-fade` (#B4B4B5, white at 70% over black) towards the bottom. "Keep your identity." keeps the violet-to-rose gradient.
 - Buttons: white (a white to `--light-btn-end` #E4E4E9 gradient, black text, a gentle scale on hover) and ghost (transparent, thin `--night-border` border).
-- Product image: rounded 14px with a large soft shadow and a violet-to-rose radial glow behind it (CSS only), kept inside the black half. The crisp black-to-paper edge halfway down the image, and the live glucose card on phones, stay.
+- Product image: rounded 14px with a large soft shadow and a violet-to-rose radial glow behind it (CSS only), kept clear of the hero text and buttons. The live glucose card on phones stays.
 - The hero fades in on load (0.6s); with `prefers-reduced-motion` it does not, and the white button does not scale.
 - The footer is black with the header's thin border.
+- Every landing section follows the hero (since 2026-11-24, replacing the light paper sections and the black-to-paper edge under the product image): black with a very faint flat grid (white at 3.5%), cards on `--night-surface` with a `--night-border` border and no shadow, section headings in Plex Sans 500 at -0.03em, section labels in `--night-muted` with `--glow-violet` numbers, the two big facts in the violet-to-rose gradient, privacy promises as dark cards with a violet left edge, Under the hood with glow-coloured top edges. The data-journey tabs are ghost buttons (white when selected) and its pulse uses the glow colours. The highlighter marks stay yellow with ink text. The app (/app) stays on light paper.
 - Contrast: the headline's faintest point is 9.78:1, the white buttons 16.00:1 at their palest, header links 4.65:1 where the translucent header sits over the light paper (checked as `--night` at 80% over `--paper`).
 
 ## What does not change

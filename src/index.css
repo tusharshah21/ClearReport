@@ -147,6 +147,20 @@ input[type='checkbox'] { width: 22px; height: 22px; vertical-align: -5px; margin
 .beam-tabs button[aria-selected='true'] { background: var(--primary); border-color: var(--primary); color: var(--card); font-weight: 600; }
 .beam-wrap [role='tabpanel']:focus-visible { outline-offset: 4px; }
 .beam-paused { display: inline-block; margin: 6px 0 0; padding: 2px 10px; border-radius: 999px; background: var(--muted); color: var(--ink-muted); font-size: 0.9rem; }
+/* The beam on the black landing: ghost tabs (white when selected), light labels, glow colours for the pulse. */
+.land-dark .beam-tabs button { background: transparent; border: 1px solid var(--night-control); color: var(--night-text); }
+.land-dark .beam-tabs button:hover:not(:disabled) { background: var(--night-border); }
+.land-dark .beam-tabs button[aria-selected='true'], .land-dark .beam-tabs button[aria-selected='true']:hover:not(:disabled) { background: var(--night-text); border-color: var(--night-text); color: var(--night); }
+.land-dark .beam-node small { color: var(--night-muted); }
+.land-dark .beam-link.device .track { stroke: var(--night-control); }
+.land-dark .beam-link.cloud .track { stroke: var(--night-control); }
+.land-dark .beam-link.device .pulse { stroke: var(--glow-violet); }
+.land-dark .beam-link.cloud .pulse { stroke: var(--glow-rose); }
+.land-dark .beam-paused { background: var(--night-border); color: var(--night-text); }
+@media (prefers-reduced-motion: reduce) {
+  .land-dark .beam-link.device .track { stroke: var(--glow-violet); }
+  .land-dark .beam-link.cloud .track { stroke: var(--glow-rose); }
+}
 .beam { display: flex; align-items: flex-start; padding: 14px 0 4px; }
 .beam-node { flex: 0 0 136px; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center; font-size: 0.9rem; line-height: 1.35; }
 .beam-node b { display: block; font-weight: 600; }
@@ -375,9 +389,8 @@ a.btn:not(.primary):hover { background: var(--device-bg); }
 a.btn.quiet { border-color: var(--border); color: var(--ink); font-weight: 500; }
 .small-btn { min-height: 40px; padding: 6px 14px; font-size: 0.95rem; }
 .brand a { color: inherit; text-decoration: none; }
-/* The body's graph paper shows through the light sections, as in the app. Black behind the translucent sticky header
-   at the top of the page, so it matches the hero there. */
-.landing { min-height: 100vh; overflow-x: clip; background: linear-gradient(to bottom, var(--night) 0 120px, transparent 120px); }
+/* The whole landing page is black, like the hero (Landing v2); the app stays on light paper. */
+.landing { min-height: 100vh; overflow-x: clip; background: var(--night); }
 .land-dark { background: var(--night); color: var(--night-text); --logo-a: var(--glow-violet); --logo-b: var(--glow-rose); --logo-line: var(--night-text); }
 .land-dark :focus-visible { outline-color: var(--glow-violet); }
 .land-dark a:not(.btn) { color: var(--glow-violet); }
@@ -438,7 +451,7 @@ a.btn.quiet { border-color: var(--border); color: var(--ink); font-weight: 500; 
 .lede { font-size: 1.15rem; color: var(--night-muted); max-width: 640px; margin: 0 auto 22px; }
 .land-ctas { display: flex; flex-wrap: wrap; justify-content: center; gap: 12px; margin-bottom: 0; padding-bottom: 40px; }
 /* The product image straddles the boundary: the night ends with a crisp edge halfway down it, the paper starts there. */
-.hero-shot { position: relative; padding: 0 16px; background: linear-gradient(to bottom, var(--night) 50%, transparent 50%); }
+.hero-shot { position: relative; padding: 0 16px; }
 /* A soft violet-to-rose glow behind the product image (CSS only), kept inside the black half. */
 .hero-shot::before { content: ''; position: absolute; left: 50%; top: -90px; width: min(1320px, 120%); height: 60%; transform: translateX(-50%); background: radial-gradient(48% 62% at 28% 55%, rgba(139, 124, 255, 0.85), transparent 74%), radial-gradient(46% 60% at 72% 55%, rgba(255, 122, 168, 0.7), transparent 74%); filter: blur(40px); pointer-events: none; }
 .hero-shot > * { position: relative; }
@@ -448,21 +461,33 @@ a.btn.quiet { border-color: var(--border); color: var(--ink); font-weight: 500; 
 .browser-bar i { width: 10px; height: 10px; border-radius: 50%; background: var(--night-grid); }
 .browser-bar span { margin-left: 10px; font-size: 0.8rem; font-family: var(--mono); color: var(--night-muted); background: var(--night); border-radius: 6px; padding: 1px 10px; }
 .browser-frame img { display: block; width: 100%; height: auto; }
-.land-light { position: relative; }
+/* The reading sections, in the hero's style: black with the faint slide grid flat behind them, dark cards with a thin
+   border, medium-weight tight headings, violet glow accents. */
+.land-light {
+  position: relative;
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.035) 1px, transparent 0), linear-gradient(to bottom, rgba(255, 255, 255, 0.035) 1px, transparent 0); /* fainter than --night-grid */
+  background-size: 48px 48px; background-position: center top;
+}
+.land-light .card { background: var(--night-surface); border-color: var(--night-border); box-shadow: none; }
+.land-light .muted { color: var(--night-muted); }
+.land-light h2, .land-light h3 { color: var(--night-text); }
 .land-section { max-width: 1040px; margin: 0 auto; padding: 36px 16px 8px; scroll-margin-top: 72px; } /* clear of the sticky header */
-.land-light > .land-section:first-child { padding-top: 56px; }
-.land-section > h2 { font-size: 1.6rem; }
+.land-light > .land-section:first-child { padding-top: 72px; }
+.land-section { padding-top: 56px; }
+.land-section > h2 { font-size: clamp(1.6rem, 3.4vw, 2.2rem); font-weight: 500; letter-spacing: -0.03em; }
 /* Section labels read like the headers of a lab printout: a number and the name, in small monospace capitals. */
-.sec-label { font-family: var(--mono); font-size: 0.8rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-muted); margin: 0 0 6px; }
-.sec-label span { color: var(--primary); }
+.sec-label { font-family: var(--mono); font-size: 0.8rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--night-muted); margin: 0 0 8px; }
+.sec-label span { color: var(--glow-violet); }
 .land-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.land-section .steps3 li { background: var(--card); border: 1px solid var(--border); }
-.fact-big { font-size: 2.4rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.02em; color: var(--primary); line-height: 1.1; margin-bottom: 8px; }
+.land-section .steps3 li { background: var(--night-surface); border: 1px solid var(--night-border); }
+.land-section .steps3 b { color: var(--glow-violet); }
+.fact-big { font-size: 2.6rem; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 8px; color: var(--glow-violet); background: linear-gradient(90deg, var(--glow-violet), var(--glow-rose)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .promises { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
-.promises li { background: var(--device-bg); color: var(--ink); border-radius: var(--radius); padding: 14px 16px; }
-.promises b { display: block; color: var(--device-fg); }
+.promises li { background: var(--night-surface); border: 1px solid var(--night-border); border-left: 3px solid var(--glow-violet); color: var(--night-muted); border-radius: var(--radius); padding: 14px 16px; }
+.promises b { display: block; color: var(--night-text); }
 .faq details { padding: 0; margin-bottom: 10px; }
-.faq summary { padding: 14px 18px; color: var(--ink); min-height: 48px; }
+.faq summary { padding: 14px 18px; color: var(--night-text); min-height: 48px; }
+.faq details p { color: var(--night-muted); }
 .faq details p { padding: 0 18px 4px; margin-top: 0; }
 .land-footer { margin: 32px 0 0; padding: 28px 16px 40px; background: var(--night); color: var(--night-muted); font-size: 0.95rem; border-top: 1px solid var(--night-border); }
 .land-footer > * { max-width: 1040px; margin-left: auto; margin-right: auto; }
@@ -487,6 +512,10 @@ a.btn.quiet { border-color: var(--border); color: var(--ink); font-weight: 500; 
 .hood-col.cloud { border-top-color: var(--cloud-fg); }
 .hood-col.code { border-top-color: var(--ink-muted); }
 .hood-col h3 { margin: 0 0 2px; font-size: 1.15rem; }
+.land-light .hood-col { color: var(--night-muted); }
+.land-light .hood-col.device { border-top-color: var(--glow-violet); }
+.land-light .hood-col.cloud { border-top-color: var(--glow-rose); }
+.land-light .hood-col.code { border-top-color: var(--night-control); }
 .hood-col ul { margin: 10px 0 0; padding-left: 18px; }
 .hood-col li { margin-bottom: 8px; }
 .hood-col code { display: inline-block; font-size: 0.8rem; font-weight: 500; border-radius: 6px; padding: 1px 6px; margin-right: 6px; }

@@ -110,7 +110,7 @@ export default function Landing() {
           </div>
         </section>
 
-        <div className="land-light">
+        <div className="land-light land-dark">
         <section className="land-section" aria-labelledby="journey-title">
           <p className="sec-label" aria-hidden="true"><span>01</span> · What leaves your device</p>
           <h2 id="journey-title">What leaves your device</h2>
