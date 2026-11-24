@@ -27,7 +27,7 @@ function GlucoseCard() {
           {glucose.tag && <Badge kind="note" icon={Icon.ruler}>Guideline: {glucose.tag}</Badge>}
         </span>
       </div>
-      <p className="hero-card-value"><span className="value">{GLUCOSE.value} {GLUCOSE.unit}</span><span className="range"> · Lab range {GLUCOSE.ref_text}</span></p>
+      <p className="hero-card-value"><span className="value">{GLUCOSE.value} {GLUCOSE.unit}</span><span className="range"><span className="sep"> · </span>Lab range {GLUCOSE.ref_text}</span></p>
       {glucose.callout && (
         <div className="range-note">
           {Icon.pen}

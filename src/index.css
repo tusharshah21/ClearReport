@@ -725,6 +725,11 @@ a.btn.quiet { border-color: var(--border); color: var(--ink); font-weight: 500; 
 .hero-card-from { font-size: 0.85rem; color: var(--ink-muted); margin: 0 0 8px; }
 .hero-card-value { margin: 6px 0 8px; }
 .hero-card .range { color: var(--ink-muted); font-family: var(--mono); font-variant-numeric: tabular-nums; }
+/* Under 400 px "Lab range ..." always takes its own line, without the separator dot (landing card and app cards). */
+@media (max-width: 399.98px) {
+  .hero-card .range, .test-card .range { display: block; margin-left: 0; }
+  .range .sep { display: none; }
+}
 @media (max-width: 600px) { .hero-shot .browser-frame { display: none; } .hero-card { display: block; } }
 /* Under the hood */
 .hood { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }

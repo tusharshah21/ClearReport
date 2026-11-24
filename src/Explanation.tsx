@@ -145,7 +145,7 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
         </div>
         <p style={{ margin: '4px 0 8px' }}>
           {value}
-          {x.ref_text && <span className="range"> · {t.range} {x.ref_text}</span>}
+          {x.ref_text && <span className="range"><span className="sep"> · </span>{t.range} {x.ref_text}</span>}
           {confirmed[i] && <small className="muted"> · {t.confirmed}</small>}
         </p>
         {body}
