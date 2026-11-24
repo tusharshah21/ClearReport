@@ -51,7 +51,7 @@ Read this before recording it. The on-device model gets each unread row with the
 
 1. Click **Start over**, then **Read it privately**.
 2. Choose `demo-unfamiliar.pdf`. Reading takes about 80 seconds warm (nearly 2 minutes as the first read after loading the page); the screen says "Reading your report on this device...". Cut this wait in the edit.
-3. On "Check your results", point at the 10 rows, all "Verified against your PDF", and the line "Read on this device in ... s (0 rows by the plain-code parser, 1 on-device model calls)".
+3. On "Check your results", point at the 10 rows, all "Verified against your PDF", and the line "Read on this device in ... s (0 rows by the plain-code parser, 1 on-device model call)".
 4. Click **Approve and send these numbers** to continue to the explanation, or **Cancel**.
 
 ## After recording

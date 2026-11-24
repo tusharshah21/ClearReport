@@ -94,7 +94,7 @@ export default function Review({ result, onCancel, onApprove }: { result: Result
       )}
       <pre className="payload" data-testid="payload" tabIndex={0} aria-label="The exact data that will be sent">{JSON.stringify(payload, null, 2)}</pre>
       <p className="footer-note">
-        Read {local ? 'on this device' : 'by Gemini in the cloud'} in {(result.run.latency_ms / 1000).toFixed(1)} s ({result.run.strategy === 'pages' ? `${result.run.page_strategies?.length} pages` : result.run.strategy === 'rows' ? `${methods.filter((m) => m === 'parser').length} rows by the plain-code parser, ${result.run.calls.length} on-device model calls` : `${result.run.strategy} call`}).
+        Read {local ? 'on this device' : 'by Gemini in the cloud'} in {(result.run.latency_ms / 1000).toFixed(1)} s ({result.run.strategy === 'pages' ? `${result.run.page_strategies?.length} pages` : result.run.strategy === 'rows' ? `${methods.filter((m) => m === 'parser').length} rows by the plain-code parser, ${result.run.calls.length} on-device model call${result.run.calls.length === 1 ? "" : "s"}` : `${result.run.strategy} call`}).
       </p>
       <div className="actions">
         <button className="quiet" onClick={onCancel}>Cancel</button>
