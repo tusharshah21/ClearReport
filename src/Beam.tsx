@@ -18,7 +18,7 @@ const DEVICE: Node = { icon: 'laptop', label: 'Your device', sub: 'your report i
 const CLOUD: Node = { icon: 'cloud', label: 'Gemini in the cloud', sub: '', where: 'cloud' }
 // mark: the one phrase of this section drawn with the highlighter stroke (decoration only; the words are unchanged).
 const PATHS: Record<Kind, { tab: string; mid: Node | null; here: string; there: string; mark?: string }> = {
-  private: { tab: 'Private (PDF)', mid: { icon: 'shield', label: 'Personal details removed', sub: 'on this device', where: 'device' }, here: 'Your PDF is read here; name, ID and phone removed here', there: 'Only anonymous numbers, age range and sex', mark: 'Only anonymous numbers' },
+  private: { tab: 'Private (PDF)', mid: { icon: 'shield', label: 'Personal details removed', sub: 'on this device', where: 'device' }, here: 'Your PDF is read here; name, ID and phone removed here', there: 'Only anonymous numbers, lab name, age range and sex', mark: 'Only anonymous numbers' },
   mask: { tab: 'Mask it yourself', mid: { icon: 'box', label: 'You cover your details', sub: 'black boxes, on this device', where: 'device' }, here: 'You cover your details with black boxes here', there: 'The covered image, then anonymous numbers' },
   full: { tab: 'Full report', mid: null, here: 'Nothing is removed first', there: 'The full report image, only with your consent' },
 }

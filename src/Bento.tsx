@@ -81,13 +81,13 @@ const mask = (
 )
 
 const CARDS: Card[] = [
-  { size: 'lg', title: 'Read on your device, explained in the cloud', text: <>Plain code in your browser reads the PDF, checks each value and removes your name. Only after you approve do the anonymous numbers go to Gemini.</>, visual: trail },
+  { size: 'lg', title: 'Read on your device, explained in the cloud', text: <>Your browser reads the PDF (plain code, or on-device AI for a layout it does not know), checks each value and removes your name. Only after you approve do the anonymous numbers go to Gemini.</>, visual: trail },
   { size: 'sm', title: 'You see what is sent', text: <>The exact anonymous numbers, with <mark className="hl">your name and details removed</mark>, before anything leaves.</>, visual: approve },
   { size: 'sm', title: 'Your lab and a guideline, side by side', text: <>Each result is compared with your lab's range and a named guideline, and the page says when they disagree.</>, visual: ranges },
   { size: 'sm', title: 'English, or Hindi on a tap', text: <>Plain-language explanations in English, with a Hindi version when you ask for it.</>, visual: languages },
   { size: 'sm', title: 'Questions for your doctor', text: <>Each explanation ends with questions to take to your appointment. It never says you have a condition.</>, visual: questions },
-  { size: 'md', title: 'Every value checked against the PDF', text: <>When you upload a PDF, plain code finds each value and range in the PDF's own text, so a misread number is caught before you see it.</>, visual: crosscheck },
-  { size: 'md', title: 'On a phone, you cover your details', text: <>Without Chrome's built-in AI, you draw boxes over your name and IDs, and only that covered image is sent.</>, visual: mask },
+  { size: 'md', title: 'Every value checked against the PDF', text: <>When you upload a PDF, plain code finds each value and range in the PDF's own text, so a misread number is flagged for you to check before anything is sent.</>, visual: crosscheck },
+  { size: 'md', title: 'On a phone, you cover your details', text: <>Without Chrome's built-in AI, you draw boxes over your name and IDs, and only that covered image is sent to be read.</>, visual: mask },
 ]
 
 export default function Bento() {
