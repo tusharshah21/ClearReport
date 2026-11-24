@@ -71,4 +71,13 @@ for (const [f, use] of [['night-muted', 'footer text under the light shaft'], ['
   if (process.argv.includes('--table')) console.log(`| \`--${f}\` ${T[f]} | footer shaft ${beam} | ${r.toFixed(2)}:1 | 4.5:1 | ${use} |`)
   assert.ok(r >= 4.5, `contrast --${f} under the footer shaft: ${r.toFixed(2)} < 4.5`)
 }
-console.log(`contrast ok: ${rows.length} pairs, the hero gradient, the header over paper and the footer shaft`)
+// The glows behind the landing sections are at most 22% violet or 18% rose over the black where text sits on them.
+for (const [glow, peak] of [['glow-violet', 0.22], ['glow-rose', 0.18]] as const) {
+  const bg = mix(T.night, T[glow], peak)
+  for (const [f, use] of [['night-muted', 'section text and labels over a glow'], ['night-text', 'headings over a glow'], ['glow-violet', 'label numbers and links over a glow']] as const) {
+    const r = ratio(T[f], bg)
+    if (process.argv.includes('--table')) console.log(`| \`--${f}\` ${T[f]} | ${glow} glow ${bg} | ${r.toFixed(2)}:1 | 4.5:1 | ${use} |`)
+    assert.ok(r >= 4.5, `contrast --${f} over the ${glow} glow: ${r.toFixed(2)} < 4.5`)
+  }
+}
+console.log(`contrast ok: ${rows.length} pairs, the hero gradient, the header over paper, the footer shaft and the section glows`)
