@@ -4,7 +4,7 @@ Date: 2026-11-23. Replaces the "Sage" theme (calm reading room). Visual changes 
 
 ## Concept
 
-Labs stain blood under a microscope (H&E staining: haematoxylin violet, eosin rose) so the parts can be told apart. ClearReport uses the same two stains to tell apart where your data is, and adds a careful friend who goes over your printed report with a highlighter. The landing page is dark, like a microscope slide under light; the app is light paper with a very faint graph-paper grid, like a printed report.
+Labs stain blood under a microscope (H&E staining: haematoxylin violet, eosin rose) so the parts can be told apart. ClearReport uses the same two stains to tell apart where your data is, and adds a careful friend who goes over your printed report with a highlighter. The landing page is dark, like a microscope slide under light. Since 2026-11-24 the app is dark on screen too: the same tokens get dark values under `body:has(.app)` inside `@media screen`, the header and cards are glass panels with the violet-to-rose edge light, the primary button is the landing's white button, and the brand glows sit fixed behind the page. Print stays light paper with the faint graph-paper grid, like a printed report, and the mask canvas keeps the light values. Text on the yellow highlighter uses `--on-highlight` (#111827) in both themes. `scripts/contrast.ts` checks every app pair in both themes.
 
 ## Colour meanings
 

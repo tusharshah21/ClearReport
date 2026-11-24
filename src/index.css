@@ -23,6 +23,7 @@
   --highlight: #FFE45C;
   --highlight-edge: #E9C400;
   --highlight-tint: #FFF6C2;
+  --on-highlight: #111827; /* text on the highlighter yellow, in both themes */
   --status-range-bg: #FDEBD8;
   --status-range-fg: #8A3E00;
   --status-ok-bg: #DEF3EC;
@@ -52,6 +53,62 @@
   --shadow: 0 1px 2px rgba(17, 24, 39, 0.05), 0 4px 14px rgba(17, 24, 39, 0.06);
   --font: 'IBM Plex Sans', 'IBM Plex Sans Devanagari', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'IBM Plex Mono', 'IBM Plex Sans Devanagari', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+}
+/* The app on screen is black like the landing page (since 2026-11-24): the same tokens with dark values, set on the
+   app's body, so every app rule follows. Print stays light (a printed report). The mask canvas reads its colours from
+   the root, so masks on report photos keep their light values. scripts/contrast.ts checks every app pair in both sets. */
+@media screen {
+  body:has(.app) {
+    color-scheme: dark;
+    --paper: #050608;
+    --card: #111317;
+    --ink: #F5F5F7;
+    --ink-muted: #A1A1AA;
+    --muted: #1B1D23;
+    --border: #2A2D34;
+    --grid-line: #0E1014;
+    --primary: #8B7CFF;
+    --primary-hover: #A396FF;
+    --ring: #8B7CFF;
+    --device-bg: #1D1938;
+    --device-fg: #B9AEFF;
+    --device-border: #3D3577;
+    --cloud-bg: #33121F;
+    --cloud-fg: #FF8FB8;
+    --cloud-border: #6E2848;
+    --highlight-tint: #2B2610;
+    --status-range-bg: #33200F;
+    --status-range-fg: #FDBA8C;
+    --status-ok-bg: #0E2A24;
+    --status-ok-fg: #6EE7C8;
+    --error: #FF8A80;
+    --error-bg: #33130F;
+    --error-border: #7A2E28;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.35);
+  }
+}
+/* The dark app in the landing's style (screen only): the header as a glass bar, cards as glass panels with the
+   violet-to-rose edge light, medium-weight tight headings, the white primary button, and the brand glows fixed behind
+   the page (at most 18% where text sits on them; scripts/glowcheck.ts measures the app screens too). */
+@media screen {
+  body:has(.app)::before {
+    content: ''; position: fixed; inset: 0; z-index: -1; pointer-events: none;
+    background: radial-gradient(40% 36% at 12% 8%, rgba(139, 124, 255, 0.16), transparent 70%), radial-gradient(36% 34% at 92% 30%, rgba(255, 122, 168, 0.12), transparent 70%), radial-gradient(42% 38% at 30% 96%, rgba(139, 124, 255, 0.14), transparent 70%);
+  }
+  body .app > header, body .app .card, body .app .path {
+    border-radius: 16px; border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012) 40%), rgba(17, 19, 23, 0.86);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 24px 48px -28px rgba(0, 0, 0, 0.9);
+  }
+  body .app > header { position: relative; padding: 10px 18px; align-items: center; }
+  body .app > header .brand { color: var(--ink); }
+  body .app .card { position: relative; }
+  body .app > header::after, body .app .card::after { content: ''; position: absolute; top: -1px; left: 18%; right: 18%; height: 1px; pointer-events: none; background: linear-gradient(90deg, transparent, var(--glow-violet), var(--glow-rose), transparent); opacity: 0.7; }
+  body .app .path { border-top-width: 3px; }
+  body .app h1, body .app h2 { font-weight: 600; letter-spacing: -0.03em; }
+  body .app button.primary, body .app a.btn.primary { background: linear-gradient(to bottom, #FFFFFF, #FFFFFF 40%, var(--light-btn-end)); border-color: transparent; color: var(--night); }
+  body .app button.primary:hover:not(:disabled), body .app a.btn.primary:hover { background: linear-gradient(to bottom, #FFFFFF, var(--light-btn-end)); }
+  body .app .disclaimer-bar { background: rgba(17, 19, 23, 0.6); }
 }
 *, *::before, *::after { box-sizing: border-box; }
 /* Graph paper: a very faint grid behind everything (decorative; content sits on solid cards). */
@@ -254,6 +311,8 @@ table.results tr.pending td { background: var(--muted); }
   table.results tr { display: block; border-bottom: 1px solid var(--border); padding: 8px 0; }
   table.results td { display: flex; gap: 8px; border: 0; padding: 3px 4px; }
   table.results td::before { content: attr(data-label); min-width: 90px; color: var(--ink-muted); font-weight: 600; font-family: var(--font); }
+  table.results td > details.mini { flex-basis: 100%; padding-left: 98px; } /* on its own line under the badge, not squeezed beside it */
+  table.results td { flex-wrap: wrap; }
 }
 details summary { cursor: pointer; color: var(--primary); font-weight: 600; min-height: 32px; }
 details.mini summary { font-size: 0.9rem; font-weight: 500; }
@@ -267,7 +326,7 @@ pre.payload { background: var(--paper); border: 1px solid var(--border); border-
 .badge.check { background: var(--muted); color: var(--ink); }
 .badge.plain { background: var(--muted); color: var(--ink-muted); }
 /* "Guideline: borderline": the same highlighter yellow as the callout, with ink text. */
-.badge.note { background: var(--highlight); color: var(--ink); box-shadow: inset 0 -2px 0 var(--highlight-edge); }
+.badge.note { background: var(--highlight); color: var(--on-highlight); box-shadow: inset 0 -2px 0 var(--highlight-edge); }
 .badges { display: inline-flex; flex-wrap: wrap; gap: 6px; }
 
 /* Explanation */
@@ -285,7 +344,7 @@ pre.payload { background: var(--paper); border: 1px solid var(--border); border-
 .range-note { display: flex; gap: 10px; background: var(--highlight-tint); color: var(--ink); border-radius: var(--radius); padding: 12px 14px; margin: 10px 0 4px; }
 .range-note svg { width: 22px; height: 22px; flex: none; margin-top: 2px; color: var(--ink); }
 .range-note b {
-  display: table; margin: 0 0 4px -4px; padding: 0 6px;
+  color: var(--on-highlight); display: table; margin: 0 0 4px -4px; padding: 0 6px;
   background:
     linear-gradient(176deg, transparent 0 8%, var(--highlight) 9% 88%, transparent 89%),
     linear-gradient(183deg, transparent 0 14%, var(--highlight) 15% 92%, transparent 93%);
@@ -294,7 +353,7 @@ pre.payload { background: var(--paper); border: 1px solid var(--border); border-
   box-decoration-break: clone; -webkit-box-decoration-break: clone;
 }
 mark.hl {
-  color: var(--ink); padding: 0 4px; margin: 0 -1px;
+  color: var(--on-highlight); padding: 0 4px; margin: 0 -1px;
   background:
     linear-gradient(176deg, transparent 0 10%, var(--highlight) 11% 88%, transparent 89%),
     linear-gradient(183deg, transparent 0 16%, var(--highlight) 17% 92%, transparent 93%);
@@ -311,7 +370,7 @@ mark.hl {
 .findings .fi svg { width: 16px; height: 16px; }
 .findings .fi.below, .findings .fi.above { background: var(--status-range-bg); color: var(--status-range-fg); }
 .findings .fi.within { background: var(--status-ok-bg); color: var(--status-ok-fg); }
-.findings .fi.note { background: var(--highlight); color: var(--ink); }
+.findings .fi.note { background: var(--highlight); color: var(--on-highlight); }
 .panel { margin-bottom: 18px; }
 .panel h3 { font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.05em; color: var(--ink-muted); margin: 0 0 8px; }
 .test-card:focus { outline: 3px solid var(--ring); outline-offset: 2px; }
