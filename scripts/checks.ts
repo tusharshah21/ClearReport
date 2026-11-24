@@ -11,6 +11,7 @@ import { trustOf } from '../src/trust'
 import { completeHindi, sameNumbers, untranslated } from '../src/hindi'
 import { isBusy, isDailyLimit, withFallback } from '../src/retry'
 import { fixQuestionGrammar, fixUnits, fixUnitsIn, questionsFor, questionsSpecific } from '../src/questions'
+import { fileError, NO_RESULTS } from '../src/fileerror'
 
 // Every ground-truth name resolves to a known key, and no report has two tests with the same key.
 for (const f of readdirSync('test-data/ground-truth')) {
@@ -401,4 +402,20 @@ console.log('crop ok')
     assert.ok(!isDailyLimit(busy))
   } finally { console.info = quiet }
   console.log('cloud fallback ok')
+}
+
+// File errors: a clear message for each file the app cannot read (test-data/edge, scripts/edge.ts).
+{
+  const pdf = { name: 'r.pdf', type: 'application/pdf' }
+  const pw = Object.assign(new Error('No password given'), { name: 'PasswordException' })
+  assert.match(fileError(pw, pdf), /protected with a password/)
+  assert.match(fileError(new Error('This PDF has 20 pages; at most 10 are supported.'), pdf), /has 20 pages; ClearReport reads at most 10\. Save only the pages/)
+  assert.match(fileError(Object.assign(new Error('Invalid PDF structure.'), { name: 'InvalidPDFException' }), pdf), /can't be opened as a PDF/)
+  assert.match(fileError(new Error('The PDF file is empty, i.e. its size is zero bytes.'), pdf), /may be empty, damaged/)
+  assert.match(fileError(new Error('The source image could not be decoded.'), { name: 'IMG_0042.HEIC', type: '' }), /HEIC photos can't be read/)
+  assert.match(fileError(new Error('The source image could not be decoded.'), { name: 'x.jpg', type: 'image/heic' }), /HEIC/)
+  assert.match(fileError(new Error('The source image could not be decoded.'), { name: 'report.docx', type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' }), /file type can't be read/)
+  for (const m of [fileError(pw, pdf), fileError(new Error('x'), pdf)]) assert.ok(!/[—–]/.test(m), 'no dashes in messages')
+  assert.ok(`Error: ${NO_RESULTS}`.endsWith(NO_RESULTS))
+  console.log('file errors ok')
 }

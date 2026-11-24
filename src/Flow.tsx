@@ -7,6 +7,7 @@ import { Busy, DataTrail, Icon, Logo } from './ui'
 import { isDailyLimit, LIMIT_AFTER, LIMIT_REACHED } from './retry'
 import { checkAll, DISCLAIMER, type Check } from './guidelines'
 import { aiBoxes, nonResultLines, ocrWords, suggestMasks, type Suggestion } from './masks'
+import { fileError, NO_RESULTS } from './fileerror'
 import { isPdf, pdfPages } from './pdf'
 import { toPayload, type Payload } from './privacy'
 import { config } from './remote'
@@ -342,6 +343,7 @@ export default function Flow() {
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
   const limited = isDailyLimit(error) // free-tier daily quota reached: no "Try again" until it resets
+  const noResults = error.endsWith(NO_RESULTS) // the file was read but holds no test results: only "Start over"
   const [result, setResult] = useState<Result | null>(null)
   const [pageWords, setPageWords] = useState<(Word[] | null)[]>([]) // PDF text layer per page; null for photos. Local only.
   const [suggest, setSuggest] = useState<Box[][]>([]) // suggested mask boxes per page (Path 2)
@@ -449,7 +451,8 @@ export default function Flow() {
       proceed(path!, pages, words)
     } catch (e) {
       setProgress('')
-      setError(`Could not read that file (${(e as Error).message}). Please use a PDF, or a JPEG or PNG photo of the report.`)
+      console.warn('ClearReport could not read the file:', String((e as Error)?.message ?? e)) // the reader's error, no file content
+      setError(fileError(e, f))
     }
   }
 
@@ -533,6 +536,7 @@ export default function Flow() {
       setProgress('')
       if (!r.ok) throw new Error(r.calls.find((c) => !c.ok)?.error ?? 'unknown error')
       const rows = ((r.output as { tests?: [] })?.tests ?? []) as Parameters<typeof trustOf>[0]
+      if (!rows.length) throw new Error(NO_RESULTS) // never an empty results table with Approve enabled
       const trust = trustOf(rows, words)
       // Path 1: drop any flag the on-device model gave that the PDF does not print beside the value.
       const output = r.strategy === 'rows' && r.output ? { ...r.output, tests: keepPrintedFlags(rows, trust) } : r.output
@@ -752,11 +756,11 @@ export default function Flow() {
 
         {step === 'failed' && (
           <section className="card" aria-labelledby="failed-title" style={{ borderColor: 'var(--error-border)' }}>
-            <h2 id="failed-title">{path === 1 ? 'Private reading did not work on this device' : 'We could not read your report this time'}</h2>
-            <p>{path === 1 ? 'Nothing was sent anywhere. You can choose another way to continue.' : limited ? `${LIMIT_REACHED} Nothing was saved. ${LIMIT_AFTER}` : 'Nothing was saved. This is usually a network problem; trying again often works.'}</p>
-            <details className="mini"><summary>Technical details</summary><p className="muted small">{error}</p></details>
+            <h2 id="failed-title">{noResults ? 'We found no test results in this file' : path === 1 ? 'Private reading did not work on this device' : 'We could not read your report this time'}</h2>
+            <p>{noResults ? "It doesn't look like a blood test report, so there is nothing to explain and nothing was saved. Please check that you added your lab report." : path === 1 ? 'Nothing was sent anywhere. You can choose another way to continue.' : limited ? `${LIMIT_REACHED} Nothing was saved. ${LIMIT_AFTER}` : 'Nothing was saved. This is usually a network problem; trying again often works.'}</p>
+            {!noResults && <details className="mini"><summary>Technical details</summary><p className="muted small">{error}</p></details>}
             <div className="actions">
-              {path === 1 ? (
+              {noResults ? null : path === 1 ? (
                 <>
                   <button className="primary" onClick={() => choose(2)}>Mask my details yourself</button>
                   {config().path3 && <button onClick={() => choose(3)}>Send the full report (asks for consent)</button>}
