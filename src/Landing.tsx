@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import Beam from './Beam'
 import Bento from './Bento'
+import Compare from './Compare'
 import { checkTest, DISCLAIMER } from './guidelines'
 import { Badge, Icon, Logo } from './ui'
 // The landing page at "/". Static: no Firebase, no AI, no report. The tool lives at /app.
@@ -184,6 +185,7 @@ export default function Landing() {
         <section className="land-section" id="privacy" aria-labelledby="privacy-title">
           <p className="sec-label" aria-hidden="true"><span>05</span> · Privacy promises</p>
           <h2 id="privacy-title">Privacy promises</h2>
+          <Compare />
           <ul className="promises">
             <li><b>Nothing is stored.</b> Your report stays in your browser tab's memory. ClearReport has <mark className="hl">no database and no storage bucket</mark>.</li>
             <li><b>You approve what is sent.</b> You see the exact anonymous numbers, or the exact covered image, before anything goes to the cloud.</li>

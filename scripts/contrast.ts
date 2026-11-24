@@ -38,6 +38,7 @@ const PAIRS: [string, string, number, string][] = [
   ['glow-violet', 'night', 4.5, 'links on dark, gradient start'], ['glow-rose', 'night', 4.5, 'gradient end'],
   ['night-muted', 'night-grid', 4.5, 'section text where it crosses a slide-grid line'],
   ['glow-violet', 'night-surface', 4.5, 'links, step names and fact numbers on dark cards'], ['glow-rose', 'night-surface', 4.5, 'fact number gradient end on dark cards'],
+  ['night', 'glow-rose', 4.5, '"Sent to explain" chip on the compare slider'], ['night-text', 'night', 4.5, '"Your report" chip on the compare slider'],
   ['night-text', 'night-border', 4.5, '"Paused" note and hovered tabs in the data-journey diagram'], ['night', 'night-text', 4.5, 'selected tab in the data-journey diagram'],
   ['night-control', 'night', 3, 'ghost button and menu button borders on dark (non-text)'], ['glow-violet', 'night', 3, 'focus ring on dark (non-text)'], ['glow-violet', 'night-surface', 3, 'focus ring on a hovered dark control (non-text)'],
 ]

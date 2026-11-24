@@ -212,4 +212,5 @@ No UI library is installed. These MIT-licensed designs were used as visual refer
 - The upload drop zone: "File Upload" by Edu Calvo (educlopez), MIT, https://21st.dev/@educlopez/components/file-upload
 - The landing page hero (perspective grid and centred layout): "Hero Section Dark" by kinfe123 / FarmUI, MIT, https://21st.dev/@kinfe123/components/hero-section-dark
 - The landing "How it works" bento grid (card sizes on a six-column grid, a small illustration in each card): "Marketing Feature Bento" on 21st.dev, licence not stated on the page, so only the layout idea was used and no code was copied; the illustrations show ClearReport's own steps
+- The "Your report" / "Sent to explain" compare slider on the landing page: "Compare Reveal" from Motiq, MIT, https://motiq.dev/components/compare-reveal (rebuilt on a native range input, without the spring physics)
 - The landing footer (diagonal light shaft and the large cropped wordmark): "Beam Wordmark Footer" by Kedhar (kedhareswer) on 21st.dev, licence not stated on the page, so only the look was used and no code was copied

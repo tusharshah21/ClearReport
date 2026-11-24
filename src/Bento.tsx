@@ -27,7 +27,7 @@ const trail = (
 const approve = (
   <div className="bv-panel bv-mono">
     <p className="bv-head">Will be sent <span className="bv-badge">name removed</span></p>
-    <p><s className="bv-redact">Asha Verma</s> · Male · 50-59</p>
+    <p><s className="bv-redact">Meera Fictitious</s> · Female · 50-59</p>
     <p>Glucose Fasting (FBS) <b>104 mg/dL</b></p>
     <p>Lab range 70 - 110</p>
   </div>
@@ -74,7 +74,7 @@ const crosscheck = (
 
 const mask = (
   <div className="bv-panel bv-mono bv-photo">
-    <p><span className="bv-box">Asha Verma</span></p>
+    <p><span className="bv-box">Meera Fictitious</span></p>
     <p>Age <span className="bv-box">54</span> · ID <span className="bv-box">RB-20419</span></p>
     <p>Glucose Fasting 104 mg/dL</p>
   </div>
