@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import Beam from './Beam'
+import Bento from './Bento'
 import { checkTest, DISCLAIMER } from './guidelines'
 import { Badge, Icon, Logo } from './ui'
 // The landing page at "/". Static: no Firebase, no AI, no report. The tool lives at /app.
@@ -139,11 +140,8 @@ export default function Landing() {
         <section className="land-section" id="how" aria-labelledby="how-title">
           <p className="sec-label" aria-hidden="true"><span>03</span> · How it works</p>
           <h2 id="how-title">How it works</h2>
-          <ol className="steps3">
-            <li><b>1. Read</b>Your report's numbers are read, on this device when it can.</li>
-            <li><b>2. Check</b>You see exactly what will be sent, with <mark className="hl">your name and details removed</mark>, and approve it.</li>
-            <li><b>3. Explain</b>Gemini explains the anonymous numbers in plain English or Hindi, with questions for your doctor.</li>
-          </ol>
+          <p className="muted">Read, check, explain: what happens at each step, and where.</p>
+          <Bento />
         </section>
 
         <section className="land-section" id="hood" aria-labelledby="hood-title">

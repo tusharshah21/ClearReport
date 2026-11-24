@@ -479,8 +479,63 @@ a.btn.quiet { border-color: var(--border); color: var(--ink); font-weight: 500; 
 .sec-label { font-family: var(--mono); font-size: 0.8rem; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--night-muted); margin: 0 0 8px; }
 .sec-label span { color: var(--glow-violet); }
 .land-grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.land-section .steps3 li { background: var(--night-surface); border: 1px solid var(--night-border); }
-.land-section .steps3 b { color: var(--glow-violet); }
+/* "How it works" as a bento grid (Bento.tsx): one column, two from 640px of section width, six from 920px.
+   Static illustrations in the landing tokens: violet on the device, rose in the cloud, yellow only where the lab
+   and a guideline disagree. */
+.land-section:has(.bento) { container-type: inline-size; }
+.bento { list-style: none; margin: 20px 0 6px; padding: 0; display: grid; grid-template-columns: 1fr; gap: 12px; }
+@container (min-width: 640px) { .bento { grid-template-columns: 1fr 1fr; } .bento-card.lg { grid-column: span 2; } }
+@container (min-width: 920px) { .bento { grid-template-columns: repeat(6, 1fr); } .bento-card.sm { grid-column: span 2; } .bento-card.md { grid-column: span 3; } .bento-card.lg { grid-column: span 4; } }
+.bento-card { display: flex; flex-direction: column; margin: 0; padding: 0; overflow: hidden; border-radius: 18px; transition: border-color 0.2s; }
+.bento-card:hover { border-color: var(--night-control); }
+.bento-visual { flex: 1; min-height: 190px; display: grid; place-items: center; padding: 20px 20px 0; }
+.bento-card h3 { margin: 18px 22px 0; font-size: 1.05rem; font-weight: 600; letter-spacing: -0.02em; }
+.bento-card > p { margin: 6px 22px 22px; color: var(--night-muted); font-size: 0.95rem; }
+.bv-panel { width: 100%; max-width: 440px; background: var(--night); border: 1px solid var(--night-border); border-radius: 12px; padding: 14px; color: var(--night-muted); font-size: 0.85rem; }
+.bv-panel p { margin: 0; }
+.bv-mono { font-family: var(--mono); font-size: 0.78rem; line-height: 1.9; }
+.bv-mono b { color: var(--night-text); font-weight: 500; }
+.bv-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 6px !important; text-transform: uppercase; letter-spacing: 0.1em; font-size: 0.68rem; }
+.bv-badge { text-transform: none; letter-spacing: 0; padding: 0 8px; border-radius: 999px; border: 1px solid var(--glow-violet); color: var(--glow-violet); }
+.bv-redact { text-decoration: none; color: transparent; background: repeating-linear-gradient(135deg, var(--night-text) 0 4px, var(--night-control) 4px 5px); border-radius: 3px; }
+/* Data trail */
+.bv-trail { max-width: 620px; align-self: stretch; }
+.bv-row { display: grid; grid-template-columns: 118px 1fr; gap: 10px; align-items: center; padding: 4px 0; }
+.bv-label { font-family: var(--mono); font-size: 0.72rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bv-label.strong { color: var(--night-text); }
+.bv-track { height: 14px; background-image: linear-gradient(to right, var(--night-border) 1px, transparent 1px); background-size: 25% 100%; }
+.bv-bar { display: block; height: 100%; border-radius: 4px; }
+.bv-bar.device, .dot.device, .dot.lab, .bv-band.lab { background: var(--glow-violet); }
+.bv-bar.you, .dot.you { background: var(--night-text); }
+.bv-bar.cloud, .dot.cloud { background: var(--glow-rose); }
+.dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; }
+.bv-legend, .bv-key { display: flex; flex-wrap: wrap; gap: 4px 14px; margin-top: 10px !important; font-size: 0.75rem; }
+/* Lab range and guideline */
+.bv-value { font-family: var(--mono); color: var(--night-text); font-size: 1.9rem; font-weight: 500; letter-spacing: -0.03em; line-height: 1.1; }
+.bv-value small { font-size: 0.8rem; color: var(--night-muted); letter-spacing: 0; }
+.bv-scale { position: relative; height: 26px; margin-top: 12px; }
+.bv-scale::before { content: ''; position: absolute; left: 0; right: 0; top: 12px; height: 2px; background: var(--night-border); }
+.bv-band { position: absolute; height: 6px; border-radius: 3px; }
+.bv-band.lab { top: 4px; }
+.bv-band.guide, .dot.guide { background: var(--highlight); }
+.bv-band.guide { top: 16px; }
+.bv-marker { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--night-text); }
+/* Languages */
+.bv-toggle { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid var(--night-control); border-radius: 999px; margin-bottom: 12px !important; }
+.bv-toggle span { padding: 2px 12px; border-radius: 999px; color: var(--night-text); }
+.bv-toggle .on { background: var(--night-text); color: var(--night); }
+.bv-line { color: var(--night-text); }
+.bv-line + .bv-line { margin-top: 6px !important; color: var(--night-muted); }
+/* Questions */
+.bv-stack { width: 100%; max-width: 300px; display: grid; gap: 8px; }
+.bv-stack p { margin: 0; padding: 10px 12px; border-radius: 12px 12px 12px 4px; background: var(--night); border: 1px solid var(--night-border); border-left: 3px solid var(--glow-violet); color: var(--night-text); font-size: 0.85rem; }
+.bv-stack p + p { opacity: 0.75; }
+/* Cross-check */
+.bv-check { display: flex; justify-content: space-between; gap: 10px; border-top: 1px solid var(--night-border); }
+.bv-check b { color: var(--glow-violet); }
+/* Covered photo */
+.bv-photo { background: var(--night-text); color: var(--night); border-color: var(--night-text); }
+.bv-box { background: var(--night); color: transparent; border-radius: 2px; outline: 2px solid var(--glow-violet); outline-offset: 1px; }
 .fact-big { font-size: 2.6rem; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -0.04em; line-height: 1.1; margin-bottom: 8px; color: var(--glow-violet); background: linear-gradient(90deg, var(--glow-violet), var(--glow-rose)); -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent; }
 .promises { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .promises li { background: var(--night-surface); border: 1px solid var(--night-border); border-left: 3px solid var(--glow-violet); color: var(--night-muted); border-radius: var(--radius); padding: 14px 16px; }
