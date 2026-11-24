@@ -63,4 +63,11 @@ for (const [f, use] of [['night-text', 'header text and logo name over the light
   if (process.argv.includes('--table')) console.log(`| \`--${f}\` ${T[f]} | header over \`--paper\` ${header} | ${r.toFixed(2)}:1 | 4.5:1 | ${use} |`)
   assert.ok(r >= 4.5, `contrast --${f} on the header over paper: ${r.toFixed(2)} < 4.5`)
 }
-console.log(`contrast ok: ${rows.length} pairs, the hero gradient and the header over paper`)
+// The footer's light shaft brightens the black by at most violet at 20% (it is 16% at its peak, then blurred).
+const beam = mix(T.night, T['glow-violet'], 0.2)
+for (const [f, use] of [['night-muted', 'footer text under the light shaft'], ['glow-violet', 'footer links under the light shaft']] as const) {
+  const r = ratio(T[f], beam)
+  if (process.argv.includes('--table')) console.log(`| \`--${f}\` ${T[f]} | footer shaft ${beam} | ${r.toFixed(2)}:1 | 4.5:1 | ${use} |`)
+  assert.ok(r >= 4.5, `contrast --${f} under the footer shaft: ${r.toFixed(2)} < 4.5`)
+}
+console.log(`contrast ok: ${rows.length} pairs, the hero gradient, the header over paper and the footer shaft`)

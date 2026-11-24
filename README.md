@@ -211,3 +211,4 @@ No UI library is installed. These MIT-licensed designs were used as visual refer
 - The Data trail timeline: Dice UI "Timeline", MIT, https://21st.dev/@diceui/components/timeline
 - The upload drop zone: "File Upload" by Edu Calvo (educlopez), MIT, https://21st.dev/@educlopez/components/file-upload
 - The landing page hero (perspective grid and centred layout): "Hero Section Dark" by kinfe123 / FarmUI, MIT, https://21st.dev/@kinfe123/components/hero-section-dark
+- The landing footer (diagonal light shaft and the large cropped wordmark): "Beam Wordmark Footer" by Kedhar (kedhareswer) on 21st.dev, licence not stated on the page, so only the look was used and no code was copied

@@ -5,6 +5,7 @@ import { Badge, Icon, Logo } from './ui'
 // The landing page at "/". Static: no Firebase, no AI, no report. The tool lives at /app.
 // Hero layout inspired by "Hero Section Dark" by kinfe123 / FarmUI (MIT) and the 21st.dev "SaaS Template" (header,
 // announcement pill, button styles and the glow behind the product image), rebuilt in plain CSS with the Specimen tokens.
+// The footer's light shaft and cropped wordmark take their look from the 21st.dev "Beam Wordmark Footer" (CSS only).
 
 const REPO = 'https://github.com/tusharshah21/ClearReport'
 
@@ -209,10 +210,13 @@ export default function Landing() {
       </main>
 
       <footer className="land-footer land-dark">
-        <p>{DISCLAIMER}</p>
-        <p>
-          <a href={REPO}>Source code on GitHub</a> · Built with Firebase AI Logic · <a href={`${REPO}/blob/main/LICENSE`}>Apache-2.0 license</a> · <a href={`${REPO}#design-credits`}>Design credits</a>
-        </p>
+        <div className="footer-inner">
+          <p>{DISCLAIMER}</p>
+          <p>
+            <a href={REPO}>Source code on GitHub</a> · Built with Firebase AI Logic · <a href={`${REPO}/blob/main/LICENSE`}>Apache-2.0 license</a> · <a href={`${REPO}#design-credits`}>Design credits</a>
+          </p>
+        </div>
+        <div className="footer-word" aria-hidden="true">ClearReport</div>
       </footer>
     </div>
   )

@@ -489,8 +489,14 @@ a.btn.quiet { border-color: var(--border); color: var(--ink); font-weight: 500; 
 .faq summary { padding: 14px 18px; color: var(--night-text); min-height: 48px; }
 .faq details p { color: var(--night-muted); }
 .faq details p { padding: 0 18px 4px; margin-top: 0; }
-.land-footer { margin: 32px 0 0; padding: 28px 16px 40px; background: var(--night); color: var(--night-muted); font-size: 0.95rem; border-top: 1px solid var(--night-border); }
-.land-footer > * { max-width: 1040px; margin-left: auto; margin-right: auto; }
+/* The footer: a slow diagonal light shaft and a giant "ClearReport" wordmark cropped at the bottom edge (after the
+   21st.dev "Beam Wordmark Footer", rebuilt in plain CSS; decorative only). */
+.land-footer { position: relative; overflow: hidden; isolation: isolate; container-type: inline-size; margin: 32px 0 0; padding: 40px 16px 0; background: var(--night); color: var(--night-muted); font-size: 0.95rem; border-top: 1px solid var(--night-border); }
+.land-footer::before { content: ''; position: absolute; z-index: -1; top: -60%; left: 0; width: 36%; height: 220%; pointer-events: none; background: linear-gradient(90deg, transparent, rgba(139, 124, 255, 0.16) 40%, rgba(255, 122, 168, 0.12) 62%, transparent); transform: rotate(28deg); filter: blur(28px); animation: footer-beam 16s ease-in-out infinite alternate; }
+@keyframes footer-beam { from { translate: -30% 0; } to { translate: 230% 0; } }
+.footer-inner { max-width: 1040px; margin: 0 auto; }
+.footer-word { margin: 24px 0 0; height: 0.74em; overflow: hidden; text-align: center; font-size: 15.5cqi; font-weight: 600; line-height: 1; letter-spacing: -0.05em; white-space: nowrap; user-select: none; color: transparent; background: linear-gradient(to bottom, rgba(139, 124, 255, 0.42), rgba(255, 122, 168, 0.14) 55%, transparent 92%); -webkit-background-clip: text; background-clip: text; }
+@media (prefers-reduced-motion: reduce) { .land-footer::before { animation: none; translate: 80% 0; } }
 @media (max-width: 720px) {
   .land-grid2, .promises { grid-template-columns: 1fr; }
   .land-hero-top { padding-top: 20px; }
