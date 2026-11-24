@@ -115,7 +115,7 @@ export default function Landing() {
 
         <div className="land-light land-dark">
         {/* Soft glows scattered behind the sections (decorative). */}
-        <div className="blobs" aria-hidden="true">{Array.from({ length: 7 }, (_, i) => <i key={i} />)}</div>
+        <div className="blobs" aria-hidden="true">{Array.from({ length: 12 }, (_, i) => <i key={i} />)}</div>
         <section className="land-section" aria-labelledby="journey-title">
           <p className="sec-label" aria-hidden="true"><span>01</span> · What leaves your device</p>
           <h2 id="journey-title">What leaves your device</h2>
