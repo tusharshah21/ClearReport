@@ -91,7 +91,7 @@ export default function Landing() {
           <div className="land-hero-top land-dark">
             <div className="hero-grid" aria-hidden="true"><div className="hero-grid-plane"><div className="hero-grid-lines" /></div></div>
             <div className="land-hero-inner">
-              <p className="pill">Built with Firebase AI Logic and Chrome's built-in Gemini Nano <a href="#hood">See how <span aria-hidden="true">→</span></a></p>
+              <p className="pill"><span className="pill-long">Built with Firebase AI Logic and Chrome's built-in Gemini Nano</span><span className="pill-short">Built with Firebase AI Logic ·</span> <a href="#hood">See how <span aria-hidden="true">→</span></a></p>
               <h1 id="land-title">Understand your blood test report. <span className="grad">Keep your identity.</span></h1>
               <p className="lede">Your report is read on your device when possible, and only anonymous numbers go to the cloud for a plain-language explanation in English or Hindi.</p>
               <div className="land-ctas">

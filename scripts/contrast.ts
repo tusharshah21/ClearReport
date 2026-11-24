@@ -36,7 +36,7 @@ const PAIRS: [string, string, number, string][] = [
   ['night-text', 'night-grid', 4.5, 'text where it crosses a slide-grid line, menu link dividers'],
   ['night', 'white', 4.5, 'white button text ("Read my report", "Open the app"), top'], ['night', 'light-btn-end', 4.5, 'white button text, bottom of its gradient'],
   ['glow-violet', 'night', 4.5, 'links on dark, gradient start'], ['glow-rose', 'night', 4.5, 'gradient end'],
-  ['glow-violet', 'night', 3, 'focus ring on dark (non-text)'], ['glow-violet', 'night-surface', 3, 'focus ring on a hovered dark control (non-text)'],
+  ['night-control', 'night', 3, 'ghost button and menu button borders on dark (non-text)'], ['glow-violet', 'night', 3, 'focus ring on dark (non-text)'], ['glow-violet', 'night-surface', 3, 'focus ring on a hovered dark control (non-text)'],
 ]
 const rows = PAIRS.map(([f, b, min, use]) => {
   assert.ok(T[f] && T[b], `missing token ${T[f] ? b : f}`)
