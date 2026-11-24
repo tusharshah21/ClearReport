@@ -62,12 +62,14 @@ Every AI call in the app, with its inference mode:
 | `ONLY_ON_DEVICE` | Path 2, optional "Look for more personal details": finds names, IDs and phone numbers in the OCR text so they can be boxed | The page's OCR text, which never leaves the device | [src/extract.ts:204](src/extract.ts#L204) |
 | `ONLY_ON_DEVICE` | Evaluation only (dev spike page): reads a report image on the device | Synthetic test images | [src/extract.ts:73](src/extract.ts#L73) |
 | `ONLY_IN_CLOUD` | Paths 2 and 3: reads the results from the image | Path 2: the image the user covered and approved. Path 3: the full image, with consent | [src/extract.ts:80](src/extract.ts#L80) |
-| `ONLY_IN_CLOUD` | Writes the explanation, then the Hindi translation | The approved payload: lab name, age band, sex, test names, values, units, printed ranges and flags, plus the plain-code range-check results | [src/explain.ts:54](src/explain.ts#L54) |
+| `ONLY_IN_CLOUD` | Writes the explanation, and the Hindi translation when the user taps Hindi | The approved payload: lab name, age band, sex, test names, values, units, printed ranges and flags, plus the plain-code range-check results | [src/explain.ts:54](src/explain.ts#L54) |
 | `PREFER_ON_DEVICE` | "What does this test mean?" | The test's name only, never a value | [src/explain.ts:176](src/explain.ts#L176) |
 
 Path 1 never falls back to the cloud: if the device cannot run the model, the app says so and offers the other paths.
 
 When the cloud model is busy (errors 500 "high demand", 503 or 429), every cloud call (reading an image, the explanation, the Hindi translation, and the cloud side of "What does this test mean?") waits and retries three times with backoff, then tries the fallback model from Remote Config once ([src/retry.ts](src/retry.ts)). The explanation footer names the model that actually answered. If both are still busy, extraction says it could not read the report, the explanation falls back to the plain range-check summary, and Hindi offers "Try again".
+
+A free-tier daily limit is different: a 429 that says the requests-per-day quota is used up is never retried and never sent to the fallback model, because both would only spend more of the day's quota. The call stops at once. The explanation shows the plain range-check summary with "Today's free AI limit has been reached. Your results are shown with plain-language checks only. Try again after 1:30 PM IST." (the quota resets at midnight Pacific time); reading an image, Hindi and "What does this test mean?" say the same and offer no "Try again". A per-minute 429 and a 500 or 503 "high demand" still count as busy. `npm test` checks this with the real error text.
 
 **Design principle:** plain code where rules are reliable (parsing, identity removal, range checks, guideline wording, doctor questions as a fallback), on-device AI where data is private (reading the PDF, finding personal details), cloud AI where data is anonymous (the explanation) or the user chose to send it (reading a covered or consented image).
 
@@ -121,7 +123,7 @@ All numbers below come from `npm run eval` (`test-data/results.md`) and `npm tes
 
 - **Allow-listed payload.** The explanation call receives only lab name, age band, sex and the test rows ([src/privacy.ts](src/privacy.ts)). Identity values found in the report are also searched for literally and removed wherever they ended up.
 - **Nothing is stored.** Report images stay in the tab's memory. ClearReport has no database and no storage bucket.
-- **Gemini terms.** The project uses the Gemini Developer API on a paid (Blaze) plan, under the paid-services terms.
+- **Gemini terms.** The Gemini Developer API currently runs on Google's free tier. ClearReport only sends anonymous numbers or a masked image you approved, and stores nothing. Path 3 (sending the full report) is paused while the project is on the free tier (`path3_enabled` is false in Remote Config; the code stays).
 - **Consent for Path 3.** Sending the full report needs an explicit, per-report consent that is never remembered.
 - **Debug token check.** `npm run build` fails if the App Check debug token or dev-only code reaches `dist/` ([scripts/check-dist.mjs](scripts/check-dist.mjs)).
 - **No medical advice.** A disclaimer sits at the top of every step. Wording rules ban diagnosis-style phrases ("you have", "diabetes range" and others), checked in code on every engine message and every AI answer, with a plain template when the AI's wording fails twice.
@@ -191,6 +193,7 @@ All of it, from scratch, starting 21 November 2026: the three paths, the on-devi
 ## Roadmap
 
 - A lab range registry: printed ranges per lab and test, built from non-personal data only, so differences between labs are visible.
+- Move the Gemini Developer API to the paid tier before wider use, and turn Path 3 back on.
 - More Indian languages.
 - An Android app using Gemini Nano on the device.
 - ABDM integration, so reports can come straight from a health locker with the user's consent.

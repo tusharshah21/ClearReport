@@ -7,7 +7,7 @@
     },
     "cloud_model_fallback": {
       "defaultValue": { "value": "gemini-3.8-flash" },
-      "description": "Tried once when cloud_model is still busy (500/503/429) after its retries. Empty turns the fallback off",
+      "description": "Tried once when cloud_model is still busy (500/503, or a per-minute 429) after its retries; never after a daily-limit 429. Empty turns the fallback off",
       "valueType": "STRING"
     },
     "prompt_version": {
@@ -21,8 +21,8 @@
       "valueType": "BOOLEAN"
     },
     "path3_enabled": {
-      "defaultValue": { "value": "true" },
-      "description": "Show Path 3 (send the full report with consent)",
+      "defaultValue": { "value": "false" },
+      "description": "Show Path 3 (send the full report with consent). Paused (false) while the Gemini API is on the free tier",
       "valueType": "BOOLEAN"
     }
   }

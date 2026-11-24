@@ -9,7 +9,7 @@ import { BANNED, checkAll, checkTest, disagrees, farOutOfRange } from '../src/gu
 import type { Test } from '../src/privacy'
 import { trustOf } from '../src/trust'
 import { completeHindi, sameNumbers, untranslated } from '../src/hindi'
-import { isBusy, withFallback } from '../src/retry'
+import { isBusy, isDailyLimit, withFallback } from '../src/retry'
 import { fixQuestionGrammar, fixUnits, fixUnitsIn, questionsFor, questionsSpecific } from '../src/questions'
 
 // Every ground-truth name resolves to a known key, and no report has two tests with the same key.
@@ -388,6 +388,17 @@ console.log('crop ok')
     assert.equal(s.seen.length, 2)
     for (const e of ['[503 ] unavailable', '[429 ] resource exhausted', 'The model is overloaded']) assert.ok(isBusy(new Error(e)), e)
     assert.ok(!isBusy(new Error('[400 ] bad request')))
+
+    // A free-tier daily limit (the real 429 text, 2026-11-23) is not "busy": one call, no retry, no fallback model.
+    const daily = new Error('AI: Error fetching from https://firebasevertexai.googleapis.com/v1beta/projects/x/models/gemini-3.8-flash:generateContent: [429 ] You exceeded your current quota, please check your plan and billing details. * Quota exceeded for metric: generativelanguage.googleapis.com/generate_content_free_tier_requests, limit: 20, model: gemini-3.8-flash, description: Generate content requests per day limit exceeded on Free Tier. "quotaId":"GenerateRequestsPerDayPerProjectPerModel-FreeTier"')
+    assert.ok(isDailyLimit(daily) && !isBusy(daily))
+    s = script([daily, 'ok', 'ok'])
+    await assert.rejects(withFallback('t', models, s.call, [0, 0, 0]), /per day/)
+    assert.deepEqual(s.seen, ['main-model']) // stopped at once
+    // A per-minute free-tier 429 is still "busy" (retried), and a 500 high demand is not a daily limit.
+    const perMinute = new Error('[429 ] Quota exceeded for metric: generate_content_free_tier_requests, quotaId: GenerateRequestsPerMinutePerProjectPerModel-FreeTier')
+    assert.ok(isBusy(perMinute) && !isDailyLimit(perMinute))
+    assert.ok(!isDailyLimit(busy))
   } finally { console.info = quiet }
   console.log('cloud fallback ok')
 }

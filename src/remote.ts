@@ -8,7 +8,7 @@ export const DEFAULTS = {
   cloud_model_fallback: 'gemini-3.8-flash', // tried once when cloud_model is still busy after its retries; '' turns it off
   prompt_version: 'v7',
   hindi_enabled: true,
-  path3_enabled: true, // "send the full report" option
+  path3_enabled: false, // "send the full report" option: paused while the Gemini API is on the free tier
 }
 export type Config = { model: string; fallback: string | null; promptVersion: string; hindi: boolean; path3: boolean }
 

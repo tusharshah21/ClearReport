@@ -2,9 +2,16 @@
 // translation and "What does this test mean?" (cloud side).
 // Busy or rate-limited ("[500 ] This model is currently experiencing high demand", 503, 429): wait and retry with
 // backoff on the main model; if it is still busy, try the fallback model once. Any other error is thrown at once.
+// A free-tier DAILY quota error (429 "requests per day limit exceeded") is not "busy": waiting minutes or switching
+// model would only spend more of the day's quota, so it is never retried and never sent to the fallback model.
 export const RETRYABLE = /\[(429|500|503)\b|high demand|overloaded|resource.?exhausted/i
 export const RETRY_DELAYS_MS = [1500, 4000, 10000]
-export const isBusy = (e: unknown) => RETRYABLE.test(String(e))
+export const isDailyLimit = (e: unknown) => /per[\s-]?day|PerDay/i.test(String(e)) && /\[429\b|quota|exhausted/i.test(String(e))
+export const isBusy = (e: unknown) => RETRYABLE.test(String(e)) && !isDailyLimit(e)
+// The free-tier daily quota resets at midnight Pacific time: 1:30 PM IST while the US is on standard time.
+export const LIMIT_REACHED = "Today's free AI limit has been reached."
+export const LIMIT_PLAIN = 'Your results are shown with plain-language checks only.'
+export const LIMIT_AFTER = 'Try again after 1:30 PM IST.'
 
 const wait = (ms: number) => new Promise((ok) => setTimeout(ok, ms * (0.75 + Math.random() / 2))) // jitter: parallel calls do not retry in lockstep
 

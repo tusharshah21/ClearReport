@@ -5,6 +5,8 @@ import { DISCLAIMER, FAR_OUT_BANNER, disagrees, farOutOfRange, type Check } from
 import type { Payload } from './privacy'
 import type { Badge as TrustBadge } from './trust'
 import { Badge, Icon } from './ui'
+import { config } from './remote'
+import { LIMIT_AFTER, LIMIT_PLAIN, LIMIT_REACHED } from './retry'
 
 const SOURCE_LABEL: Record<Meaning['source'], string> = { on_device: 'Answered on this device', in_cloud: 'Answered by Gemini in the cloud', template: 'Not answered by AI' }
 const T = {
@@ -49,9 +51,12 @@ const PANEL: Record<string, Panel> = Object.fromEntries([
 // readBy: the cloud model(s) that read the report (Paths 2 and 3), empty when it was read on the device.
 export default function Explanation({ payload, checks, badges, confirmed, explained: first, readBy = [], onDone }: { payload: Payload; checks: Check[]; badges: TrustBadge[]; confirmed: boolean[]; explained: Explained; readBy?: string[]; onDone: () => void }) {
   const [lang, setLang] = useState<'en' | 'hi'>('en')
-  const [h, setH] = useState<Hindi | 'trying' | null>(null) // a Hindi retry from this page, if any
+  // Hindi is asked for only when the person taps the Hindi button (one cloud call, plus one per field left in English).
+  const [h, setH] = useState<Hindi | 'trying' | null>(null)
   const explained: Explained = h && h !== 'trying' ? { ...first, hindi_busy: false, ...h } : first
-  const retryHindi = async () => { setH('trying'); setH(await hindi(first.en, payload)) }
+  const retryHindi = async () => { setH('trying'); const r = await hindi(first.en, payload); setH(r); if (r.hi) setLang('hi') }
+  const toHindi = () => (explained.hi ? setLang('hi') : retryHindi())
+  const hindiOff = !config().hindi || first.limit || explained.hindi_limit || h === 'trying'
   const hi = lang === 'hi' && !!explained.hi
   const e = hi ? explained.hi! : explained.en
   const t = T[hi ? 'hi' : 'en']
@@ -152,12 +157,13 @@ export default function Explanation({ payload, checks, badges, confirmed, explai
     <section lang={hi ? 'hi' : 'en'} aria-labelledby="sum-title">
       <div className="actions no-print" role="group" aria-label="Language" style={{ marginTop: 0 }}>
         <button aria-pressed={lang === 'en'} onClick={() => setLang('en')} lang="en">English</button>
-        <button aria-pressed={lang === 'hi'} disabled={!explained.hi} onClick={() => setLang('hi')} lang="hi">हिन्दी</button>
+        <button aria-pressed={lang === 'hi'} disabled={hindiOff} onClick={toHindi} lang="hi">हिन्दी</button>
         {h === 'trying' ? <small className="muted" lang="en" role="status">Making the Hindi version...</small>
           : explained.hindi_note && <small className="muted" lang="en" role="status">{explained.hindi_note}</small>}
         {explained.hindi_busy && h !== 'trying' && <button className="link" onClick={retryHindi} lang="en" data-testid="hindi-retry">Try again</button>}
       </div>
       <p className="print-only small" lang="en">ClearReport: an explanation of a blood test report. {DISCLAIMER}</p>
+      {first.limit && <p className="notice" role="status" lang="en" data-testid="daily-limit">{LIMIT_REACHED} {LIMIT_PLAIN} {LIMIT_AFTER}</p>}
 
       <div className="card summary-card">
         <h1 id="sum-title" style={{ fontSize: '1.5rem' }}>{t.summary}</h1>

@@ -8,11 +8,12 @@ import { BANNED, disagrees, type Check } from './guidelines'
 import type { Payload } from './privacy'
 import { fixQuestionGrammar, fixUnitsIn, questionsFor, questionsSpecific } from './questions'
 import { config } from './remote'
-import { isBusy, retrying, withFallback } from './retry'
+import { isBusy, isDailyLimit, LIMIT_AFTER, LIMIT_REACHED, retrying, withFallback } from './retry'
 
 export type Explanation = { summary: string; tests: { name: string; explanation: string }[]; questions: string[] }
 export type ExplainPath = 'first try' | 'retry' | 'template'
-export type Explained = { en: Explanation; hi: Explanation | null; path: ExplainPath; hindi_note: string | null; hindi_busy?: boolean; hi_english?: string[]; prompt_version: string; model: string; main_model: string; hi_model?: string }
+// limit: the free-tier daily quota was reached, so the plain-code summary is shown (and Hindi is not offered).
+export type Explained = { en: Explanation; hi: Explanation | null; path: ExplainPath; hindi_note: string | null; hindi_busy?: boolean; hindi_limit?: boolean; limit?: boolean; hi_english?: string[]; prompt_version: string; model: string; main_model: string; hi_model?: string }
 // The cloud models to use: cloud_model, then cloud_model_fallback once if it is still busy after its retries.
 const models = () => ({ main: config().model, fallback: config().fallback })
 
@@ -82,7 +83,7 @@ export function template(p: Payload, checks: Check[]): Explanation {
 }
 
 // A busy model is retried with backoff, then the fallback model once; "retry" is for wording, not for load.
-async function english(p: Payload, checks: Check[]): Promise<{ en: Explanation; path: ExplainPath; model: string }> {
+async function english(p: Payload, checks: Check[]): Promise<{ en: Explanation; path: ExplainPath; model: string; limit?: boolean }> {
   const data = input(p, checks)
   for (const [path, prompt] of [['first try', RULES], ['retry', RULES + STRICTER]] as const) {
     try {
@@ -95,6 +96,7 @@ async function english(p: Payload, checks: Check[]): Promise<{ en: Explanation; 
       console.info(`ClearReport explanation: ${path} failed the wording or shape check`)
     } catch (e) {
       console.info(`ClearReport explanation: ${path} failed: ${String(e)}`)
+      if (isDailyLimit(e)) return { en: template(p, checks), path: 'template', model: '', limit: true } // stop at once
       if (isBusy(e)) break // both models still busy after their retries: a stricter prompt would not help
     }
   }
@@ -111,24 +113,25 @@ export function numbersConsistent(en: Explanation, hi: Explanation): string[] {
   return [...numbers(textOf(hi))].filter((n) => !ok.has(n))
 }
 
+// English only. Hindi is asked for only when the person taps the Hindi button (hindi(), from Explanation.tsx).
 export async function explain(p: Payload, checks: Check[]): Promise<Explained> {
   const cfg = config()
-  const { en: raw, path, model } = await english(p, checks)
+  const { en: raw, path, model, limit } = await english(p, checks)
   const en = fixUnitsIn(raw, p) // units exactly as in the approved payload (plain code)
   console.info(`ClearReport explanation path: ${path}`) // logged path only, never the content
-  const h = cfg.hindi ? await hindi(en, p) : { hi: null, hindi_note: null }
-  return { en, ...h, path, prompt_version: cfg.promptVersion, model, main_model: cfg.model }
+  return { en, hi: null, hindi_note: null, path, prompt_version: cfg.promptVersion, model, main_model: cfg.model, ...(limit ? { limit } : {}) }
 }
 
 // Hindi translation of the English explanation. A busy cloud (500 "high demand", 503, 429) is retried with backoff,
 // as extraction is; if it is still busy, hindi_busy lets the page offer "try again" (hindiAgain).
-export type Hindi = Pick<Explained, 'hi' | 'hindi_note' | 'hindi_busy' | 'hi_english' | 'hi_model'>
+export type Hindi = Pick<Explained, 'hi' | 'hindi_note' | 'hindi_busy' | 'hindi_limit' | 'hi_english' | 'hi_model'>
 export const HINDI_BUSY = 'Hindi is busy right now, try again.'
 export async function hindi(en: Explanation, p: Payload): Promise<Hindi> {
   let out: Explanation, hi_model: string
   try {
     ;({ value: out, model: hi_model } = await withFallback('Hindi translation', models(), (m) => ask(HINDI, JSON.stringify(en), m)))
   } catch (e) {
+    if (isDailyLimit(e)) return { hi: null, hindi_note: `${LIMIT_REACHED} ${LIMIT_AFTER}`, hindi_limit: true }
     return isBusy(e) ? { hi: null, hindi_note: HINDI_BUSY, hindi_busy: true } : { hi: null, hindi_note: 'The Hindi version could not be made this time.' }
   }
   const extra = numbersConsistent(en, out)
@@ -196,6 +199,8 @@ async function askMeaning(name: string): Promise<Meaning> {
       if (text && !BANNED.test(text) && !strayNumber) return { text, source, ...(source === 'in_cloud' ? { model: used } : {}) }
     } catch (e) {
       console.info(`ClearReport meaning failed: ${String(e)}`)
+      // Daily quota reached: stop at once, and keep this answer so a later tap does not spend another call.
+      if (isDailyLimit(e)) return { text: `${LIMIT_REACHED} ${LIMIT_AFTER}`, source: 'template' }
     }
   }
   meanings.delete(name) // let a later tap try again

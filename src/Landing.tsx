@@ -130,7 +130,7 @@ export default function Landing() {
                 <li><code>ONLY_IN_CLOUD</code> Reads the image you covered (or the full report, only if you chose that and agreed).</li>
                 <li><code>ONLY_IN_CLOUD</code> Writes the plain-language explanation and the Hindi translation from the anonymous numbers.</li>
                 <li>It sees <mark className="hl">only what you approved</mark>.</li>
-                <li>If it is busy, the app waits and retries, then tries Gemini 3.8 Flash once. The page names the model that answered.</li>
+                <li>If it is busy, the app waits and retries, then tries Gemini 3.8 Flash once. The page names the model that answered. If today's free limit is reached, it stops at once and shows plain-language checks only.</li>
               </ul>
             </div>
             <div className="card hood-col code">
@@ -153,7 +153,7 @@ export default function Landing() {
           <ul className="promises">
             <li><b>Nothing is stored.</b> Your report stays in your browser tab's memory. ClearReport has <mark className="hl">no database and no storage bucket</mark>.</li>
             <li><b>You approve what is sent.</b> You see the exact anonymous numbers, or the exact covered image, before anything goes to the cloud.</li>
-            <li><b>Paid-tier Gemini.</b> Explanations use the Gemini Developer API on a paid plan, under Google's paid-services terms.</li>
+            <li><b>Free-tier Gemini, for now.</b> The Gemini Developer API currently runs on Google's free tier. ClearReport only sends anonymous numbers or a masked image you approved, and stores nothing.</li>
             <li><b>App Check.</b> Firebase App Check (reCAPTCHA Enterprise) lets only the ClearReport web app call Gemini.</li>
           </ul>
         </section>

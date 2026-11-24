@@ -4,6 +4,7 @@ import { extractDoc, extractRows, findPersonal, TEXT_CREATE_OPTIONS, toB64, warm
 import { explain, type Explained } from './explain'
 import Explanation from './Explanation'
 import { Busy, DataTrail, Icon, Logo } from './ui'
+import { isDailyLimit, LIMIT_AFTER, LIMIT_REACHED } from './retry'
 import { checkAll, DISCLAIMER, type Check } from './guidelines'
 import { aiBoxes, nonResultLines, ocrWords, suggestMasks, type Suggestion } from './masks'
 import { isPdf, pdfPages } from './pdf'
@@ -340,6 +341,7 @@ export default function Flow() {
   const [consent, setConsent] = useState(false)
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
+  const limited = isDailyLimit(error) // free-tier daily quota reached: no "Try again" until it resets
   const [result, setResult] = useState<Result | null>(null)
   const [pageWords, setPageWords] = useState<(Word[] | null)[]>([]) // PDF text layer per page; null for photos. Local only.
   const [suggest, setSuggest] = useState<Box[][]>([]) // suggested mask boxes per page (Path 2)
@@ -637,12 +639,18 @@ export default function Flow() {
                   <button disabled>Read it privately</button>
                 </div>
               )}
-              {config().path3 && (
+              {config().path3 ? (
                 <div className="path full">
                   <h3>Send the full report</h3>
                   <p>The whole report, including your name, is sent to Google's Gemini to be read. Only choose this if you are comfortable with that.</p>
                   <p className="accepts">Accepts: a photo, screenshot or PDF. Asks for your consent first.</p>
                   <button onClick={() => choose(3)}>Review what this means</button>
+                </div>
+              ) : (
+                <div className="path unavailable" data-testid="path3-paused" role="group" aria-labelledby="p3-off">
+                  <span className="tag off">Paused</span>
+                  <h3 id="p3-off">Send the full report</h3>
+                  <p>Paused while ClearReport runs on Google's free tier.</p>
                 </div>
               )}
             </div>
@@ -745,7 +753,7 @@ export default function Flow() {
         {step === 'failed' && (
           <section className="card" aria-labelledby="failed-title" style={{ borderColor: 'var(--error-border)' }}>
             <h2 id="failed-title">{path === 1 ? 'Private reading did not work on this device' : 'We could not read your report this time'}</h2>
-            <p>{path === 1 ? 'Nothing was sent anywhere. You can choose another way to continue.' : 'Nothing was saved. This is usually a network problem; trying again often works.'}</p>
+            <p>{path === 1 ? 'Nothing was sent anywhere. You can choose another way to continue.' : limited ? `${LIMIT_REACHED} Nothing was saved. ${LIMIT_AFTER}` : 'Nothing was saved. This is usually a network problem; trying again often works.'}</p>
             <details className="mini"><summary>Technical details</summary><p className="muted small">{error}</p></details>
             <div className="actions">
               {path === 1 ? (
@@ -753,7 +761,7 @@ export default function Flow() {
                   <button className="primary" onClick={() => choose(2)}>Mask my details yourself</button>
                   {config().path3 && <button onClick={() => choose(3)}>Send the full report (asks for consent)</button>}
                 </>
-              ) : (
+              ) : !limited && (
                 <button className="primary" onClick={() => proceed(path!, original!)}>Try again</button>
               )}
               <button className="quiet" onClick={reset}>Start over</button>

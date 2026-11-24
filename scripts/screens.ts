@@ -86,7 +86,7 @@ for (const s of sizes) {
   await shot('08-explanation')
   // The Hindi view: switch the language and wait until the summary is in Devanagari.
   if (KEEP[s.tag].includes('09-hindi')) {
-    await page.getByRole('button', { name: 'हिन्दी' }).first().click({ timeout: 180_000 }) // enabled once the translation is ready
+    await page.getByRole('button', { name: 'हिन्दी' }).first().click({ timeout: 180_000 }) // the tap asks for the translation
     await page.waitForFunction(() => /[ऀ-ॿ]{3}/.test(document.querySelector('main')?.innerText ?? ''), null, { timeout: 180_000 })
     await shot('09-hindi')
   }

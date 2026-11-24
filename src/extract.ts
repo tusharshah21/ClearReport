@@ -1,7 +1,7 @@
 import { getGenerativeModel, InferenceMode, InferenceSource, type GenerativeModel } from 'firebase/ai'
 import { ai } from './firebase'
 import { config } from './remote'
-import { withFallback } from './retry'
+import { isDailyLimit, withFallback } from './retry'
 import { contextBlocks, fixFromRow, parseRow, rowFor, skippedRows, type TextLine } from './textrows'
 
 const num = { type: ['number', 'null'] }
@@ -107,7 +107,7 @@ export async function extractDoc(report: string, mode: Mode, pages: Image[], onP
     while (!failed && next < pages.length) {
       const i = next++
       let r = await extract(report, mode, 'single', pages[i])
-      if (!r.ok) {
+      if (!r.ok && !isDailyLimit(r.calls.at(-1)?.error)) { // daily quota reached: the split would only spend more
         const first = r
         r = await extract(report, mode, 'split', pages[i])
         r = { ...r, calls: [...first.calls, ...r.calls], latency_ms: first.latency_ms + r.latency_ms, output_chars: first.output_chars + r.output_chars } // keep why single failed
@@ -177,7 +177,10 @@ export async function extract(report: string, mode: Mode, strategy: Run['strateg
   // objects that model() passes to responseConstraint (device) and responseJsonSchema (cloud).
   const parts: Part[] = strategy === 'single' ? ['full'] : ['header', 'tests']
   const results = []
-  for (const p of parts) results.push(await call(mode, p, image)) // sequential: one on-device session at a time
+  for (const p of parts) {
+    results.push(await call(mode, p, image)) // sequential: one on-device session at a time
+    if (isDailyLimit(results.at(-1)!.c.error)) break // stop at once
+  }
   const calls = results.map((r) => r.c)
   const ok = calls.every((c) => c.ok)
   return {
