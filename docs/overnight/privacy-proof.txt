@@ -1,0 +1,16 @@
+ok r1: 5 suggested boxes, kept as they are
+ok r1 request 1 image: 1600x1152 image/jpeg, 5 boxes, all 20400 pixels inside them solid black
+ok r1 request 1 image: OCR reads Placeholder, Sharma, 9000000001 on the unmasked page, and none of it on the sent image (92 words)
+ok r1: 3 Gemini request(s) captured and aborted; text parts carry no identity
+ok r6-photo: 2 suggested boxes, kept as they are
+ok r6-photo request 1 image: 1600x1495 image/jpeg, 2 boxes, all 12859 pixels inside them solid black
+ok r6-photo request 1 image: OCR reads no identity string on the unmasked page, and none of it on the sent image (169 words)
+ok r6-photo: 3 Gemini request(s) captured and aborted; text parts carry no identity
+ok demo: 5 suggested boxes, kept as they are
+ok demo request 1 image: 1131x1600 image/png, 5 boxes, all 19764 pixels inside them solid black
+ok demo request 1 image: OCR reads SPL-DEMO-20419, 9000000015 on the unmasked page, and none of it on the sent image (80 words)
+ok demo: 3 Gemini request(s) captured and aborted; text parts carry no identity
+ok demo: no request to Gemini while reading (the PDF was read on this device)
+ok demo explanation request 1: only lab_name, age_band, sex, tests; tests carry only name, value, unit, lab_range, printed_flag, range_check, range_check_note (7 tests, age_band 50-59, sex Female)
+ok demo explanation request 2: only lab_name, age_band, sex, tests; tests carry only name, value, unit, lab_range, printed_flag, range_check, range_check_note (7 tests, age_band 50-59, sex Female)
+WARN r6-photo request 1 image: OCR cannot read the identity even on the unmasked page, so this image needs a look by eye (PROOF_SAVE=dir)

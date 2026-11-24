@@ -12,6 +12,7 @@
     "eval": "tsx test-data/eval.ts",
     "test": "tsx scripts/contrast.ts && tsx scripts/checks.ts && tsx scripts/textcheck.ts",
     "ranges": "tsx scripts/rangecheck.ts",
+    "privacy-proof": "tsx scripts/privacy-proof.ts",
     "predev": "node scripts/copy-ocr.mjs",
     "prebuild": "node scripts/copy-ocr.mjs"
   },
