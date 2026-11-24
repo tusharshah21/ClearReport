@@ -358,6 +358,9 @@ export default function Flow() {
   // "Try a sample report" (/app?sample=demo): the synthetic demo.pdf, served as a static file, loaded as if chosen.
   const [sample, setSample] = useState(false)
   const wantsSample = useRef(new URLSearchParams(location.search).get('sample') === 'demo')
+  // A path picked while the sample is still loading: carried on once it has loaded (else the user lands on "Add a file").
+  const sampleLoading = useRef(false)
+  const pendingPath = useRef<Path | null>(null)
 
   useEffect(() => {
     if (typeof LanguageModel === 'undefined') return setAvail('no-api')
@@ -369,6 +372,7 @@ export default function Flow() {
   useEffect(() => {
     if (!adult || !wantsSample.current) return
     wantsSample.current = false
+    sampleLoading.current = true
     ;(async () => {
       try {
         setProgress('Loading the sample report...')
@@ -382,7 +386,13 @@ export default function Flow() {
         setOriginal(pages)
         setSample(true)
         setProgress('')
+        sampleLoading.current = false
+        const p = pendingPath.current
+        pendingPath.current = null
+        if (p) proceed(p, pages, pdf.map((x) => x.words))
       } catch (e) {
+        sampleLoading.current = false
+        pendingPath.current = null
         setProgress('')
         setError(`The sample report could not be loaded (${(e as Error).message}). You can still add your own report.`)
       }
@@ -418,6 +428,7 @@ export default function Flow() {
     setError('')
     // Must start from this click when a download is needed: Chrome only allows it after a user gesture.
     if (p === 1) startWarm()
+    if (sampleLoading.current) { pendingPath.current = p; return } // stays here under "Loading the sample report..."
     if (!original || (p !== 1 && !original.length)) return setStep('upload') // Path 1 kept no page images
     if (isPhotoFile && !cropped) return setStep('crop')
     proceed(p, original)
