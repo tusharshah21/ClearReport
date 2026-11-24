@@ -20,7 +20,7 @@ for (const [width, height] of [[1280, 860], [390, 844]]) {
     document.querySelectorAll<HTMLDetailsElement>('.land-light details').forEach((d) => { d.open = true }) // answers as read
     const out: { id: string; color: number[]; rects: number[][] }[] = []
     const opaque = (el: Element | null): boolean => {
-      for (; el && !el.classList.contains('land-light'); el = el.parentElement) {
+      for (; el && !el.matches('.land-light, .land-footer, .land-head'); el = el.parentElement) {
         const m = getComputedStyle(el).backgroundColor.match(/[\d.]+/g)!.map(Number)
         if ((m[3] ?? 1) >= 0.99) return true
       }
@@ -29,7 +29,7 @@ for (const [width, height] of [[1280, 860], [390, 844]]) {
     // Any CSS colour (rgb(), color(srgb ...) from color-mix) as 0-255 RGB, by painting it.
     const px = document.createElement('canvas').getContext('2d', { willReadFrequently: true })!
     const rgb = (css: string) => { px.clearRect(0, 0, 1, 1); px.fillStyle = css; px.fillRect(0, 0, 1, 1); return [...px.getImageData(0, 0, 1, 1).data.slice(0, 3)] }
-    document.querySelectorAll('.land-light *').forEach((el) => {
+    document.querySelectorAll('.land-light *, .land-footer *, .land-top *').forEach((el) => {
       const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent!.trim())
       if (!own || opaque(el) || el.closest('mark, .cmp, .sr-only')) return // .sr-only is never drawn
       // Only the line boxes of the element's own text, so borders, corners and child chips are not counted.
@@ -44,11 +44,12 @@ for (const [width, height] of [[1280, 860], [390, 844]]) {
     })
     return out
   })
-  await page.addStyleTag({ content: (process.env.GC_CSS ?? '') + '.land-light, .land-light * { color: transparent !important; text-decoration-color: transparent !important; caret-color: transparent !important; } .land-light :is(mark, code, kbd, svg) { visibility: hidden !important; } .land-light .fact-big { background: none !important; }' })
+  await page.addStyleTag({ content: (process.env.GC_CSS ?? '') + '.land-light, .land-light *, .land-footer *, .land-top * { color: transparent !important; text-decoration-color: transparent !important; caret-color: transparent !important; } .land-light :is(mark, code, kbd, svg) { visibility: hidden !important; } .land-light .fact-big { background: none !important; }' })
   const min = new Map<string, number>()
   for (let k = 0; k < 6; k++) {
     // Step every animation to a different moment of its cycle (durations differ, so the phases spread out).
-    await page.evaluate((t) => document.getAnimations().forEach((a) => { a.pause(); a.currentTime = t }), k * 4000)
+    // Transitions (link colour fades and the like) are finished, so hidden text is fully hidden.
+    await page.evaluate((t) => document.getAnimations().forEach((a) => { if (a instanceof CSSTransition) a.finish(); else { a.pause(); a.currentTime = t } }), k * 4000)
     const png = (await page.screenshot({ fullPage: true })).toString('base64')
     const res = await page.evaluate(async ({ png, targets }) => {
       const img = new Image(); img.src = `data:image/png;base64,${png}`; await img.decode()

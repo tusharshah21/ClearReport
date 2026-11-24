@@ -57,8 +57,9 @@ const mix = (a: string, b: string, t: number) => '#' + [1, 3, 5].map((i) => Math
 const grad = Array.from({ length: 11 }, (_, k) => ratio(mix(T['glow-violet'], T['glow-rose'], k / 10), T.night))
 assert.ok(Math.min(...grad) >= 4.5, `hero gradient: lowest point ${Math.min(...grad).toFixed(2)} < 4.5`)
 if (process.argv.includes('--table')) console.log(`| gradient \`--glow-violet\` to \`--glow-rose\` (lowest point) | \`--night\` ${T.night} | ${Math.min(...grad).toFixed(2)}:1 | 4.5:1 | landing headline "Keep your identity." |`)
-// The sticky header is --night at 80% with a blur: over the light paper sections it is at its palest.
-const header = mix(T.night, T.paper, 0.2)
+// The floating header is --night at 86% with a blur and a white sheen of up to 3% on top: over the light compare
+// report it is at its palest.
+const header = mix(mix(T.night, T.paper, 0.14), '#FFFFFF', 0.03)
 for (const [f, use] of [['night-text', 'header text and logo name over the light sections'], ['night-muted', 'header links over the light sections']] as const) {
   const r = ratio(T[f], header)
   if (process.argv.includes('--table')) console.log(`| \`--${f}\` ${T[f]} | header over \`--paper\` ${header} | ${r.toFixed(2)}:1 | 4.5:1 | ${use} |`)
