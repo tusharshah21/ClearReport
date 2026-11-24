@@ -584,6 +584,8 @@ export default function Flow() {
         <p className="disclaimer-bar no-print" data-testid="disclaimer">{Icon.info}<span>{DISCLAIMER}</span></p>
         {sample && <p className="notice calm sample-banner no-print" role="status" data-testid="sample-banner">You are using a synthetic sample report. No real person's data.</p>}
 
+        {/* One h1 on every screen: the hero's when it shows, otherwise a screen-reader-only one (each screen has an h2). */}
+        {!(step === 'choose' && !original) && <h1 className="sr-only">ClearReport: read your blood test report</h1>}
         {step === 'choose' && !original && (
           <section className="card hero" aria-labelledby="hero-title">
             <h1 id="hero-title">Your blood test report, explained in plain words, with your personal details kept on your device.</h1>
