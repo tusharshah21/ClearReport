@@ -27,6 +27,46 @@ You pick one of three paths, and a data trail beside every step shows what happe
 
 Every value is cross-checked against the PDF's own text ("Verified against your PDF" or "Please check this value"). The range check, guideline callouts and findings summary are plain code, so they are the same whatever the model writes.
 
+## System design
+
+ClearReport is a static web app. There is no server of our own and no database: everything about a report happens in the browser tab, and the only things that leave it go to Gemini through Firebase AI Logic, after the user approves them.
+
+```mermaid
+flowchart TB
+  subgraph Browser["Browser tab: React + TypeScript, served by Firebase Hosting"]
+    UI["Flow UI: three paths, review screen, data trail"]
+    PDF["pdf.js: text layer and page images"]
+    PARSE["Plain-code parser, identity removal, cross-check against the PDF text"]
+    OCR["Tesseract OCR and label rules: suggested mask boxes"]
+    NANO["Gemini Nano (Chrome Prompt API, through Firebase AI Logic): rows the parser cannot read, personal details, test meanings"]
+    CHECK["Plain-code range check and guideline callouts"]
+    ALLOW["Allow-list: lab name, age band, sex, test rows"]
+  end
+  subgraph Firebase["Firebase"]
+    RC["Remote Config: model names, flags"]
+    GUARD["App Check + Anonymous Auth"]
+    AIL["Firebase AI Logic"]
+  end
+  CLOUD["Gemini, in the cloud"]
+  UI --> PDF --> PARSE
+  UI --> OCR
+  PARSE -->|"unreadable rows only"| NANO
+  PARSE --> CHECK --> ALLOW
+  ALLOW -->|"after the user approves"| AIL
+  OCR -->|"image the user covered (Path 2)"| AIL
+  GUARD --> AIL
+  AIL --> CLOUD
+  RC -.-> UI
+```
+
+| Part | Where | Role |
+| --- | --- | --- |
+| Reading and parsing | the browser | pdf.js, the plain-code parser, OCR and the on-device model turn a report into rows; personal details are dropped here |
+| Trust and checks | the browser | each value is verified against the PDF text; range checks and guideline wording are plain code |
+| Privacy boundary | the browser | only the allow-listed anonymous summary, or an image the user covered and approved, is sent |
+| Explanation | Gemini in the cloud | writes the plain-language explanation and the Hindi version from the approved numbers |
+| Platform | Firebase | Hosting, App Check, Anonymous Auth, Remote Config and AI Logic |
+
 ## How we use Firebase AI Logic
 
 Every AI call in the app, with its inference mode:
