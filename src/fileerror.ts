@@ -5,9 +5,9 @@ export function fileError(e: unknown, file: { name: string; type: string }): str
   const msg = String(err?.message ?? e)
   if (err?.name === 'PasswordException' || /password/i.test(msg))
     return "This PDF is protected with a password, so it can't be opened here. Open it in your PDF viewer, save or print it as a new PDF without a password, then add that file."
-  const pages = msg.match(/has (\d+) pages; at most (\d+)/)
+  const pages = msg.match(/has (\d+) pages( with results)?; at most (\d+)/)
   if (pages)
-    return `This PDF has ${pages[1]} pages; ClearReport reads at most ${pages[2]}. Save only the pages with your results as a new PDF, then add that file.`
+    return `This PDF has ${pages[1]} pages${pages[2] ?? ''}; ClearReport reads at most ${pages[3]}. Save only the pages with your results as a new PDF, then add that file.`
   if (/\.hei[cf]$/i.test(file.name) || /image\/hei[cf]/i.test(file.type))
     return "iPhone HEIC photos can't be read in this browser. Please add a JPEG or PNG instead (on iPhone, take a screenshot of the photo, or set Camera > Formats to Most Compatible)."
   if (file.type === 'application/pdf' || /\.pdf$/i.test(file.name))
