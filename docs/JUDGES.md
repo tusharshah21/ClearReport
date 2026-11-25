@@ -38,4 +38,4 @@ After reading, the report view shows each result against the lab's range and, fo
 - **Path 3 is paused** while the project is on the free tier (`path3_enabled` is false in Remote Config). The code and consent screen remain.
 - Guideline thresholds and the plain-language test descriptions have not yet been reviewed by a doctor. Adult ranges only.
 - Accuracy was measured on 2 real public sample reports from one lab chain and on synthetic reports; other labs' layouts may differ.
-- A PDF of more than 10 pages is refused with a message asking for only the results pages.
+- A PDF with more than 10 pages of results is refused with a message asking for only the results pages (pages without results, such as terms or method notes, do not count).

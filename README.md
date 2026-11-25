@@ -1,10 +1,10 @@
 # ClearReport
 
+**Demo video:** [YouTube link to be added](#) · **Judging?** Start with the one-page [guide for judges](docs/JUDGES.md).
+
 **Your blood test report, explained in plain English or Hindi, with your personal details kept on your device.**
 
 Live demo: https://clearreport-717f3.web.app (landing page), the app itself at https://clearreport-717f3.web.app/app. "Try a sample report" on the landing page opens the app with a synthetic report already loaded.
-
-Video: [YouTube link to be added](#)
 
 ![ClearReport explaining a synthetic report: a summary that names the results above and below the lab's range, results grouped by panel, and a callout where the lab's range and a published guideline disagree](docs/screenshots/08-explanation-desktop.jpg)
 
@@ -209,7 +209,7 @@ No UI library is installed. These MIT-licensed designs were used as visual refer
 - Visual identity "Specimen" (our own; see [the spec](docs/superpowers/specs/2026-11-23-ui-theme-design.md)): stain violet for on this device, eosin rose for the cloud, highlighter yellow only where your lab and a guideline disagree. Every colour pair passes WCAG AA (`npx tsx scripts/contrast.ts --table`). Type is IBM Plex Sans, Plex Mono and Plex Sans Devanagari (SIL Open Font License), self-hosted with Fontsource.
 - The "What leaves your device" beam: Magic UI "Animated Beam" by dillionverma, MIT, https://21st.dev/@dillionverma/components/animated-beam
 - The Data trail timeline: Dice UI "Timeline", MIT, https://21st.dev/@diceui/components/timeline
-- The upload drop zone: "File Upload" by Edu Calvo (educlopez), MIT, https://21st.dev/@educlopez/components/file-upload
+- The upload drop zone: "File Upload" by Edu Calvo (educlopez) on 21st.dev, MIT (its component page now returns 404)
 - The landing page hero (perspective grid and centred layout): "Hero Section Dark" by kinfe123 / FarmUI, MIT, https://21st.dev/@kinfe123/components/hero-section-dark
 - The landing "How it works" bento grid (card sizes on a six-column grid, a small illustration in each card): "Marketing Feature Bento" on 21st.dev, licence not stated on the page, so only the layout idea was used and no code was copied; the illustrations show ClearReport's own steps
 - The "Your report" / "Sent to explain" compare slider on the landing page: "Compare Reveal" from Motiq, MIT, https://motiq.dev/components/compare-reveal (rebuilt on a native range input, without the spring physics)
