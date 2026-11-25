@@ -160,7 +160,7 @@ const only = process.argv[2] // optional: generate just this id
 const browser = await chromium.launch({ channel: 'chrome' })
 const page = await browser.newPage()
 for (const [r, html] of ([[P1, p1()], [P2, p2()], [P3, p3()], [DEMO, demo()], [UNF, unfamiliar()]] as const).filter(([r]) => !only || r.id === only)) {
-  await page.setContent(`<!doctype html><meta charset="utf-8"><body>${html}</body>`)
+  await page.setContent(`<!doctype html><meta charset="utf-8"><title>${r.lab_name}, synthetic sample report</title><body>${html}</body>`) // the title is what a PDF viewer shows (otherwise "about:blank")
   await page.pdf({ path: join(OUT, 'reports', `${r.id}.pdf`), format: 'A4', printBackground: true })
   writeFileSync(join(OUT, 'ground-truth', `${r.id}.json`), JSON.stringify({ id: r.id, layout: r.id, note: r.note, lab_name: r.lab_name, tests: r.tests, pii: r.pii }, null, 2) + '\n', 'utf-8')
   console.log(`${r.id}: ${r.tests.length} tests`)
