@@ -6,7 +6,7 @@
 
 Live demo: https://clearreport-717f3.web.app (the app is at [/app](https://clearreport-717f3.web.app/app); "Try a sample report" opens it with a synthetic report loaded).
 
-![ClearReport explaining a synthetic report: a summary that names the results above and below the lab's range, results grouped by panel, and a callout where the lab's range and a published guideline disagree](docs/screenshots/08-explanation-desktop.jpg)
+![ClearReport explaining a synthetic report, scrolling down the page: a summary that names the results above and below the lab's range, results grouped by panel, and a callout where the lab's range and a published guideline disagree](docs/screenshots/demo-scroll.gif)
 
 ## The problem
 
