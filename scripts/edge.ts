@@ -9,7 +9,6 @@ import { readdirSync, writeFileSync, mkdirSync } from 'node:fs'
 const BASE = process.env.APP_URL ?? 'http://localhost:5173'
 const DIR = 'test-data/edge'
 const files = process.argv.slice(2).length ? process.argv.slice(2) : readdirSync(DIR).sort()
-const UPLOAD = ['Add the PDF from your lab', 'Add a photo or PDF of your report']
 const browser = await chromium.launch({ channel: 'chrome', args: ['--disable-features=AIPromptAPI,AIPromptAPIMultimodalInput,OptimizationGuideOnDeviceModel'] })
 let gemini = 0
 
