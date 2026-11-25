@@ -83,7 +83,7 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote, f
   const zoomTo = (z: number) => setZoom(Math.min(4, Math.max(1, Math.round(z * 100) / 100)))
   const nSuggested = boxes.filter((b) => b.field).length
   const numbers = new Map(boxes.flatMap((b, i) => (b.field ? [i] : [])).map((i, k) => [i, k + 1])) // box index -> chip number
-  const FIELD: Record<string, string> = { name: 'name', patient_name: 'name', id: 'ID', patient_id: 'ID', phone: 'phone', doctor: "doctor's name", doctor_name: "doctor's name", 'age/sex': 'age and sex', age: 'age', sex: 'sex', barcode: 'barcode', address: 'address', date_of_birth: 'date of birth' }
+  const FIELD: Record<string, string> = { name: 'name', patient_name: 'name', id: 'ID', patient_id: 'ID', phone: 'phone', doctor: "doctor's name", doctor_name: "doctor's name", 'age/sex': 'age and sex', age: 'age', sex: 'sex', barcode: 'barcode', address: 'address', date_of_birth: 'date of birth', detail: 'personal details (label unread)' }
 
   useEffect(() => {
     const el = new Image()
