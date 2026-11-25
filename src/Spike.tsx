@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { setLogLevel } from 'firebase/app'
 import { guessCorners, straighten } from './crop'
 import { extract, extractDoc, extractRows, findPersonal, model, textModel, toB64, warmText, type Mode, type Run } from './extract'
-import { aiBoxes, nonResultLines, ocrWords, resultLine, suggestMasks, type Suggestion } from './masks'
+import { aiBoxes, mergePasses, missingCore, nonResultLines, ocrWords, resultLine, suggestMasks, type Suggestion } from './masks'
 import { isPdf, pdfPages } from './pdf'
 import { toLines, type Word } from './textlayer'
 import { contextBlocks, rowsForModel } from './textrows'
@@ -174,7 +174,7 @@ export default function Spike() {
       const t0 = performance.now()
       let words = await ocrWords(blob)
       let rules = suggestMasks(words, true)
-      if (rules.length < 2) { const w2 = await ocrWords(blob, true); const again = suggestMasks(w2, true); if (again.length > rules.length) { rules = again; words = w2 } }
+      if (missingCore(rules)) { const both = mergePasses(words, await ocrWords(blob, true)); rules = both.boxes; words = both.words }
       // Boxes whose centre sits on a line that looks like a test result (should be 0 after the result-line guard).
       const resLines = toLines(words).filter((l) => resultLine(l.text))
       const onResult = (bs: Suggestion[]) => bs.filter((b) => resLines.some((l) => b.y + b.h / 2 >= l.y0 && b.y + b.h / 2 <= l.y1)).length

@@ -6,7 +6,7 @@ import Explanation from './Explanation'
 import { Busy, DataTrail, Icon, Logo } from './ui'
 import { isDailyLimit, LIMIT_AFTER, LIMIT_REACHED } from './retry'
 import { checkAll, DISCLAIMER, type Check } from './guidelines'
-import { aiBoxes, nonResultLines, ocrWords, suggestMasks, type Suggestion } from './masks'
+import { aiBoxes, mergePasses, missingCore, nonResultLines, ocrWords, suggestMasks, type Suggestion } from './masks'
 import { fileError, NO_RESULTS } from './fileerror'
 import { isPdf, pdfPages } from './pdf'
 import { toPayload, type Payload } from './privacy'
@@ -62,7 +62,7 @@ async function reencode(src: Blob, boxes: Box[] = []): Promise<Img> {
 type Box = { x: number; y: number; w: number; h: number; field?: string; method?: 'rule' | 'ai' }
 // Canvas colours come from the CSS tokens (src/index.css), so the theme has one source.
 const tok = (name: string) => getComputedStyle(document.documentElement).getPropertyValue(`--${name}`).trim()
-function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }: { img: Img; initial: Box[]; label: string; onDone: (boxes: Box[]) => void; onCancel: () => void; onFindMore?: (current: Box[]) => Promise<Box[]>; aiNote?: string }) {
+function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote, fromImage }: { img: Img; fromImage: boolean; initial: Box[]; label: string; onDone: (boxes: Box[]) => void; onCancel: () => void; onFindMore?: (current: Box[]) => Promise<Box[]>; aiNote?: string }) {
   const canvas = useRef<HTMLCanvasElement>(null)
   const [boxes, setBoxes] = useState<Box[]>(initial)
   const [more, setMore] = useState<'idle' | 'busy' | number | 'failed'>('idle') // the optional on-device check
@@ -151,6 +151,7 @@ function MaskTool({ img, initial, label, onDone, onCancel, onFindMore, aiNote }:
           <b>{nSuggested} suggested box{nSuggested === 1 ? '' : 'es'}</b> (violet outline, found on this device). They can miss things or cover the wrong spot, so please check each one: drag a box to move it, or click it and press <i>Remove selected box</i>. Add any boxes they missed.
         </p>
       )}
+      {fromImage && <p className="muted" data-testid="photo-note">Photos: suggestions can miss things. Please check the name, age and phone yourself before sending.</p>}
       {onFindMore && (
         <p data-testid="find-more">
           <button disabled={more === 'busy'} onClick={findMore}>Look for more personal details (on-device AI)</button>{' '}<br />
@@ -488,10 +489,10 @@ export default function Flow() {
         }
         const ocr = !words[i]?.length
         let found = suggestMasks(w, ocr)
-        if (ocr && found.length < 2) {
-          const w2 = await ocrWords(img.blob, true) // dim photo: retry with strong contrast, keep the better one
-          const again = suggestMasks(w2, true)
-          if (again.length > found.length) { found = again; w = w2 }
+        if (ocr && missingCore(found)) {
+          const both = mergePasses(w, await ocrWords(img.blob, true)) // second look with strong contrast
+          found = both.boxes
+          w = both.words
         }
         lines[i] = ocr ? nonResultLines(w) : null // kept in memory for the optional on-device check below
         out.push(found)
@@ -714,6 +715,7 @@ export default function Flow() {
               aiNote={ocrLines[masks.length] && avail !== 'available' ? 'The on-device AI is not available on this device, so these suggestions come from label rules only.' : ''}
               key={masks.length}
               img={original[masks.length]}
+              fromImage={!pageWords[masks.length]?.length}
               initial={[...(masks.at(-1) ?? []).filter((b) => !b.field), ...(suggest[masks.length] ?? [])]}
               label={original.length > 1 ? `Page ${masks.length + 1} of ${original.length}` : ''}
               onCancel={reset}

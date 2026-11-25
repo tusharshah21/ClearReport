@@ -15,23 +15,45 @@ const LABELS: [string, string[]][] = [
   ['age', ['age']], ['sex', ['gender']], ['sex', ['sex']],
   ['name', ['name']], ['name', ['patient']],
 ]
+// Extra label spellings for photos and scans only: the PDF path keeps its own list, because a box there also drops the line.
+const OCR_LABELS: [string, string[]][] = [
+  ['name', ['name', 'of', 'patient']], ['name', ['pt', 'name']],
+  ['id', ['registration', 'no']], ['id', ['patient', 'no']], ['id', ['lab', 'id']], ['id', ['lab', 'number']], ['id', ['mr', 'no']], ['id', ['visit', 'id']], ['id', ['sid', 'no']],
+  ['phone', ['mobile', 'no']], ['phone', ['phone', 'no']], ['phone', ['contact', 'no']], ['phone', ['ph', 'no']], ['phone', ['mob', 'no']], ['phone', ['mob']], ['phone', ['tel']],
+  ['doctor', ['referred', 'dr']], ['doctor', ['refby']], ['doctor', ['referredby']], ['name', ['patientname']], ['id', ['regno']], ['id', ['labno']],
+  ...LABELS,
+]
 const tok = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '')
+// Same token, or (OCR) one wrong, missing or extra letter in a word of 5+ letters ("Patent"), or 1/0 read for i/o ("1D").
+function sameTok(t: string, want: string, ocr: boolean): boolean {
+  if (t === want) return true
+  if (!ocr) return false
+  if (t.replace(/1/g, 'i').replace(/0/g, 'o') === want) return true
+  if (want.length < 5 || Math.abs(t.length - want.length) > 1) return false
+  let i = 0
+  while (i < t.length && t[i] === want[i]) i++
+  let j = 0
+  while (j < t.length - i && j < want.length - i && t[t.length - 1 - j] === want[want.length - 1 - j]) j++
+  return Math.max(t.length, want.length) - i - j <= 1
+}
 
 // Index just past the label starting at word i, or -1. Punctuation-only words ("/", ":") are skipped inside a label.
-function labelAt(ws: Word[], i: number): { field: string; end: number } | null {
+function labelAt(ws: Word[], i: number, ocr = false): { field: string; end: number } | null {
   if (i > 0 && tok(ws[i - 1].text) === 'test') return null // "Test Name" is a table header
   // A field label starts a line or a column (gap before it); "age" or "contact" inside a sentence is not one.
   // A label ending in ":" ("Age/Sex:") also counts after a small gap, as in "Reg No: X  Age/Sex: 58/M".
   const close = i > 0 && ws[i].x0 - ws[i - 1].x1 < 0.03
-  for (const [field, parts] of LABELS) {
+  for (const [field, parts] of ocr ? OCR_LABELS : LABELS) {
     let j = i, k = 0
     while (k < parts.length && j < ws.length) {
       const t = tok(ws[j].text)
       if (t === '') { j++; continue }
-      if (t !== parts[k]) break
+      if (!sameTok(t, parts[k], ocr)) break
       j++; k++
     }
-    if (k === parts.length && (!close || /:$/.test(ws[j - 1].text) || ws[j]?.text === ':')) return { field, end: j }
+    // OCR drops colons: an ID or phone label right after other text still counts when a number follows ("Male Reg No LVP-40721").
+    const numberNext = ocr && (field === 'id' || field === 'phone') && (ws[j]?.text.match(/\d/g)?.length ?? 0) >= 2
+    if (k === parts.length && (!close || numberNext || /:$/.test(ws[j - 1].text) || ws[j]?.text === ':')) return { field, end: j }
   }
   return null
 }
@@ -51,7 +73,8 @@ const boxOf = (ws: Word[], field: string, method: 'rule' | 'ai'): Suggestion => 
 // with OCR dropping the spaces), a decimal or a percentage. Photo OCR garbles units, so the decimal and the range
 // count on their own. A unit needs a real denominator ("mg/dL", "lakhs/cumm"): "45Y/M", "STY/FDMALE" (age/sex)
 // and dates ("17/11/2026", "17-11-2026") are not results.
-const RANGE = /(?<![\d/.-])\d{1,4}(?:\.\d+)?\s*[-–~]\s*\d{1,4}(?:\.\d+)?(?![\d/-])/
+// "200-000" is part of a phone number: a range bound has no leading zeros.
+const RANGE = /(?<![\d/.-])(?!0\d)\d{1,4}(?:\.\d+)?\s*[-–~]\s*(?!0\d)\d{1,4}(?:\.\d+)?(?![\d/-])/
 const UNIT = /[a-zµμ]\/(?:d?l|ml|[uµμ]l|cumm|cmm|mm3|hpf|min|hrs?|kg|m2|day)\b/i
 export const resultLine = (t: string) => /\d/.test(t) && (UNIT.test(t) || RANGE.test(t) || /\d\.\d/.test(t) || /\d\s*%/.test(t))
 
@@ -109,29 +132,93 @@ export function suggestMasks(words: Word[], ocr = false): Suggestion[] {
     if (!ws.length) return
     out.push(boxOf(ws, field, 'rule'))
   }
+  const cols: Column[] = []
   lines.forEach((line: Line, li) => {
     const ws = line.words
+    // "Name   Age/Gender   Lab No" with the values on the line below: a line of 2+ labels and nothing else
+    // ("Contact   Referred By   Collected").
+    const stacked = ocr && (() => {
+      let n = 0, k = 0
+      while (k < ws.length) {
+        if (tok(ws[k].text) === '') { k++; continue }
+        const l = labelAt(ws, k, true)
+        if (!l && NOT_PERSONAL.includes(tok(ws[k].text))) { k++; continue } // "Collected", a label of no interest
+        if (!l) return false
+        k = l.end; n++
+      }
+      return n >= 2 || (n === 1 && !ws.some((w) => w.text.includes(":"))) // or one label alone, no colon: "Name" over "Mr. Imran Testcase"
+    })()
     for (let i = 0; i < ws.length; i++) {
       if (BARCODE.test(ws[i].text)) { add([ws[i]], 'barcode'); continue }
-      const lab = labelAt(ws, i)
+      const lab = labelAt(ws, i, ocr)
       if (!lab) continue
       let s = lab.end
       while (s < ws.length && tok(ws[s].text) === '') s++ // the ":" after the label
       // The value runs until the next label, a "Something:" label, or a wide gap.
       let e = s
-      while (e < ws.length && !labelAt(ws, e) && !(e > s && endsLabel(ws[e - 1])) && !(e > s && ws[e].x0 - ws[e - 1].x1 > 0.1)) e++
+      while (e < ws.length && !labelAt(ws, e, ocr) && !(e > s && endsLabel(ws[e - 1])) && !(e > s && ws[e].x0 - ws[e - 1].x1 > 0.1)) e++
       if (e > s && endsLabel(ws[e - 1]) && e - 1 > s) e-- // "Reported:" belongs to the next field
       const xFrom = s > 0 ? ws[s - 1].x1 : line.words[0].x0
       const xTo = e < ws.length ? ws[e].x0 : 1
       let value = ws.slice(s, e)
+      if (stacked) {
+        const next = ws.findIndex((w, k) => k >= lab.end && (w.x0 - ws[k - 1].x1 > 0.1 || !!labelAt(ws, k, true)))
+        const x1 = next < 0 ? 1 : ws[next].x0 - 0.012
+        const below = lines.slice(li + 1, li + 3).map((l) => l.words.filter((w) => w.x0 >= ws[i].x0 - 0.012 && w.x0 < x1 && tok(w.text) !== '')).find((v) => v.length)
+        add(below && !labelAt(below, 0, true) ? below : [], lab.field)
+        i = lab.end - 1
+        continue
+      }
       // Empty slot: the value may have shifted down (WM14 page 5 prints "SELF" two rows lower, inside "A/c Status").
       // ponytail: covers whatever sits in that column on the next two rows, which over-masks a little.
-      if (!value.length) value = lines.slice(li + 1, li + 3).flatMap((l) => l.words.filter((w) => w.x0 >= xFrom - 0.002 && w.x0 < xTo && tok(w.text) !== ''))
+      if (!value.length && !ocr) value = lines.slice(li + 1, li + 3).flatMap((l) => l.words.filter((w) => w.x0 >= xFrom - 0.002 && w.x0 < xTo && tok(w.text) !== ''))
       add(value, lab.field)
+      const first = value.find((w) => tok(w.text).length > 1) // not a stray ":" read as "t"
+      if (ocr && first && first.y0 < line.y1) cols.push({ x: first.x0, y: (line.y0 + line.y1) / 2 })
       i = Math.max(i, e - 1)
     }
   })
+  if (ocr) gridBoxes(lines, cols, out)
   return out
+}
+
+// Photos often lose the label but keep the value (r6-photo: ": SUNITA ..." with "PATIENT" unread). Header details are
+// printed as a grid, so a value that starts in the same column as a labelled detail, on the next line up or down, is
+// covered too, unless its label is readable and is not personal ("DATE"). Grows line by line from each labelled detail.
+type Column = { x: number; y: number }
+const NOT_PERSONAL = ['date', 'reported', 'collected', 'received', 'registered', 'printed', 'sample', 'status', 'specimen']
+const centreIn = (b: Suggestion, r: Suggestion) => b.x + b.w / 2 >= r.x && b.x + b.w / 2 <= r.x + r.w && b.y + b.h / 2 >= r.y && b.y + b.h / 2 <= r.y + r.h
+function gridBoxes(lines: Line[], cols: Column[], out: Suggestion[]) {
+  for (let k = 0; k < cols.length; k++) // cols grows as rows are added
+    for (const line of lines) {
+      const y = (line.y0 + line.y1) / 2, ws = line.words, dy = Math.abs(y - cols[k].y)
+      if (dy > 0.045 || dy < 0.005) continue
+      const s = ws.findIndex((w, i) => Math.abs(w.x0 - cols[k].x) < 0.012 && tok(w.text) !== '' && (i === 0 || w.x0 - ws[i - 1].x1 > 0.02 || tok(ws[i - 1].text).length < 2))
+      if (s < 0 || labelAt(ws, s, true)) continue
+      const label = ws.slice(0, s).filter((w) => tok(w.text).length > 1).at(-1) // the word just left of the value
+      if (label && NOT_PERSONAL.some((n) => sameTok(tok(label.text), n, true))) continue
+      let e = s + 1
+      while (e < ws.length && ws[e].x0 - ws[e - 1].x1 <= 0.1 && !labelAt(ws, e, true)) e++
+      const run = ws.slice(s, e)
+      if (!readable(run.map((w) => w.text).join(' '))) continue
+      const b = boxOf(run, 'detail', 'rule')
+      if (out.some((r) => centreIn(b, r))) continue
+      out.push(b)
+      cols.push({ x: cols[k].x, y })
+    }
+}
+
+// Photos and scanned pages: OCR reads some fields plainly and others only with strong contrast. When a main field is
+// missing, read again with contrast and add the fields the better pass lacks, never over a result line either pass saw.
+export const missingCore = (b: Suggestion[]) => !['name', 'age', 'phone'].every((f) => b.some((x) => x.field.startsWith(f)))
+export function mergePasses(plain: Word[], strong: Word[]): { words: Word[]; boxes: Suggestion[] } {
+  const [a, b] = [plain, strong].map((words) => ({ words, boxes: suggestMasks(words, true) }))
+  const [best, other] = b.boxes.length > a.boxes.length ? [b, a] : [a, b]
+  const lines = toLines(best.words), free = outsideResults(lines)
+  const have = new Set(best.boxes.map((x) => x.field))
+  const overResult = (x: Suggestion) => lines.some((l) => !free(l) && l.y0 < x.y + x.h && l.y1 > x.y)
+  const extra = other.boxes.filter((x) => (x.field === 'detail' || !have.has(x.field)) && !overResult(x) && !best.boxes.some((r) => centreIn(x, r) || centreIn(r, x)))
+  return { words: best.words, boxes: [...best.boxes, ...extra] }
 }
 
 // Local OCR for photos. Worker, engine and English data are served from this site (/ocr/, copied by

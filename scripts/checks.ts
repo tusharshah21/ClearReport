@@ -310,6 +310,41 @@ console.log('crop ok')
     assert.equal(resultLine(t), want, t)
   console.log('ai mask boxes ok')
 }
+// Photo and scan label rules (OCR words only; the PDF path keeps its exact labels).
+{
+  const { mergePasses, missingCore, resultLine, suggestMasks } = await import('../src/masks')
+  const w = (text: string, x0: number, y0: number) => ({ text, x0, x1: x0 + 0.008 * text.length, y0, y1: y0 + 0.012 })
+  const fields = (ws: ReturnType<typeof w>[], ocr = true) => suggestMasks(ws, ocr).map((b) => b.field)
+  const rows = [0.4, 0.45, 0.5].flatMap((y) => [w('Haemoglobin', 0.03, y), w('13.9', 0.4, y), w('g/dL', 0.5, y), w('13.0-17.0', 0.7, y)])
+  // A toll-free number in the header is not a printed range, so it does not start the results block.
+  assert.equal(resultLine('Toll free 1800-000-0000'), false)
+  assert.equal(resultLine('oll free 200-000 0000'), false)
+  // Stacked labels with the values on the line below (scanned.pdf); "Collected" is a label of no interest.
+  const stacked = [w('Toll', 0.8, 0.03), w('free', 0.85, 0.03), w('200-000', 0.9, 0.03),
+    w('Name', 0.04, 0.07), w('Age/Gender', 0.35, 0.07), w('Lab', 0.66, 0.07), w('No/', 0.69, 0.07), w('UHID', 0.72, 0.07),
+    w('Mrs.', 0.04, 0.09), w('Priya', 0.08, 0.09), w('Samplename', 0.15, 0.09), w('52Y/F', 0.35, 0.09), w('SPL/FAKE/0772', 0.66, 0.09),
+    w('Contact', 0.04, 0.11), w('Referred', 0.35, 0.11), w('By', 0.46, 0.11), w('Collected', 0.66, 0.11),
+    w('+91', 0.04, 0.13), w('90000', 0.09, 0.13), w('00002', 0.16, 0.13), w('Dr.', 0.35, 0.13), w('Notreal', 0.39, 0.13), w('02-Nov-2026', 0.66, 0.13), ...rows]
+  assert.deepEqual(fields(stacked), ['name', 'age/sex', 'id', 'phone', 'doctor'], 'stacked labels: every value below its label, the collected date left alone')
+  // OCR misspellings of a label: "Patent 1D".
+  assert.deepEqual(fields([w('Patent', 0.5, 0.1), w('1D:', 0.58, 0.1), w('TL-FAKE-100231', 0.62, 0.1), ...rows]), ['id'])
+  assert.deepEqual(fields([w('Patent', 0.5, 0.1), w('1D:', 0.58, 0.1), w('TL-FAKE-100231', 0.62, 0.1)], false), [], 'the PDF path keeps exact labels')
+  // A colon OCR dropped: "Male Reg No LVP-TEST-40721 Mobile +91 ...".
+  assert.deepEqual(fields([w('38', 0.03, 0.2), w('Years,', 0.06, 0.2), w('Male', 0.14, 0.2), w('Reg', 0.2, 0.2), w('No', 0.24, 0.2), w('LVP-TEST-40721', 0.28, 0.2), w('Mobile', 0.47, 0.2), w('+91', 0.55, 0.2), w('90000', 0.6, 0.2), ...rows]), ['id', 'phone'])
+  // Labels OCR could not read (r6-photo): values in the same column as a labelled one are covered, a date is not.
+  const grid = [w('ra', 0.02, 0.09), w(':', 0.197, 0.09), w('SUNITA', 0.214, 0.09), w('NOTAREALPERSON', 0.3, 0.09), w('REG.', 0.5, 0.09), w('NO.', 0.545, 0.09), w('MW00FAKE6020', 0.689, 0.09),
+    w(':', 0.197, 0.112), w('57Y/FEMALE', 0.213, 0.112), w('LL)', 0.501, 0.112), w('EE', 0.69, 0.112), w(':', 0.725, 0.112), w('009', 0.743, 0.112), w('00006', 0.78, 0.112),
+    w('REF.', 0.023, 0.133), w('DR.', 0.068, 0.133), w('t', 0.197, 0.133), w('DR.', 0.214, 0.133), w('EXAMPLE', 0.25, 0.133), w('VERMA', 0.35, 0.133), w('DATE', 0.501, 0.133), w(':', 0.674, 0.133), w('21/11/2026', 0.69, 0.133), ...rows]
+  const g = suggestMasks(grid, true)
+  assert.deepEqual(g.map((b) => b.field), ['id', 'doctor', 'detail', 'detail', 'detail'])
+  assert.ok(!g.some((b) => b.y > 0.125 && b.x > 0.6), 'the report date beside DATE is not covered')
+  // Two OCR passes: fields the better pass lacks are added from the other, never over a result line.
+  assert.equal(missingCore(suggestMasks(grid, true)), true)
+  const merged = mergePasses(grid, [w('Mobile:', 0.5, 0.112), w('+91', 0.57, 0.112), w('90000', 0.6, 0.112), w('Ph', 0.03, 0.45), w('6.0', 0.1, 0.45), ...rows]).boxes
+  assert.equal(merged.length, g.length + 1, 'the phone label from the strong pass is added')
+  assert.ok(merged.every((b) => b.y < 0.3), 'nothing over the results')
+  console.log('photo mask rules ok')
+}
 // Units in AI-written text are replaced by the payload's exact unit strings (plain code), anchored to the value.
 {
   const p1 = toPayload(gtOf('p1')).payload // TSH 3.1 µIU/mL, WBC 11200 /cumm, glucose 96 mg/dL
