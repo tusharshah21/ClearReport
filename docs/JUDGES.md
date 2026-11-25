@@ -2,6 +2,8 @@
 
 ClearReport explains a blood test report in plain English or Hindi while keeping the patient's identity on their own device. Everything below uses synthetic reports only.
 
+Demo video (2:53): https://youtu.be/9BSmEUX1kyw
+
 ## What to click first
 
 1. Open https://clearreport-717f3.web.app and click **Try a sample report**. The app opens with a synthetic report (a fictional patient) already loaded.

@@ -1,6 +1,6 @@
 # ClearReport
 
-**Demo video:** [YouTube link to be added](#) · **Judging?** Start with the one-page [guide for judges](docs/JUDGES.md).
+**Demo video:** [Watch it on YouTube (2:53)](https://youtu.be/9BSmEUX1kyw) · **Judging?** Start with the one-page [guide for judges](docs/JUDGES.md).
 
 **Your blood test report, explained in plain English or Hindi, with your personal details kept on your device.**
 
