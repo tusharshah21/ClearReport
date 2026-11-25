@@ -100,10 +100,13 @@ async function checkImage(ctx: BrowserContext, b64: string, mime: string, burns:
   const page = await ctx.newPage()
   await page.goto(`${BASE}/favicon.svg`)
   const r = await page.evaluate(async ({ b64, mime, burns, origs }) => {
-    // Scaled so the long side is 2000 px, as the app does before its own OCR (small text OCRs badly).
-    const big = async (src: string) => {
+    // Scaled so the long side is 2000 px, as the app does before its own OCR (small text OCRs badly). strong: the
+    // grayscale + contrast pass the app also uses on dim photos (r6-photo is unreadable to OCR without it).
+    const big = async (src: string, strong = false) => {
       const b = await createImageBitmap(await (await fetch(src)).blob()), s = Math.max(1, 2000 / Math.max(b.width, b.height))
-      const k = new OffscreenCanvas(Math.round(b.width * s), Math.round(b.height * s)); k.getContext('2d')!.drawImage(b, 0, 0, k.width, k.height)
+      const k = new OffscreenCanvas(Math.round(b.width * s), Math.round(b.height * s)), kg = k.getContext('2d')!
+      if (strong) kg.filter = 'grayscale(1) contrast(2.5) brightness(1.1)'
+      kg.drawImage(b, 0, 0, k.width, k.height)
       const u8 = new Uint8Array(await (await k.convertToBlob({ type: 'image/png' })).arrayBuffer())
       let bin = ''; for (let i = 0; i < u8.length; i += 32768) bin += String.fromCharCode(...u8.subarray(i, i + 32768))
       return btoa(bin)
@@ -121,16 +124,17 @@ async function checkImage(ctx: BrowserContext, b64: string, mime: string, burns:
       for (let i = 0; i < d.length; i += 4) { total++; if (d[i] > tol || d[i + 1] > tol || d[i + 2] > tol) bad++ }
     }
     const orig = origs.find((o) => o.cw === bmp.width && o.ch === bmp.height)
-    return { w: bmp.width, h: bmp.height, boxes: mine.length, total, bad, sentBig: await big(`data:${mime};base64,${b64}`), origBig: orig ? await big(orig.url) : null }
+    return { w: bmp.width, h: bmp.height, boxes: mine.length, total, bad, sent: [await big(`data:${mime};base64,${b64}`), await big(`data:${mime};base64,${b64}`, true)], orig: orig ? [await big(orig.url), await big(orig.url, true)] : [] }
   }, { b64, mime, burns, origs })
   await page.close()
   if (!r.boxes) fail(`${where}: no burned boxes match the ${r.w}x${r.h} image sent`)
   else if (r.bad) fail(`${where}: ${r.bad} of ${r.total} pixels inside the ${r.boxes} boxes are not black`)
   else ok(`${where}: ${r.w}x${r.h} ${mime}, ${r.boxes} boxes, all ${r.total} pixels inside them solid black`)
   // Control first: what OCR can read on the same page before any box was burned. Then the exact image sent.
-  const seen = r.origBig ? visible((await worker.recognize(Buffer.from(r.origBig, 'base64'))).data.text, p) : []
-  const { data } = await worker.recognize(Buffer.from(r.sentBig, 'base64'))
-  if (scanText(data.text, p, `${where} OCR of sent image`)) ok(`${where}: OCR reads ${seen.length ? seen.join(', ') : 'no identity string'} on the unmasked page, and none of it on the sent image (${data.text.split(/\s+/).length} words)`)
+  const read = async (imgs: string[]) => (await Promise.all(imgs.map(async (b) => (await worker.recognize(Buffer.from(b, 'base64'))).data.text))).join(' ')
+  const seen = [...new Set(visible(await read(r.orig), p))]
+  const text = await read(r.sent)
+  if (scanText(text, p, `${where} OCR of sent image`)) ok(`${where}: OCR (plain and strong contrast) reads ${seen.length ? seen.join(', ') : 'no identity string'} on the unmasked page, and none of it on the sent image (${text.split(/\s+/).length} words)`)
   if (!seen.length) { warns.push(`${where}: OCR cannot read the identity even on the unmasked page, so this image needs a look by eye (PROOF_SAVE=dir)`); console.log(`  WARN ${warns.at(-1)}`) }
 }
 
