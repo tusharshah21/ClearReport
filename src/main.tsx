@@ -23,12 +23,18 @@ if (spike || isApp) {
   const [{ startSession }, { loadConfig }] = await Promise.all([import('./firebase'), import('./remote')])
   Page = spike ? (await import('./Spike')).default : (await import('./Flow')).default
   startSession() // not awaited: the app works while sign-in finishes
-  await loadConfig() // at most 3 s; defaults otherwise
+  // Not awaited either: the app shows at once with the in-code defaults (remote.ts, Path 3 off), and draws again
+  // when Remote Config arrives. Model names are read at each call, so a call made after that uses the new values.
+  loadConfig().then(show)
 } else {
   Page = (await import('./Landing')).default
 }
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <Page />
-  </StrictMode>,
-)
+const root = createRoot(document.getElementById('root')!)
+function show() {
+  root.render(
+    <StrictMode>
+      <Page />
+    </StrictMode>,
+  )
+}
+show()

@@ -1,5 +1,6 @@
 // Remote Config: model name, prompt version and feature flags, with in-code defaults.
-// The app works with the defaults if Remote Config is unreachable; values are read once at start.
+// The app starts with the defaults and switches to the fetched values when they arrive (or keeps the defaults if
+// Remote Config is unreachable). Callers read config() at the moment they need a value, never once at start.
 import { fetchAndActivate, getRemoteConfig, getValue } from 'firebase/remote-config'
 import { app } from './firebase'
 
@@ -28,7 +29,7 @@ function read(): Config {
 }
 export const config = () => current
 
-// Called once at start. Never blocks the app for long: after 3 s the defaults (or the last cached values) stay.
+// Called once at start, not awaited: after 3 s the defaults (or the last cached values) stay.
 export async function loadConfig(): Promise<Config> {
   try {
     await Promise.race([fetchAndActivate(rc), new Promise((_, no) => setTimeout(() => no(new Error('timeout')), 3000))])
